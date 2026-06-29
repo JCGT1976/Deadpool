@@ -430,35 +430,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 <!-- ══════════ MODAL PRESUPUESTO ══════════ -->
 <div id="budgetModal">
   <div class="budget-modal-card">
-    <div class="budget-modal-title">💰 Configurar Presupuesto</div>
-    <div class="budget-modal-sub">Define el presupuesto para el período seleccionado</div>
-    <div class="budget-tabs">
-      <button class="budget-tab active" onclick="budgetSetPeriodo('mensual',this)">Mensual</button>
-      <button class="budget-tab" onclick="budgetSetPeriodo('trimestral',this)">Trimestral</button>
-      <button class="budget-tab" onclick="budgetSetPeriodo('anual',this)">Anual</button>
+    <div class="budget-modal-title">💰 Presupuesto Semanal</div>
+    <div class="budget-modal-sub">Semana en curso · elige moneda y captura el monto</div>
+
+    <!-- Selector de moneda -->
+    <div class="budget-tabs" style="margin-bottom:16px;">
+      <button class="budget-tab active" id="btnMXN" onclick="budgetSetMoneda('MXN',this)">🇲🇽 Peso MXN</button>
+      <button class="budget-tab" id="btnUSD" onclick="budgetSetMoneda('USD',this)">🇺🇸 Dólar USD</button>
     </div>
-    <div class="budget-row">
-      <div class="budget-field">
-        <label>Período</label>
-        <input id="budgetPeriodo" type="month" value="">
-      </div>
-      <div class="budget-field">
-        <label>Categoría</label>
-        <select id="budgetCategoria">
-          <option value="general">General</option>
-          <option value="ingresos">Ingresos</option>
-          <option value="gastos">Gastos</option>
-          <option value="inversion">Inversión</option>
-          <option value="operacion">Operación</option>
-          <option value="nomina">Nómina</option>
-          <option value="marketing">Marketing</option>
-          <option value="tecnologia">Tecnología</option>
-        </select>
+
+    <!-- Semana activa (solo lectura, calculada automáticamente) -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:18px;">📅</span>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Semana activa</div>
+        <div id="budgetSemanaLabel" style="font-size:13px;font-weight:600;color:var(--text);"></div>
       </div>
     </div>
+
     <div class="budget-row">
       <div class="budget-field">
-        <label>Monto Presupuestado (MXN)</label>
+        <label id="budgetMontoLabel">Monto Presupuestado (MXN)</label>
         <input id="budgetMonto" type="number" placeholder="0.00" step="100" min="0">
       </div>
       <div class="budget-field">
@@ -472,8 +464,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <input id="budgetNotas" type="text" placeholder="Descripción opcional…">
       </div>
     </div>
+
     <div id="budgetListWrap" style="margin-top:14px;display:none;">
-      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Presupuestos guardados</div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Semanas guardadas</div>
       <div id="budgetList" style="max-height:140px;overflow-y:auto;"></div>
     </div>
     <div class="budget-modal-actions">
@@ -746,77 +739,109 @@ function showTab(tab) {
 /* ══════════════════════════════════════════
    PRESUPUESTO — estado global
 ══════════════════════════════════════════ */
-let budgetData = JSON.parse(localStorage.getItem('mitech_budgets') || '[]');
-let budgetPeriodoActual = 'mensual';
+let budgetData   = JSON.parse(localStorage.getItem('mitech_budgets') || '[]');
+let budgetMoneda = localStorage.getItem('mitech_budget_moneda') || 'MXN';
+
+function getWeekKey(date) {
+  const d = date ? new Date(date) : new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return d.getFullYear() + '-W' + String(week).padStart(2, '0');
+}
+
+function getWeekLabel(weekKey) {
+  const [year, wStr] = weekKey.split('-W');
+  const w = parseInt(wStr);
+  const jan1 = new Date(parseInt(year), 0, 1);
+  const dayOfWeek = jan1.getDay() || 7;
+  const monday = new Date(jan1);
+  monday.setDate(jan1.getDate() + (w - 1) * 7 - (dayOfWeek - 1));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const opts = { day: 'numeric', month: 'short' };
+  return monday.toLocaleDateString('es-MX', opts) + ' – ' + sunday.toLocaleDateString('es-MX', { ...opts, year: 'numeric' });
+}
+
+function fmtBudget(n, moneda) {
+  const m = moneda || budgetMoneda;
+  if (m === 'USD') return '$' + (n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' USD';
+  return '$' + (n||0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' MXN';
+}
 
 function openBudgetModal() {
-  const now = new Date().toISOString().slice(0,7);
-  document.getElementById('budgetPeriodo').value = now;
+  const weekKey   = getWeekKey();
+  const weekLabel = getWeekLabel(weekKey);
+  document.getElementById('budgetSemanaLabel').textContent = weekLabel;
+  const existing = budgetData.find(b => b.semana === weekKey);
+  document.getElementById('budgetMonto').value  = existing ? existing.monto  : '';
+  document.getElementById('budgetAlerta').value = existing ? existing.alerta : 80;
+  document.getElementById('budgetNotas').value  = existing ? existing.notas  : '';
+  budgetSetMoneda(budgetMoneda, document.getElementById(budgetMoneda === 'USD' ? 'btnUSD' : 'btnMXN'));
   budgetRenderList();
   document.getElementById('budgetModal').classList.add('open');
 }
+
 function closeBudgetModal() {
   document.getElementById('budgetModal').classList.remove('open');
 }
-function budgetSetPeriodo(tipo, btn) {
-  budgetPeriodoActual = tipo;
-  document.querySelectorAll('.budget-tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+
+function budgetSetMoneda(moneda, btn) {
+  budgetMoneda = moneda;
+  localStorage.setItem('mitech_budget_moneda', moneda);
+  document.querySelectorAll('.budget-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('budgetMontoLabel').textContent = 'Monto Presupuestado (' + moneda + ')';
 }
+
 function saveBudget() {
-  const periodo   = document.getElementById('budgetPeriodo').value;
-  const categoria = document.getElementById('budgetCategoria').value;
-  const monto     = parseFloat(document.getElementById('budgetMonto').value);
-  const alerta    = parseFloat(document.getElementById('budgetAlerta').value) || 80;
-  const notas     = document.getElementById('budgetNotas').value.trim();
-
-  if (!periodo || isNaN(monto) || monto <= 0) {
-    toast('Ingresa período y monto válidos', 'err'); return;
-  }
-
+  const semana = getWeekKey();
+  const monto  = parseFloat(document.getElementById('budgetMonto').value);
+  const alerta = parseFloat(document.getElementById('budgetAlerta').value) || 80;
+  const notas  = document.getElementById('budgetNotas').value.trim();
+  if (isNaN(monto) || monto <= 0) { toast('Ingresa un monto válido', 'err'); return; }
   const entry = {
-    id: Date.now(),
-    periodo, tipo: budgetPeriodoActual, categoria, monto, alerta, notas,
-    creado: new Date().toISOString(), capturado_por: currentUser?.nombre || 'Usuario'
+    id: Date.now(), semana, moneda: budgetMoneda,
+    monto, alerta, notas,
+    label: getWeekLabel(semana),
+    creado: new Date().toISOString(),
+    capturado_por: currentUser?.nombre || 'Usuario'
   };
-  budgetData = budgetData.filter(b => !(b.periodo===periodo && b.categoria===categoria));
+  budgetData = budgetData.filter(b => b.semana !== semana);
   budgetData.push(entry);
   localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
-  toast('Presupuesto guardado ✓');
+  toast('Presupuesto semanal guardado ✓');
   closeBudgetModal();
-  // Refrescar dashboard si estamos en él
-  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') {
-    showTab('dashboard');
-  }
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
+
 function deleteBudget(id) {
   budgetData = budgetData.filter(b => b.id !== id);
   localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
   budgetRenderList();
   toast('Presupuesto eliminado');
 }
+
 function budgetRenderList() {
   const wrap = document.getElementById('budgetListWrap');
   const list = document.getElementById('budgetList');
-  if (!budgetData.length) { wrap.style.display='none'; return; }
-  wrap.style.display='block';
-  list.innerHTML = budgetData.slice().reverse().map(b => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
-      <div style="flex:1;">
-        <span style="font-size:12px;font-weight:700;color:var(--text);">${fmt(b.monto)}</span>
-        <span style="font-size:10px;color:var(--muted);margin-left:6px;">${b.periodo} · ${b.categoria}</span>
-        ${b.notas ? `<div style="font-size:10px;color:var(--muted)">${b.notas}</div>` : ''}
-      </div>
-      <button class="btn-sm btn-danger" style="padding:3px 8px;font-size:10px;" onclick="deleteBudget(${b.id})">✕</button>
-    </div>
-  `).join('');
+  if (!budgetData.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = budgetData.slice().reverse().map(b => {
+    const sym = b.moneda === 'USD' ? '🇺🇸' : '🇲🇽';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">' +
+      '<div style="flex:1;">' +
+        '<span style="font-size:12px;font-weight:700;color:var(--text);">' + sym + ' ' + fmtBudget(b.monto, b.moneda) + '</span>' +
+        '<div style="font-size:10px;color:var(--muted);">' + (b.label || b.semana) + '</div>' +
+        (b.notas ? '<div style="font-size:10px;color:var(--muted);">' + b.notas + '</div>' : '') +
+      '</div>' +
+      '<button class="btn-sm btn-danger" style="padding:3px 8px;font-size:10px;" onclick="deleteBudget(' + b.id + ')">✕</button>' +
+    '</div>';
+  }).join('');
 }
 
-// Cerrar modal al hacer clic fuera
-document.getElementById('budgetModal').addEventListener('click', function(e){
-  if(e.target === this) closeBudgetModal();
+document.getElementById('budgetModal').addEventListener('click', function(e) {
+  if (e.target === this) closeBudgetModal();
 });
-
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
   const acc = el.closest('.accordion');
@@ -840,26 +865,23 @@ function renderDashboard(c) {
   const utilidad = totalIngresos - totalGastos;
   const margen = totalIngresos > 0 ? (utilidad/totalIngresos*100) : 0;
 
-  // Presupuesto: tomar el más reciente del mes actual
-  const nowPeriodo = new Date().toISOString().slice(0,7);
-  const budgetGen  = budgetData.find(b => b.periodo === nowPeriodo && b.categoria === 'general')
-                  || budgetData.find(b => b.periodo === nowPeriodo)
-                  || null;
-  const budgetMonto = budgetGen ? budgetGen.monto : 0;
+  // Presupuesto semanal activo
+  const nowWeekKey  = getWeekKey();
+  const budgetGen   = budgetData.find(b => b.semana === nowWeekKey) || null;
+  const budgetMonto = budgetGen ? budgetGen.monto  : 0;
   const budgetEjec  = totalGastos;
-  const budgetPct   = budgetMonto > 0 ? Math.min((budgetEjec / budgetMonto)*100, 100) : 0;
   const budgetAlerta= budgetGen ? budgetGen.alerta : 80;
+  const budgetPct   = budgetMonto > 0 ? Math.min((budgetEjec / budgetMonto)*100, 100) : 0;
   const budgetColor = budgetPct >= 100 ? 'var(--red)' : budgetPct >= budgetAlerta ? 'var(--yellow)' : 'var(--green)';
   const budgetStatus= budgetMonto > 0
-    ? (budgetPct >= 100 ? '⚠️ Presupuesto excedido' : budgetPct >= budgetAlerta ? '⚡ Cerca del límite' : '✅ En rango')
+    ? (budgetPct >= 100 ? '⚠️ Excedido' : budgetPct >= budgetAlerta ? '⚡ Cerca del límite' : '✅ En rango')
     : '➕ Clic para configurar';
-
-  // Presupuestos por categoría este mes
-  const budgetsCatMes = budgetData.filter(b => b.periodo === nowPeriodo);
-  const nBudgets = budgetsCatMes.length;
+  const budgetSymbol= budgetGen?.moneda === 'USD' ? '🇺🇸' : '🇲🇽';
+  const budgetLabel = budgetGen ? getWeekLabel(nowWeekKey) : getWeekLabel(nowWeekKey);
+  const nBudgets    = budgetData.filter(b => b.semana === nowWeekKey).length;
 
   c.innerHTML = `
-    <!-- ── SECCIÓN 1: KPIs principales (accordion) ── -->
+    <!-- ── Accordion: KPIs + Presupuesto juntos ── -->
     <div class="accordion open" id="acc-kpis">
       <div class="accordion-header" onclick="toggleAccordion(this)">
         <span class="accordion-icon">📊</span>
@@ -900,71 +922,32 @@ function renderDashboard(c) {
               <div class="kpi-value">${dat.length}</div>
               <div class="kpi-sub">Datos capturados</div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- ── SECCIÓN 2: KPI Presupuesto clickeable ── -->
-    <div class="accordion open" id="acc-budget">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">💰</span>
-        <span class="accordion-title">Presupuesto</span>
-        <span class="accordion-badge">${nBudgets > 0 ? nBudgets+' configurado'+(nBudgets>1?'s':'') : 'Sin configurar'}</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body">
-        <div class="accordion-inner">
-          <div class="kpi-grid" style="margin-bottom:12px;">
-            <!-- KPI Principal Presupuesto -->
-            <div class="kpi-card kpi-clickable" onclick="openBudgetModal()" style="grid-column:span 2; border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};">
-              <div class="kpi-label">💰 Presupuesto General · ${nowPeriodo}</div>
-              <div class="kpi-value" style="color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
-                ${budgetMonto > 0 ? fmt(budgetMonto) : '— Sin monto —'}
+            <!-- ── KPI Presupuesto Semanal (mismo nivel) ── -->
+            <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
+                 style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};">
+              <div class="kpi-label">
+                ${budgetSymbol} Presupuesto Semanal
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-                <div class="kpi-sub">${budgetStatus}</div>
-                ${budgetMonto > 0 ? `<div style="font-size:11px;font-weight:700;color:${budgetColor};">${budgetPct.toFixed(1)}% ejecutado</div>` : ''}
+              <div class="kpi-value" style="font-size:20px;color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
+                ${budgetMonto > 0 ? fmtBudget(budgetMonto, budgetGen?.moneda) : '— Sin monto —'}
               </div>
+              <div class="kpi-sub" style="margin-top:2px;">${budgetLabel}</div>
               ${budgetMonto > 0 ? `
                 <div class="kpi-budget-bar">
-                  <div class="kpi-budget-bar-fill" style="width:${budgetPct}%;background:${budgetColor};"></div>
+                  <div class="kpi-budget-bar-fill" style="width:${budgetPct.toFixed(1)}%;background:${budgetColor};"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;margin-top:6px;">
-                  <span style="font-size:10px;color:var(--muted);">Gastado: ${fmt(budgetEjec)}</span>
-                  <span style="font-size:10px;color:var(--muted);">Disponible: ${fmt(Math.max(0,budgetMonto-budgetEjec))}</span>
-                </div>
-              ` : ''}
-              <div class="kpi-click-hint">✏️ Clic para configurar presupuesto</div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                  <span style="font-size:10px;color:${budgetColor};font-weight:700;">${budgetPct.toFixed(1)}%</span>
+                  <span style="font-size:10px;color:var(--muted);">${budgetStatus}</span>
+                </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para configurar</div>`}
             </div>
-
-            <!-- KPIs por categoría -->
-            ${budgetsCatMes.map(b => {
-              const pct = b.monto > 0 ? Math.min((totalGastos/b.monto)*100,100) : 0;
-              const col = pct>=100?'var(--red)':pct>=b.alerta?'var(--yellow)':'var(--green)';
-              return `
-                <div class="kpi-card kpi-clickable" onclick="openBudgetModal()">
-                  <div class="kpi-label">${b.categoria}</div>
-                  <div class="kpi-value" style="color:${col};">${fmt(b.monto)}</div>
-                  <div class="kpi-sub">${b.tipo} · alerta ${b.alerta}%</div>
-                  <div class="kpi-budget-bar" style="margin-top:8px;">
-                    <div class="kpi-budget-bar-fill" style="width:${pct.toFixed(1)}%;background:${col};"></div>
-                  </div>
-                  ${b.notas ? `<div style="font-size:10px;color:var(--muted);margin-top:4px;">${b.notas}</div>` : ''}
-                  <div class="kpi-click-hint">✏️ Editar</div>
-                </div>`;
-            }).join('')}
-          </div>
-          <div style="text-align:right;">
-            <button class="btn-sm btn-accent" onclick="openBudgetModal()" style="font-size:11px;">
-              ➕ Agregar / editar presupuesto
-            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ── SECCIÓN 3: Datos (accordion) ── -->
+    <!-- ── Accordion: Vista de Datos ── -->
     <div class="accordion open" id="acc-datos">
       <div class="accordion-header" onclick="toggleAccordion(this)">
         <span class="accordion-icon">📋</span>
