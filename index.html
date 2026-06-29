@@ -1223,43 +1223,7 @@ function renderDashboard(c) {
   `;
 }
 
-function renderInfoBlock() {
-  const cat = allData.catalogo;
-  const dat = allData.datos;
 
-  if (!cat && !dat) {
-    return `
-      <div class="panel" style="text-align:center;padding:40px">
-        <div style="font-size:32px;margin-bottom:12px">🔍</div>
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Explorando tu base de datos…</div>
-        <div style="font-size:13px;color:var(--muted);max-width:400px;margin:0 auto">
-          No se encontraron las tablas esperadas. Abre la consola del navegador (F12) para ver qué tablas se detectaron y actualiza el nombre de tabla en el código.
-        </div>
-        <div style="margin-top:16px">
-          <button class="btn-sm btn-accent" onclick="loadAllData().then(()=>showTab('dashboard'))">🔄 Reintentar</button>
-        </div>
-      </div>`;
-  }
-
-  if (cat && cat.length > 0) {
-    // Mostrar primeros 5 conceptos del catálogo como preview
-    const cols = Object.keys(cat[0]);
-    const preview = cat.slice(0,5);
-    return `
-      <div class="section-title">Vista previa del catálogo</div>
-      <div class="panel">
-        <table class="fin-table">
-          <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-          <tbody>
-            ${preview.map(row=>`<tr>${cols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}</tr>`).join('')}
-          </tbody>
-        </table>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">Mostrando 5 de ${cat.length} registros · Tabla: <code style="color:var(--accent)">${allData.catalogoTable}</code></div>
-      </div>`;
-  }
-
-  return '';
-}
 
 /* ══════════════════════════════════════════
    TAB: REPORTE
@@ -2092,6 +2056,7 @@ function cxpSetCategoria(cat) {
 </script>
 </body>
 </html>
+
 
 
 
