@@ -1009,18 +1009,22 @@ function entradasSetMoneda(m) {
   _entradaMonedaActual = m;
   const btnMXN = document.getElementById('btnEntMXN');
   const btnUSD = document.getElementById('btnEntUSD');
+  const sym    = document.getElementById('entradaMonedaSym');
+  const label  = document.getElementById('labelEntMonto');
   if (m === 'MXN') {
     btnMXN.style.background = 'var(--accent)'; btnMXN.style.borderColor = 'var(--accent)'; btnMXN.style.color = '#fff';
     btnUSD.style.background = 'var(--surface2)'; btnUSD.style.borderColor = 'var(--border)'; btnUSD.style.color = 'var(--muted)';
     document.getElementById('tcRow').style.display = 'none';
-    document.getElementById('labelEntMonto').textContent = 'Monto (MXN)';
-    document.getElementById('entradaMonedaSym').textContent = '$';
+    label.innerHTML = 'Monto <span style="color:var(--green);font-weight:700;">MXN</span>';
+    sym.textContent = '$';
+    sym.style.color = 'var(--green)';
   } else {
     btnUSD.style.background = '#1a3a5c'; btnUSD.style.borderColor = '#3b82f6'; btnUSD.style.color = '#60a5fa';
     btnMXN.style.background = 'var(--surface2)'; btnMXN.style.borderColor = 'var(--border)'; btnMXN.style.color = 'var(--muted)';
     document.getElementById('tcRow').style.display = 'block';
-    document.getElementById('labelEntMonto').textContent = 'Monto (USD)';
-    document.getElementById('entradaMonedaSym').textContent = 'USD $';
+    label.innerHTML = 'Monto <span style="color:#60a5fa;font-weight:700;">USD</span>';
+    sym.textContent = '$';
+    sym.style.color = '#60a5fa';
     const savedTC = localStorage.getItem('mitech_tc') || '17';
     if (!document.getElementById('tcValue').value) document.getElementById('tcValue').value = savedTC;
   }
@@ -2055,6 +2059,7 @@ function cxpSetCategoria(cat) {
 </script>
 </body>
 </html>
+
 
 
 
