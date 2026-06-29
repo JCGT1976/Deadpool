@@ -1071,7 +1071,6 @@ function entradasRenderList() {
       </div>
     </div>`;
   }).join('') || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin entradas registradas</div>';
-  }).join('') || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin entradas registradas</div>';
 
   // Totales
   const tcv = parseMoney(document.getElementById('tcValue').value) || parseFloat(localStorage.getItem('mitech_tc')||'17');
@@ -2056,6 +2055,7 @@ function cxpSetCategoria(cat) {
 </script>
 </body>
 </html>
+
 
 
 
