@@ -257,6 +257,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   transition:width .6s cubic-bezier(.4,0,.2,1);
 }
 
+/* ── MODAL ENTRADAS ─────────────────────────────────── */
+#entradasModal{display:none;}
+#entradasModal.open{display:flex;opacity:1;pointer-events:all;}
+.entrada-row{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+}
+.entrada-row:hover{border-color:var(--accent);}
+
 /* ── MODAL PRESUPUESTO ──────────────────────────────── */
 #budgetModal{
   position:fixed;inset:0;z-index:2000;
@@ -472,6 +481,71 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div class="budget-modal-actions">
       <button class="btn-sm btn-accent" onclick="saveBudget()">💾 Guardar</button>
       <button class="btn-sm" style="background:var(--surface2);color:var(--text);" onclick="closeBudgetModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL ENTRADAS ── -->
+<div id="entradasModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(480px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);transform:translateY(20px);transition:transform .25s;">
+    <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">💵 Entradas</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">Registra ingresos por fuente · pesos o dólares</div>
+
+    <!-- Formulario nueva entrada -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Nueva entrada</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Fuente</label>
+          <select id="entradaFuente" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
+            <option value="">— Selecciona —</option>
+            <option value="Mercado Libre">🛒 Mercado Libre</option>
+            <option value="MI Kapital USA">🏦 MI Kapital USA</option>
+            <option value="Pinos">🌲 Pinos</option>
+            <option value="Depósito de Clientes">👥 Depósito de Clientes</option>
+            <option value="Otros">📦 Otros</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Moneda</label>
+          <select id="entradaMoneda" onchange="entradasMonedaChange()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
+            <option value="MXN">🇲🇽 Peso MXN</option>
+            <option value="USD">🇺🇸 Dólar USD</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Monto</label>
+          <input id="entradaMonto" type="number" placeholder="0.00" step="0.01" min="0"
+            style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
+        </div>
+        <div id="tcRow" style="display:none;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Tipo de cambio (TC)</label>
+          <input id="tcValue" type="number" placeholder="17.00" step="0.01" min="1" onchange="entradasRenderList()"
+            style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Notas (opcional)</label>
+        <input id="entradaNotas" type="text" placeholder="Descripción…"
+          style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
+      </div>
+      <button onclick="saveEntrada()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">➕ Agregar entrada</button>
+    </div>
+
+    <!-- Lista de entradas -->
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Entradas registradas</div>
+    <div id="entradasList" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+
+    <!-- Total -->
+    <div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:12px;font-weight:700;color:var(--muted);">TOTAL EN MXN</span>
+      <span id="entradasTotal" style="font-size:18px;font-weight:800;color:var(--green);">$0.00 MXN</span>
+    </div>
+
+    <div style="margin-top:14px;text-align:right;">
+      <button onclick="closeEntradasModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;">Cerrar</button>
     </div>
   </div>
 </div>
@@ -842,6 +916,9 @@ function budgetRenderList() {
 document.getElementById('budgetModal').addEventListener('click', function(e) {
   if (e.target === this) closeBudgetModal();
 });
+document.getElementById('entradasModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEntradasModal();
+});
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
   const acc = el.closest('.accordion');
@@ -850,22 +927,104 @@ function toggleAccordion(el) {
 }
 
 /* ── RENDER DASHBOARD ─────────────────── */
+/* ── ENTRADAS — estado global ─────────────────────── */
+let entradasData = JSON.parse(localStorage.getItem('mitech_entradas') || '[]');
+
+function getEntradasTotal() {
+  const tc = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  let totalMXN = 0;
+  entradasData.forEach(e => {
+    const m = parseFloat(e.monto || 0);
+    totalMXN += e.moneda === 'USD' ? m * tc : m;
+  });
+  return totalMXN;
+}
+
+function openEntradasModal() {
+  const tc = localStorage.getItem('mitech_tc') || '17';
+  document.getElementById('tcValue').value = tc;
+  entradasRenderList();
+  document.getElementById('entradasModal').classList.add('open');
+}
+function closeEntradasModal() {
+  document.getElementById('entradasModal').classList.remove('open');
+}
+
+function entradasRenderList() {
+  const tc = parseFloat(document.getElementById('tcValue').value || 17);
+  const ul = document.getElementById('entradasList');
+  if (!ul) return;
+  ul.innerHTML = entradasData.map((e,i) => {
+    const mxnEq = e.moneda === 'USD' ? (parseFloat(e.monto)*tc).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}) : null;
+    return `<div class="entrada-row">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;font-weight:700;color:var(--accent);">${e.fuente}</span>
+        <button onclick="deleteEntrada(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;">✕</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <span style="font-size:14px;font-weight:800;color:var(--text);">${e.moneda==='USD'?'🇺🇸':'🇲🇽'} ${e.moneda==='USD'?'$'+parseFloat(e.monto).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' USD':'$'+parseFloat(e.monto).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+' MXN'}</span>
+        ${mxnEq ? `<span style="font-size:10px;color:var(--muted);">≈ $${mxnEq} MXN</span>` : ''}
+      </div>
+      ${e.notas ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${e.notas}</div>` : ''}
+    </div>`;
+  }).join('') || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin entradas registradas</div>';
+  let total = 0;
+  const tcv = parseFloat(document.getElementById('tcValue').value || 17);
+  entradasData.forEach(e => { total += e.moneda==='USD' ? parseFloat(e.monto)*tcv : parseFloat(e.monto); });
+  const tel = document.getElementById('entradasTotal');
+  if (tel) tel.textContent = '$'+total.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+' MXN';
+}
+
+function entradasMonedaChange() {
+  const m = document.getElementById('entradaMoneda').value;
+  document.getElementById('tcRow').style.display = m === 'USD' ? 'flex' : 'none';
+}
+
+function saveEntrada() {
+  const fuente  = document.getElementById('entradaFuente').value;
+  const monto   = parseFloat(document.getElementById('entradaMonto').value);
+  const moneda  = document.getElementById('entradaMoneda').value;
+  const notas   = document.getElementById('entradaNotas').value.trim();
+  const tc      = parseFloat(document.getElementById('tcValue').value || 17);
+  if (!fuente || isNaN(monto) || monto <= 0) { toast('Selecciona fuente y monto válido','err'); return; }
+  if (moneda === 'USD') localStorage.setItem('mitech_tc', tc);
+  entradasData.push({ fuente, monto, moneda, notas, fecha: new Date().toISOString() });
+  localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
+  document.getElementById('entradaMonto').value = '';
+  document.getElementById('entradaNotas').value = '';
+  document.getElementById('tcRow').style.display = 'none';
+  document.getElementById('entradaMoneda').value = 'MXN';
+  entradasRenderList();
+  showTab('dashboard');
+}
+
+function deleteEntrada(i) {
+  entradasData.splice(i,1);
+  localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
+  entradasRenderList();
+  showTab('dashboard');
+}
+
 function renderDashboard(c) {
   const cat = allData.catalogo || [];
   const dat = allData.datos || [];
 
-  let totalIngresos = 0, totalGastos = 0, nConceptos = cat.length;
+  let totalGastos = 0;
   dat.forEach(row => {
     const monto = parseFloat(row.monto || row.amount || row.valor || 0);
     const tipo = (row.tipo || row.categoria || row.type || '').toLowerCase();
-    if (tipo.includes('ingreso') || tipo.includes('income')) totalIngresos += monto;
-    else if (tipo.includes('gasto') || tipo.includes('egreso') || tipo.includes('expense')) totalGastos += monto;
+    if (tipo.includes('gasto') || tipo.includes('egreso') || tipo.includes('expense')) totalGastos += monto;
   });
 
-  const utilidad = totalIngresos - totalGastos;
-  const margen = totalIngresos > 0 ? (utilidad/totalIngresos*100) : 0;
+  const tc = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const totalEntradasMXN = getEntradasTotal();
+  const nEntradas = entradasData.length;
+  const fuentesResumen = ['Mercado Libre','MI Kapital USA','Pinos','Depósito de Clientes','Otros'].map(f => {
+    const items = entradasData.filter(e => e.fuente === f);
+    const sumMXN = items.reduce((a,e) => a + (e.moneda==='USD' ? parseFloat(e.monto)*tc : parseFloat(e.monto)), 0);
+    return { f, sumMXN, n: items.length };
+  }).filter(x => x.n > 0);
 
-  // Presupuesto semanal activo
   const nowWeekKey  = getWeekKey();
   const budgetGen   = budgetData.find(b => b.semana === nowWeekKey) || null;
   const budgetMonto = budgetGen ? budgetGen.monto  : 0;
@@ -877,53 +1036,47 @@ function renderDashboard(c) {
     ? (budgetPct >= 100 ? '⚠️ Excedido' : budgetPct >= budgetAlerta ? '⚡ Cerca del límite' : '✅ En rango')
     : '➕ Clic para configurar';
   const budgetSymbol= budgetGen?.moneda === 'USD' ? '🇺🇸' : '🇲🇽';
-  const budgetLabel = budgetGen ? getWeekLabel(nowWeekKey) : getWeekLabel(nowWeekKey);
-  const nBudgets    = budgetData.filter(b => b.semana === nowWeekKey).length;
+  const budgetLabel = getWeekLabel(nowWeekKey);
 
   c.innerHTML = `
-    <!-- ── Accordion: KPIs + Presupuesto juntos ── -->
+    <!-- ── Accordion: KPIs ── -->
     <div class="accordion open" id="acc-kpis">
       <div class="accordion-header" onclick="toggleAccordion(this)">
         <span class="accordion-icon">📊</span>
         <span class="accordion-title">Indicadores Clave</span>
-        <span class="accordion-badge">${dat.length} registros</span>
+        <span class="accordion-badge">${nEntradas} entradas</span>
         <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="accordion-body">
         <div class="accordion-inner">
           <div class="kpi-grid" style="margin-bottom:0;">
-            <div class="kpi-card">
-              <div class="kpi-label">Ingresos Totales</div>
-              <div class="kpi-value positive">${fmt(totalIngresos)}</div>
-              <div class="kpi-sub">Suma acumulada</div>
+
+            <!-- KPI Entradas -->
+            <div class="kpi-card kpi-clickable" onclick="openEntradasModal()"
+                 style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};grid-column:span 2;">
+              <div class="kpi-label">💵 Entradas</div>
+              <div class="kpi-value positive" style="font-size:22px;">
+                ${nEntradas > 0 ? '$'+totalEntradasMXN.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+' MXN' : '— Sin entradas —'}
+              </div>
+              <div class="kpi-sub" style="margin-top:4px;">${nEntradas > 0 ? nEntradas+' registro'+(nEntradas>1?'s':'') : 'Clic para registrar'}</div>
+              ${fuentesResumen.length > 0 ? `
+              <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                ${fuentesResumen.map(x=>`
+                  <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;">
+                    <span style="color:var(--muted);">${x.f}</span>
+                    <span style="color:var(--green);font-weight:700;margin-left:4px;">$${x.sumMXN.toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+                  </div>`).join('')}
+              </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para agregar</div>`}
             </div>
+
+            <!-- KPI Gastos -->
             <div class="kpi-card">
-              <div class="kpi-label">Gastos Totales</div>
+              <div class="kpi-label">💸 Gastos Totales</div>
               <div class="kpi-value negative">${fmt(totalGastos)}</div>
               <div class="kpi-sub">Suma acumulada</div>
             </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Utilidad Neta</div>
-              <div class="kpi-value ${utilidad>=0?'positive':'negative'}">${fmt(utilidad)}</div>
-              <div class="kpi-sub">Ingresos − Gastos</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Margen</div>
-              <div class="kpi-value ${margen>=0?'positive':'negative'}">${fmtPct(margen)}</div>
-              <div class="kpi-sub">Utilidad / Ingresos</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Conceptos</div>
-              <div class="kpi-value">${nConceptos}</div>
-              <div class="kpi-sub">En catálogo</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Registros</div>
-              <div class="kpi-value">${dat.length}</div>
-              <div class="kpi-sub">Datos capturados</div>
-            </div>
 
-            <!-- ── KPI Presupuesto Semanal (mismo nivel) ── -->
+            <!-- KPI Presupuesto Semanal -->
             <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
                  style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};">
               <div class="kpi-label">
@@ -942,6 +1095,7 @@ function renderDashboard(c) {
                   <span style="font-size:10px;color:var(--muted);">${budgetStatus}</span>
                 </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para configurar</div>`}
             </div>
+
           </div>
         </div>
       </div>
@@ -1833,5 +1987,6 @@ function cxpSetCategoria(cat) {
 </script>
 </body>
 </html>
+
 
 
