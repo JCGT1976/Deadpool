@@ -1160,11 +1160,13 @@ function renderDashboard(c) {
       </div>
       <div class="accordion-body">
         <div class="accordion-inner">
-          <div class="kpi-grid" style="margin-bottom:0;">
+
+          <!-- Fila 1: Entradas + separador + Presupuesto -->
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:0;margin-bottom:14px;align-items:stretch;">
 
             <!-- KPI Entradas -->
             <div class="kpi-card kpi-clickable" onclick="openEntradasModal()"
-                 style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};grid-column:span 2;">
+                 style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};margin:0;">
               <div class="kpi-label">💵 Entradas</div>
               <div class="kpi-value positive" style="font-size:24px;color:var(--green);">
                 ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : '— Sin entradas —'}
@@ -1183,19 +1185,13 @@ function renderDashboard(c) {
               </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para agregar</div>`}
             </div>
 
-            <!-- KPI Gastos -->
-            <div class="kpi-card">
-              <div class="kpi-label">💸 Gastos Totales</div>
-              <div class="kpi-value negative">${fmt(totalGastos)}</div>
-              <div class="kpi-sub">Suma acumulada</div>
-            </div>
+            <!-- Separador vertical -->
+            <div style="width:1px;background:var(--border);margin:0 14px;opacity:.6;"></div>
 
             <!-- KPI Presupuesto Semanal -->
             <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
-                 style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};">
-              <div class="kpi-label">
-                ${budgetSymbol} Presupuesto Semanal
-              </div>
+                 style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};margin:0;">
+              <div class="kpi-label">${budgetSymbol} Presupuesto Semanal</div>
               <div class="kpi-value" style="font-size:20px;color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
                 ${budgetMonto > 0 ? fmtBudget(budgetMonto, budgetGen?.moneda) : '— Sin monto —'}
               </div>
@@ -1211,21 +1207,16 @@ function renderDashboard(c) {
             </div>
 
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- ── Accordion: Vista de Datos ── -->
-    <div class="accordion open" id="acc-datos">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">📋</span>
-        <span class="accordion-title">Vista de Datos</span>
-        <span class="accordion-badge">${cat.length} conceptos</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body">
-        <div class="accordion-inner">
-          ${renderInfoBlock()}
+          <!-- Fila 2: Gastos -->
+          <div class="kpi-grid" style="margin-bottom:0;">
+            <div class="kpi-card">
+              <div class="kpi-label">💸 Gastos Totales</div>
+              <div class="kpi-value negative">${fmt(totalGastos)}</div>
+              <div class="kpi-sub">Suma acumulada</div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
