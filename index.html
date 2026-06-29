@@ -228,7 +228,118 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   .topbar-user span.name{display:none}
   .btn-icon .label{display:none}
   .content{padding:14px}
+  .kpi-grid{grid-template-columns:1fr 1fr}
 }
+
+/* ── KPI PRESUPUESTO CLICKEABLE ─────────────────────── */
+.kpi-card{
+  cursor:default;transition:transform .18s,border-color .18s,box-shadow .18s;
+}
+.kpi-card.kpi-clickable{
+  cursor:pointer;border:1.5px solid var(--border);
+}
+.kpi-card.kpi-clickable:hover{
+  border-color:var(--accent);transform:translateY(-3px);
+  box-shadow:0 8px 24px rgba(0,194,255,.18);
+}
+.kpi-card.kpi-clickable:active{transform:translateY(-1px);}
+.kpi-click-hint{
+  font-size:10px;color:var(--accent);font-weight:600;
+  letter-spacing:.04em;margin-top:6px;opacity:.8;
+}
+.kpi-budget-bar{
+  height:4px;border-radius:2px;background:var(--border);
+  margin-top:10px;overflow:hidden;
+}
+.kpi-budget-bar-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--green),var(--accent));
+  transition:width .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── MODAL PRESUPUESTO ──────────────────────────────── */
+#budgetModal{
+  position:fixed;inset:0;z-index:2000;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+#budgetModal.open{opacity:1;pointer-events:all;}
+.budget-modal-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;padding:32px 28px;width:100%;max-width:420px;
+  box-shadow:0 32px 80px rgba(0,0,0,.5);
+  transform:translateY(24px);transition:transform .25s;
+}
+#budgetModal.open .budget-modal-card{transform:translateY(0);}
+.budget-modal-title{
+  font-size:16px;font-weight:800;margin-bottom:4px;color:var(--text);
+}
+.budget-modal-sub{
+  font-size:12px;color:var(--muted);margin-bottom:22px;
+}
+.budget-tabs{
+  display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;
+}
+.budget-tab{
+  padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;
+  border:1.5px solid var(--border);background:transparent;color:var(--muted);
+  cursor:pointer;transition:all .18s;
+}
+.budget-tab.active{
+  background:var(--accent);border-color:var(--accent);color:#000;
+}
+.budget-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;
+}
+.budget-field label{
+  font-size:10px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px;
+}
+.budget-field input,.budget-field select{
+  width:100%;padding:10px 12px;background:var(--surface2);
+  border:1.5px solid var(--border);border-radius:8px;
+  color:var(--text);font-size:14px;font-weight:600;outline:none;
+  transition:border-color .2s;
+}
+.budget-field input:focus,.budget-field select:focus{border-color:var(--accent);}
+.budget-modal-actions{
+  display:flex;gap:10px;margin-top:20px;
+}
+.budget-modal-actions button{flex:1;}
+
+/* ── ACCORDIONS (menús plegables) ──────────────────── */
+.accordion{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:14px;overflow:hidden;
+}
+.accordion-header{
+  display:flex;align-items:center;gap:10px;padding:14px 18px;
+  cursor:pointer;user-select:none;transition:background .18s;
+}
+.accordion-header:hover{background:rgba(0,194,255,.04);}
+.accordion-icon{
+  font-size:16px;line-height:1;
+}
+.accordion-title{
+  font-size:13px;font-weight:700;color:var(--text);flex:1;
+}
+.accordion-badge{
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;
+  background:rgba(0,194,255,.12);color:var(--accent);
+}
+.accordion-chevron{
+  width:16px;height:16px;stroke:var(--muted);fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;
+  transition:transform .25s;flex-shrink:0;
+}
+.accordion.open .accordion-chevron{transform:rotate(180deg);}
+.accordion-body{
+  max-height:0;overflow:hidden;
+  transition:max-height .35s cubic-bezier(.4,0,.2,1);
+}
+.accordion.open .accordion-body{max-height:2000px;}
+.accordion-inner{padding:0 18px 18px;}
 </style>
 </head>
 <body>
@@ -313,6 +424,62 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   <!-- content area -->
   <div class="content" id="mainContent">
     <div class="loading-wrap"><div class="spinner"></div>Cargando datos…</div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL PRESUPUESTO ══════════ -->
+<div id="budgetModal">
+  <div class="budget-modal-card">
+    <div class="budget-modal-title">💰 Configurar Presupuesto</div>
+    <div class="budget-modal-sub">Define el presupuesto para el período seleccionado</div>
+    <div class="budget-tabs">
+      <button class="budget-tab active" onclick="budgetSetPeriodo('mensual',this)">Mensual</button>
+      <button class="budget-tab" onclick="budgetSetPeriodo('trimestral',this)">Trimestral</button>
+      <button class="budget-tab" onclick="budgetSetPeriodo('anual',this)">Anual</button>
+    </div>
+    <div class="budget-row">
+      <div class="budget-field">
+        <label>Período</label>
+        <input id="budgetPeriodo" type="month" value="">
+      </div>
+      <div class="budget-field">
+        <label>Categoría</label>
+        <select id="budgetCategoria">
+          <option value="general">General</option>
+          <option value="ingresos">Ingresos</option>
+          <option value="gastos">Gastos</option>
+          <option value="inversion">Inversión</option>
+          <option value="operacion">Operación</option>
+          <option value="nomina">Nómina</option>
+          <option value="marketing">Marketing</option>
+          <option value="tecnologia">Tecnología</option>
+        </select>
+      </div>
+    </div>
+    <div class="budget-row">
+      <div class="budget-field">
+        <label>Monto Presupuestado (MXN)</label>
+        <input id="budgetMonto" type="number" placeholder="0.00" step="100" min="0">
+      </div>
+      <div class="budget-field">
+        <label>Alerta al % del gasto</label>
+        <input id="budgetAlerta" type="number" placeholder="80" min="1" max="100" value="80">
+      </div>
+    </div>
+    <div class="budget-row" style="grid-template-columns:1fr;">
+      <div class="budget-field">
+        <label>Notas</label>
+        <input id="budgetNotas" type="text" placeholder="Descripción opcional…">
+      </div>
+    </div>
+    <div id="budgetListWrap" style="margin-top:14px;display:none;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Presupuestos guardados</div>
+      <div id="budgetList" style="max-height:140px;overflow-y:auto;"></div>
+    </div>
+    <div class="budget-modal-actions">
+      <button class="btn-sm btn-accent" onclick="saveBudget()">💾 Guardar</button>
+      <button class="btn-sm" style="background:var(--surface2);color:var(--text);" onclick="closeBudgetModal()">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -576,14 +743,93 @@ function showTab(tab) {
 /* ══════════════════════════════════════════
    TAB: DASHBOARD
 ══════════════════════════════════════════ */
+/* ══════════════════════════════════════════
+   PRESUPUESTO — estado global
+══════════════════════════════════════════ */
+let budgetData = JSON.parse(localStorage.getItem('mitech_budgets') || '[]');
+let budgetPeriodoActual = 'mensual';
+
+function openBudgetModal() {
+  const now = new Date().toISOString().slice(0,7);
+  document.getElementById('budgetPeriodo').value = now;
+  budgetRenderList();
+  document.getElementById('budgetModal').classList.add('open');
+}
+function closeBudgetModal() {
+  document.getElementById('budgetModal').classList.remove('open');
+}
+function budgetSetPeriodo(tipo, btn) {
+  budgetPeriodoActual = tipo;
+  document.querySelectorAll('.budget-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function saveBudget() {
+  const periodo   = document.getElementById('budgetPeriodo').value;
+  const categoria = document.getElementById('budgetCategoria').value;
+  const monto     = parseFloat(document.getElementById('budgetMonto').value);
+  const alerta    = parseFloat(document.getElementById('budgetAlerta').value) || 80;
+  const notas     = document.getElementById('budgetNotas').value.trim();
+
+  if (!periodo || isNaN(monto) || monto <= 0) {
+    toast('Ingresa período y monto válidos', 'err'); return;
+  }
+
+  const entry = {
+    id: Date.now(),
+    periodo, tipo: budgetPeriodoActual, categoria, monto, alerta, notas,
+    creado: new Date().toISOString(), capturado_por: currentUser?.nombre || 'Usuario'
+  };
+  budgetData = budgetData.filter(b => !(b.periodo===periodo && b.categoria===categoria));
+  budgetData.push(entry);
+  localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
+  toast('Presupuesto guardado ✓');
+  closeBudgetModal();
+  // Refrescar dashboard si estamos en él
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') {
+    showTab('dashboard');
+  }
+}
+function deleteBudget(id) {
+  budgetData = budgetData.filter(b => b.id !== id);
+  localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
+  budgetRenderList();
+  toast('Presupuesto eliminado');
+}
+function budgetRenderList() {
+  const wrap = document.getElementById('budgetListWrap');
+  const list = document.getElementById('budgetList');
+  if (!budgetData.length) { wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  list.innerHTML = budgetData.slice().reverse().map(b => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;">
+        <span style="font-size:12px;font-weight:700;color:var(--text);">${fmt(b.monto)}</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:6px;">${b.periodo} · ${b.categoria}</span>
+        ${b.notas ? `<div style="font-size:10px;color:var(--muted)">${b.notas}</div>` : ''}
+      </div>
+      <button class="btn-sm btn-danger" style="padding:3px 8px;font-size:10px;" onclick="deleteBudget(${b.id})">✕</button>
+    </div>
+  `).join('');
+}
+
+// Cerrar modal al hacer clic fuera
+document.getElementById('budgetModal').addEventListener('click', function(e){
+  if(e.target === this) closeBudgetModal();
+});
+
+/* ── FUNCIÓN ACCORDION ─────────────────── */
+function toggleAccordion(el) {
+  const acc = el.closest('.accordion');
+  const isOpen = acc.classList.contains('open');
+  acc.classList.toggle('open', !isOpen);
+}
+
+/* ── RENDER DASHBOARD ─────────────────── */
 function renderDashboard(c) {
   const cat = allData.catalogo || [];
   const dat = allData.datos || [];
 
-  // Calcular totales del catálogo si existe
   let totalIngresos = 0, totalGastos = 0, nConceptos = cat.length;
-
-  // Intentar sumar montos de datos financieros
   dat.forEach(row => {
     const monto = parseFloat(row.monto || row.amount || row.valor || 0);
     const tipo = (row.tipo || row.categoria || row.type || '').toLowerCase();
@@ -594,41 +840,144 @@ function renderDashboard(c) {
   const utilidad = totalIngresos - totalGastos;
   const margen = totalIngresos > 0 ? (utilidad/totalIngresos*100) : 0;
 
+  // Presupuesto: tomar el más reciente del mes actual
+  const nowPeriodo = new Date().toISOString().slice(0,7);
+  const budgetGen  = budgetData.find(b => b.periodo === nowPeriodo && b.categoria === 'general')
+                  || budgetData.find(b => b.periodo === nowPeriodo)
+                  || null;
+  const budgetMonto = budgetGen ? budgetGen.monto : 0;
+  const budgetEjec  = totalGastos;
+  const budgetPct   = budgetMonto > 0 ? Math.min((budgetEjec / budgetMonto)*100, 100) : 0;
+  const budgetAlerta= budgetGen ? budgetGen.alerta : 80;
+  const budgetColor = budgetPct >= 100 ? 'var(--red)' : budgetPct >= budgetAlerta ? 'var(--yellow)' : 'var(--green)';
+  const budgetStatus= budgetMonto > 0
+    ? (budgetPct >= 100 ? '⚠️ Presupuesto excedido' : budgetPct >= budgetAlerta ? '⚡ Cerca del límite' : '✅ En rango')
+    : '➕ Clic para configurar';
+
+  // Presupuestos por categoría este mes
+  const budgetsCatMes = budgetData.filter(b => b.periodo === nowPeriodo);
+  const nBudgets = budgetsCatMes.length;
+
   c.innerHTML = `
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">Ingresos Totales</div>
-        <div class="kpi-value positive">${fmt(totalIngresos)}</div>
-        <div class="kpi-sub">Suma acumulada</div>
+    <!-- ── SECCIÓN 1: KPIs principales (accordion) ── -->
+    <div class="accordion open" id="acc-kpis">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">📊</span>
+        <span class="accordion-title">Indicadores Clave</span>
+        <span class="accordion-badge">${dat.length} registros</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Gastos Totales</div>
-        <div class="kpi-value negative">${fmt(totalGastos)}</div>
-        <div class="kpi-sub">Suma acumulada</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Utilidad Neta</div>
-        <div class="kpi-value ${utilidad>=0?'positive':'negative'}">${fmt(utilidad)}</div>
-        <div class="kpi-sub">Ingresos − Gastos</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Margen</div>
-        <div class="kpi-value ${margen>=0?'positive':'negative'}">${fmtPct(margen)}</div>
-        <div class="kpi-sub">Utilidad / Ingresos</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Conceptos</div>
-        <div class="kpi-value">${nConceptos}</div>
-        <div class="kpi-sub">En catálogo</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Registros</div>
-        <div class="kpi-value">${dat.length}</div>
-        <div class="kpi-sub">Datos capturados</div>
+      <div class="accordion-body">
+        <div class="accordion-inner">
+          <div class="kpi-grid" style="margin-bottom:0;">
+            <div class="kpi-card">
+              <div class="kpi-label">Ingresos Totales</div>
+              <div class="kpi-value positive">${fmt(totalIngresos)}</div>
+              <div class="kpi-sub">Suma acumulada</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Gastos Totales</div>
+              <div class="kpi-value negative">${fmt(totalGastos)}</div>
+              <div class="kpi-sub">Suma acumulada</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Utilidad Neta</div>
+              <div class="kpi-value ${utilidad>=0?'positive':'negative'}">${fmt(utilidad)}</div>
+              <div class="kpi-sub">Ingresos − Gastos</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Margen</div>
+              <div class="kpi-value ${margen>=0?'positive':'negative'}">${fmtPct(margen)}</div>
+              <div class="kpi-sub">Utilidad / Ingresos</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Conceptos</div>
+              <div class="kpi-value">${nConceptos}</div>
+              <div class="kpi-sub">En catálogo</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Registros</div>
+              <div class="kpi-value">${dat.length}</div>
+              <div class="kpi-sub">Datos capturados</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    ${renderInfoBlock()}
+    <!-- ── SECCIÓN 2: KPI Presupuesto clickeable ── -->
+    <div class="accordion open" id="acc-budget">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">💰</span>
+        <span class="accordion-title">Presupuesto</span>
+        <span class="accordion-badge">${nBudgets > 0 ? nBudgets+' configurado'+(nBudgets>1?'s':'') : 'Sin configurar'}</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body">
+        <div class="accordion-inner">
+          <div class="kpi-grid" style="margin-bottom:12px;">
+            <!-- KPI Principal Presupuesto -->
+            <div class="kpi-card kpi-clickable" onclick="openBudgetModal()" style="grid-column:span 2; border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};">
+              <div class="kpi-label">💰 Presupuesto General · ${nowPeriodo}</div>
+              <div class="kpi-value" style="color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
+                ${budgetMonto > 0 ? fmt(budgetMonto) : '— Sin monto —'}
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+                <div class="kpi-sub">${budgetStatus}</div>
+                ${budgetMonto > 0 ? `<div style="font-size:11px;font-weight:700;color:${budgetColor};">${budgetPct.toFixed(1)}% ejecutado</div>` : ''}
+              </div>
+              ${budgetMonto > 0 ? `
+                <div class="kpi-budget-bar">
+                  <div class="kpi-budget-bar-fill" style="width:${budgetPct}%;background:${budgetColor};"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:6px;">
+                  <span style="font-size:10px;color:var(--muted);">Gastado: ${fmt(budgetEjec)}</span>
+                  <span style="font-size:10px;color:var(--muted);">Disponible: ${fmt(Math.max(0,budgetMonto-budgetEjec))}</span>
+                </div>
+              ` : ''}
+              <div class="kpi-click-hint">✏️ Clic para configurar presupuesto</div>
+            </div>
+
+            <!-- KPIs por categoría -->
+            ${budgetsCatMes.map(b => {
+              const pct = b.monto > 0 ? Math.min((totalGastos/b.monto)*100,100) : 0;
+              const col = pct>=100?'var(--red)':pct>=b.alerta?'var(--yellow)':'var(--green)';
+              return `
+                <div class="kpi-card kpi-clickable" onclick="openBudgetModal()">
+                  <div class="kpi-label">${b.categoria}</div>
+                  <div class="kpi-value" style="color:${col};">${fmt(b.monto)}</div>
+                  <div class="kpi-sub">${b.tipo} · alerta ${b.alerta}%</div>
+                  <div class="kpi-budget-bar" style="margin-top:8px;">
+                    <div class="kpi-budget-bar-fill" style="width:${pct.toFixed(1)}%;background:${col};"></div>
+                  </div>
+                  ${b.notas ? `<div style="font-size:10px;color:var(--muted);margin-top:4px;">${b.notas}</div>` : ''}
+                  <div class="kpi-click-hint">✏️ Editar</div>
+                </div>`;
+            }).join('')}
+          </div>
+          <div style="text-align:right;">
+            <button class="btn-sm btn-accent" onclick="openBudgetModal()" style="font-size:11px;">
+              ➕ Agregar / editar presupuesto
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SECCIÓN 3: Datos (accordion) ── -->
+    <div class="accordion open" id="acc-datos">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">📋</span>
+        <span class="accordion-title">Vista de Datos</span>
+        <span class="accordion-badge">${cat.length} conceptos</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body">
+        <div class="accordion-inner">
+          ${renderInfoBlock()}
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -691,7 +1040,15 @@ function renderReporte(c) {
   const colMonto = cols.find(c => c.toLowerCase().includes('monto') || c.toLowerCase().includes('amount') || c.toLowerCase().includes('valor') || c.toLowerCase().includes('importe')) || null;
 
   // Agrupar por categoría si existe
-  let html = `<div class="section-title">Estado Financiero</div>`;
+  let html = `
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">📊</span>
+        <span class="accordion-title">Estado Financiero</span>
+        <span class="accordion-badge">${cat.length} conceptos</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">`;
 
   if (colCategoria) {
     const grupos = {};
@@ -744,6 +1101,32 @@ function renderReporte(c) {
     </table>`;
   }
 
+  // Cerrar accordion
+  html += `</div></div></div>`;
+
+  // Accordion de registros financieros
+  if (dat.length > 0) {
+    const datCols = Object.keys(dat[0]).filter(c=>c!=='id');
+    html += `
+      <div class="accordion open">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <span class="accordion-icon">🗂️</span>
+          <span class="accordion-title">Registros Financieros</span>
+          <span class="accordion-badge">${dat.length} registros</span>
+          <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="accordion-body"><div class="accordion-inner">
+          <table class="fin-table">
+            <thead><tr><th>#</th>${datCols.map(c=>\`<th>\${c}</th>\`).join('')}</tr></thead>
+            <tbody>
+              ${dat.slice(0,30).map((row,i)=>\`<tr><td style="color:var(--muted)">\${i+1}</td>\${datCols.map(c=>\`<td>\${row[c]??'—'}</td>\`).join('')}</tr>\`).join('')}
+            </tbody>
+          </table>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;">Mostrando \${Math.min(30,dat.length)} de \${dat.length} registros</div>
+        </div></div>
+      </div>`;
+  }
+
   c.innerHTML = html;
 }
 
@@ -763,6 +1146,15 @@ function renderCaptura(c) {
   }).join('');
 
   c.innerHTML = `
+    <!-- Accordion Formulario Captura -->
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">✏️</span>
+        <span class="accordion-title">Registrar Dato Financiero</span>
+        <span class="accordion-badge">Nuevo registro</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">
     <div class="panel">
       <h3>✏️ Registrar dato financiero</h3>
       <div class="form-grid">
@@ -800,11 +1192,22 @@ function renderCaptura(c) {
       </div>
     </div>
 
-    <div class="section-title">Registros recientes</div>
-    <div id="capTabla">
-      ${renderDatosTable()}
+    </div><!-- /.panel -->
+      </div></div>
+    </div><!-- /.accordion formulario -->
+
+    <!-- Accordion Registros Recientes -->
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">🗂️</span>
+        <span class="accordion-title">Registros Recientes</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">
+        <div id="capTabla">${renderDatosTable()}</div>
+      </div></div>
     </div>
-  `;
+  \`;
 }
 
 function renderDatosTable() {
@@ -876,6 +1279,15 @@ function renderUsuarios(c) {
   const users = allData.usuarios || [];
 
   c.innerHTML = `
+    <!-- Accordion Gestión de Usuarios -->
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">👥</span>
+        <span class="accordion-title">Gestión de Usuarios</span>
+        <span class="accordion-badge">${users.length} usuarios</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">
     <div class="panel">
       <h3>👥 Gestión de usuarios</h3>
       <table class="user-table">
@@ -930,8 +1342,10 @@ function renderUsuarios(c) {
       <div style="margin-top:16px">
         <button class="btn-sm btn-success" onclick="createUser()">➕ Crear usuario</button>
       </div>
-    </div>
-  `;
+    </div><!-- /.panel -->
+      </div></div>
+    </div><!-- /.accordion -->
+  \`;
 }
 
 async function toggleUser(id, activo) {
@@ -984,6 +1398,15 @@ function renderCatalogo(c) {
   const cols = cat.length > 0 ? Object.keys(cat[0]).filter(c=>c!=='created_at') : [];
 
   c.innerHTML = `
+    <!-- Accordion Catálogo -->
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">📂</span>
+        <span class="accordion-title">Catálogo de Conceptos</span>
+        <span class="accordion-badge">${cat.length} conceptos</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">
     <div class="panel">
       <h3>📂 Catálogo de conceptos</h3>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -1004,7 +1427,9 @@ function renderCatalogo(c) {
           <div style="font-size:12px;margin-top:8px">Abre F12 → Consola para ver el diagnóstico.</div>
         </div>
       `}
-    </div>
+    </div><!-- /.panel -->
+      </div></div>
+    </div><!-- /.accordion -->
   `;
 }
 
@@ -1122,6 +1547,14 @@ let cxpCategoria = null;   // chip de categoría activo
 /* ── RENDER PRINCIPAL ────────────────────── */
 function renderCxP(c) {
   c.innerHTML = `
+    <!-- Accordion Upload CxP -->
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">📂</span>
+        <span class="accordion-title">Cargar Archivo de CxP</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">
     <!-- Upload -->
     <div class="cxp-upload" id="cxpUploadZone" onclick="document.getElementById('cxpFileInput').click()">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="1.8">
@@ -1133,25 +1566,44 @@ function renderCxP(c) {
       <div class="cxp-upload-status" id="cxpUploadStatus">${cxpData.length > 0 ? '✔ '+cxpData.length+' conceptos cargados' : '📊 Sin archivo cargado · usando Supabase como fallback'}</div>
     </div>
     <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
+      </div></div>
+    </div><!-- /.accordion upload -->
 
-    <!-- KPIs -->
-    <div class="cxp-kpi-grid" id="cxpKpiGrid"></div>
+    <!-- Accordion KPIs CxP -->
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">💳</span>
+        <span class="accordion-title">Indicadores de CxP</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">
+        <!-- KPIs -->
+        <div class="cxp-kpi-grid" id="cxpKpiGrid"></div>
+        <!-- Banner plan activo -->
+        <div id="cxpBanner" style="display:none"></div>
+      </div></div>
+    </div><!-- /.accordion KPIs -->
 
-    <!-- Banner plan activo -->
-    <div id="cxpBanner" style="display:none"></div>
-
-    <!-- Chips categoría -->
-    <div class="cxp-chips" id="cxpChips"></div>
-
-    <!-- Tabla -->
-    <div class="section-title">Cuentas por Pagar — Detalle</div>
-    <div class="cxp-table-wrap">
-      <table class="cxp-table" id="cxpTabla">
-        <thead id="cxpHead"></thead>
-        <tbody id="cxpBody"></tbody>
-      </table>
-    </div>
-  `;
+    <!-- Accordion Detalle CxP -->
+    <div class="accordion open">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span class="accordion-icon">📋</span>
+        <span class="accordion-title">Cuentas por Pagar — Detalle</span>
+        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="accordion-body"><div class="accordion-inner">
+        <!-- Chips categoría -->
+        <div class="cxp-chips" id="cxpChips"></div>
+        <!-- Tabla -->
+        <div class="cxp-table-wrap">
+          <table class="cxp-table" id="cxpTabla">
+            <thead id="cxpHead"></thead>
+            <tbody id="cxpBody"></tbody>
+          </table>
+        </div>
+      </div></div>
+    </div><!-- /.accordion detalle -->
+  \`;
 
   /* Drag & drop */
   const zone = document.getElementById('cxpUploadZone');
@@ -1398,4 +1850,5 @@ function cxpSetCategoria(cat) {
 </script>
 </body>
 </html>
+
 
