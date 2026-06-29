@@ -428,7 +428,7 @@ async function doLogin() {
 
     if (error || !data) { setErr('Usuario no encontrado'); btn.disabled=false; btn.textContent='Entrar'; return; }
     if (data.activo === false) { setErr('Cuenta desactivada'); btn.disabled=false; btn.textContent='Entrar'; return; }
-    if (data.password_hash !== hash) { setErr('Contraseña incorrecta'); btn.disabled=false; btn.textContent='Entrar'; return; }
+    if (data.pwd_hash !== hash) { setErr('Contraseña incorrecta'); btn.disabled=false; btn.textContent='Entrar'; return; }
 
     // primer acceso
     if (data.debe_cambiar) {
@@ -456,11 +456,11 @@ async function doFirstChange(userData) {
 
   const newHash = await sha256(p2);
   const { error } = await sb.from('usuarios')
-    .update({ password_hash: newHash, debe_cambiar: false })
+    .update({ pwd_hash: newHash, debe_cambiar: false })
     .eq('id', userData.id);
 
   if (error) { setErr('Error al guardar. Intenta de nuevo.'); return; }
-  userData.password_hash = newHash;
+  userData.pwd_hash = newHash;
   userData.debe_cambiar = false;
   toast('Contraseña guardada ✓');
   await loginSuccess(userData);
@@ -962,7 +962,7 @@ async function createUser() {
 
   const hash = await sha256(pwd);
   const { error } = await sb.from('usuarios').insert([{
-    username: usuario, nombre, rol, password_hash: hash, activo: true, debe_cambiar: false
+    username: usuario, nombre, rol, pwd_hash: hash, activo: true, debe_cambiar: false
   }]);
   if (error) { toast(`Error: ${error.message}`, 'err'); return; }
   toast(`Usuario ${usuario} creado ✓`);
