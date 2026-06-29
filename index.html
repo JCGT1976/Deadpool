@@ -1117,9 +1117,9 @@ function renderReporte(c) {
         </div>
         <div class="accordion-body"><div class="accordion-inner">
           <table class="fin-table">
-            <thead><tr><th>#</th>${datCols.map(c=>\`<th>\${c}</th>\`).join('')}</tr></thead>
+            <thead><tr><th>#</th>${datCols.map(c=>'<th>'+c+'</th>').join('')}</tr></thead>
             <tbody>
-              ${dat.slice(0,30).map((row,i)=>\`<tr><td style="color:var(--muted)">\${i+1}</td>\${datCols.map(c=>\`<td>\${row[c]??'—'}</td>\`).join('')}</tr>\`).join('')}
+              ${dat.slice(0,30).map((row,i)=>'<tr><td style="color:var(--muted)">'+(i+1)+'</td>'+datCols.map(c=>'<td>'+(row[c]??'—')+'</td>').join('')+'</tr>').join('')}
             </tbody>
           </table>
           <div style="font-size:11px;color:var(--muted);margin-top:8px;">Mostrando \${Math.min(30,dat.length)} de \${dat.length} registros</div>
@@ -1207,7 +1207,7 @@ function renderCaptura(c) {
         <div id="capTabla">${renderDatosTable()}</div>
       </div></div>
     </div>
-  \`;
+  `;
 }
 
 function renderDatosTable() {
@@ -1345,7 +1345,7 @@ function renderUsuarios(c) {
     </div><!-- /.panel -->
       </div></div>
     </div><!-- /.accordion -->
-  \`;
+  `;
 }
 
 async function toggleUser(id, activo) {
@@ -1603,7 +1603,7 @@ function renderCxP(c) {
         </div>
       </div></div>
     </div><!-- /.accordion detalle -->
-  \`;
+  `;
 
   /* Drag & drop */
   const zone = document.getElementById('cxpUploadZone');
