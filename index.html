@@ -1121,8 +1121,11 @@ function renderDashboard(c) {
   const nEntradas = entradasData.length;
   const fuentesResumen = ['Mercado Libre','MI Kapital USA','Pinos','Depósito de Clientes','Otros'].map(f => {
     const items = entradasData.filter(e => e.fuente === f);
+    const hasUSD = items.some(e => e.moneda === 'USD');
+    const hasMXN = items.some(e => e.moneda === 'MXN');
+    const monedaDom = (hasUSD && !hasMXN) ? 'USD' : (hasMXN && !hasUSD) ? 'MXN' : 'MIX';
     const sumMXN = items.reduce((a,e) => { const etc=parseFloat(e.tc||tcGlobal); return a + (e.moneda==='USD' ? parseFloat(e.monto)*etc : parseFloat(e.monto)); }, 0);
-    return { f, sumMXN, n: items.length };
+    return { f, sumMXN, n: items.length, monedaDom };
   }).filter(x => x.n > 0);
 
   const nowWeekKey  = getWeekKey();
@@ -1155,17 +1158,20 @@ function renderDashboard(c) {
             <div class="kpi-card kpi-clickable" onclick="openEntradasModal()"
                  style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};grid-column:span 2;">
               <div class="kpi-label">💵 Entradas</div>
-              <div class="kpi-value positive" style="font-size:22px;">
-                ${nEntradas > 0 ? '$'+totalEntradasMXN.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+' MXN' : '— Sin entradas —'}
+              <div class="kpi-value positive" style="font-size:24px;color:var(--green);">
+                ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : '— Sin entradas —'}
               </div>
               <div class="kpi-sub" style="margin-top:4px;">${nEntradas > 0 ? nEntradas+' registro'+(nEntradas>1?'s':'') : 'Clic para registrar'}</div>
               ${fuentesResumen.length > 0 ? `
               <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-                ${fuentesResumen.map(x=>`
-                  <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;">
+                ${fuentesResumen.map(x=>{
+                  const color = x.monedaDom==='USD' ? '#60a5fa' : x.monedaDom==='MXN' ? 'var(--green)' : '#a78bfa';
+                  const border = x.monedaDom==='USD' ? 'rgba(96,165,250,.3)' : x.monedaDom==='MXN' ? 'rgba(34,197,94,.3)' : 'rgba(167,139,250,.3)';
+                  return `<div style="background:var(--surface);border:1px solid ${border};border-radius:6px;padding:3px 8px;font-size:10px;">
                     <span style="color:var(--muted);">${x.f}</span>
-                    <span style="color:var(--green);font-weight:700;margin-left:4px;">$${x.sumMXN.toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
-                  </div>`).join('')}
+                    <span style="color:${color};font-weight:700;margin-left:4px;">$${Math.round(x.sumMXN).toLocaleString('es-MX')}</span>
+                  </div>`;
+                }).join('')}
               </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para agregar</div>`}
             </div>
 
@@ -2087,6 +2093,7 @@ function cxpSetCategoria(cat) {
 </script>
 </body>
 </html>
+
 
 
 
