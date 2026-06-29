@@ -423,7 +423,7 @@ async function doLogin() {
     const { data, error } = await sb
       .from('usuarios')
       .select('*')
-      .eq('usuario', usr)
+      .eq('username', usr)
       .single();
 
     if (error || !data) { setErr('Usuario no encontrado'); btn.disabled=false; btn.textContent='Entrar'; return; }
@@ -537,7 +537,7 @@ async function loadAllData() {
 
     // Usuarios (solo admin)
     if (currentUser.rol === 'admin' || currentUser.rol === 'cohost') {
-      const { data } = await sb.from('usuarios').select('id,usuario,nombre,rol,activo,debe_cambiar');
+      const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
       if (data) allData.usuarios = data;
     }
 
@@ -881,7 +881,7 @@ function renderUsuarios(c) {
         <tbody>
           ${users.map(u=>`
             <tr>
-              <td><code style="color:var(--accent)">${u.usuario}</code></td>
+              <td><code style="color:var(--accent)">${u.username}</code></td>
               <td>${u.nombre}</td>
               <td><span class="role-badge role-${u.rol}">${u.rol}</span></td>
               <td>${u.activo ? '✅' : '❌'}</td>
@@ -936,7 +936,7 @@ async function toggleUser(id, activo) {
   const { error } = await sb.from('usuarios').update({ activo: !activo }).eq('id', id);
   if (error) { toast('Error al actualizar', 'err'); return; }
   toast(`Usuario ${activo?'desactivado':'activado'} ✓`);
-  const { data } = await sb.from('usuarios').select('id,usuario,nombre,rol,activo,debe_cambiar');
+  const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
   if (data) allData.usuarios = data;
   showTab('usuarios');
 }
@@ -946,7 +946,7 @@ async function resetPwd(id) {
   const { error } = await sb.from('usuarios').update({ debe_cambiar: true }).eq('id', id);
   if (error) { toast('Error', 'err'); return; }
   toast('Se pedirá nueva contraseña en el próximo acceso ✓');
-  const { data } = await sb.from('usuarios').select('id,usuario,nombre,rol,activo,debe_cambiar');
+  const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
   if (data) allData.usuarios = data;
   showTab('usuarios');
 }
@@ -962,11 +962,11 @@ async function createUser() {
 
   const hash = await sha256(pwd);
   const { error } = await sb.from('usuarios').insert([{
-    usuario, nombre, rol, password_hash: hash, activo: true, debe_cambiar: false
+    username: usuario, nombre, rol, password_hash: hash, activo: true, debe_cambiar: false
   }]);
   if (error) { toast(`Error: ${error.message}`, 'err'); return; }
   toast(`Usuario ${usuario} creado ✓`);
-  const { data } = await sb.from('usuarios').select('id,usuario,nombre,rol,activo,debe_cambiar');
+  const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
   if (data) allData.usuarios = data;
   showTab('usuarios');
 }
@@ -1043,3 +1043,4 @@ function exportExcel() {
 </script>
 </body>
 </html>
+
