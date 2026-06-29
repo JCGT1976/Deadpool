@@ -264,7 +264,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   background:var(--surface);border:1px solid var(--border);
   border-radius:10px;padding:10px 12px;
 }
-.entrada-row:hover{border-color:var(--accent);}
+.entrada-row.mxn{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.04);}
+.entrada-row.usd{border-color:rgba(96,165,250,.4);background:rgba(96,165,250,.04);}
+.entrada-row:hover{filter:brightness(1.08);}
 
 /* ── MODAL PRESUPUESTO ──────────────────────────────── */
 #budgetModal{
@@ -1045,24 +1047,30 @@ function entradasRenderList() {
   const ul = document.getElementById('entradasList');
   if (!ul) return;
   ul.innerHTML = entradasData.map((e,i) => {
-    const m    = parseFloat(e.monto);
-    const etcv = parseFloat(e.tc || tc);
+    const m     = parseFloat(e.monto);
+    const etcv  = parseFloat(e.tc || tc);
     const mxnEq = e.moneda === 'USD' ? m * etcv : null;
     const fmtUSD = v => '$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
     const fmtMXN = v => '$'+v.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
-    return `<div class="entrada-row">
+    const isUSD   = e.moneda === 'USD';
+    const clrMain = isUSD ? '#60a5fa' : 'var(--green)';   // azul USD / verde MXN
+    const cls     = isUSD ? 'usd' : 'mxn';
+    const prefix  = isUSD ? 'US' : 'MX';
+    return `<div class="entrada-row ${cls}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:12px;font-weight:700;color:var(--accent);">${e.fuente}</span>
+        <span style="font-size:12px;font-weight:700;color:${clrMain};">${e.fuente}</span>
         <button onclick="deleteEntrada(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;">✕</button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;">
         <div>
-          <span style="font-size:15px;font-weight:800;color:var(--text);">${e.moneda==='USD'?'🇺🇸 '+fmtUSD(m)+' USD':'🇲🇽 '+fmtMXN(m)+' MXN'}</span>
-          ${e.moneda==='USD'? `<div style="font-size:11px;color:var(--green);margin-top:2px;">≈ ${fmtMXN(mxnEq)} MXN <span style="color:var(--muted);">(TC ${etcv.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})})</span></div>` : ''}
+          <span style="font-size:11px;font-weight:600;color:${clrMain};opacity:.7;">${prefix}</span>
+          <span style="font-size:15px;font-weight:800;color:${clrMain};margin-left:2px;">${isUSD ? fmtUSD(m)+' USD' : fmtMXN(m)+' MXN'}</span>
+          ${isUSD ? `<div style="font-size:11px;color:var(--green);margin-top:2px;">≈ ${fmtMXN(mxnEq)} MXN <span style="color:var(--muted);">(TC ${etcv.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})})</span></div>` : ''}
         </div>
         ${e.notas ? `<span style="font-size:11px;color:var(--muted);text-align:right;max-width:120px;">${e.notas}</span>` : ''}
       </div>
     </div>`;
+  }).join('') || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin entradas registradas</div>';
   }).join('') || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin entradas registradas</div>';
 
   // Totales
