@@ -494,44 +494,66 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <!-- Formulario nueva entrada -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
       <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Nueva entrada</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-        <div>
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Fuente</label>
-          <select id="entradaFuente" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
-            <option value="">— Selecciona —</option>
-            <option value="Mercado Libre">🛒 Mercado Libre</option>
-            <option value="MI Kapital USA">🏦 MI Kapital USA</option>
-            <option value="Pinos">🌲 Pinos</option>
-            <option value="Depósito de Clientes">👥 Depósito de Clientes</option>
-            <option value="Otros">📦 Otros</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Moneda</label>
-          <select id="entradaMoneda" onchange="entradasMonedaChange()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
-            <option value="MXN">🇲🇽 Peso MXN</option>
-            <option value="USD">🇺🇸 Dólar USD</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-        <div>
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Monto</label>
-          <input id="entradaMonto" type="number" placeholder="0.00" step="0.01" min="0"
-            style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
-        </div>
-        <div id="tcRow" style="display:none;">
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Tipo de cambio (TC)</label>
-          <input id="tcValue" type="number" placeholder="17.00" step="0.01" min="1" onchange="entradasRenderList()"
-            style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
-        </div>
-      </div>
+
+      <!-- Fuente -->
       <div style="margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Fuente</label>
+        <select id="entradaFuente" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
+          <option value="">— Selecciona —</option>
+          <option value="Mercado Libre">🛒 Mercado Libre</option>
+          <option value="MI Kapital USA">🏦 MI Kapital USA</option>
+          <option value="Pinos">🌲 Pinos</option>
+          <option value="Depósito de Clientes">👥 Depósito de Clientes</option>
+          <option value="Otros">📦 Otros</option>
+        </select>
+      </div>
+
+      <!-- Moneda -->
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Moneda</label>
+        <div style="display:flex;gap:8px;">
+          <button id="btnEntMXN" onclick="entradasSetMoneda('MXN')"
+            style="flex:1;padding:9px;border-radius:8px;border:2px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">🇲🇽 Peso MXN</button>
+          <button id="btnEntUSD" onclick="entradasSetMoneda('USD')"
+            style="flex:1;padding:9px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;">🇺🇸 Dólar USD</button>
+        </div>
+      </div>
+
+      <!-- Monto con símbolo -->
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;" id="labelEntMonto">Monto (MXN)</label>
+        <div style="position:relative;">
+          <span id="entradaMonedaSym" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:700;color:var(--muted);">$</span>
+          <input id="entradaMonto" type="text" inputmode="decimal" placeholder="0.00"
+            oninput="fmtInputMoney(this)"
+            style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px 8px 22px;color:var(--text);font-size:15px;font-weight:700;letter-spacing:.02em;">
+        </div>
+      </div>
+
+      <!-- TC — solo visible en USD -->
+      <div id="tcRow" style="display:none;margin-bottom:10px;">
+        <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:11px;font-weight:700;color:#ffc107;margin-bottom:8px;">💱 Tipo de Cambio USD → MXN</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="position:relative;flex:1;">
+              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);">TC $</span>
+              <input id="tcValue" type="text" inputmode="decimal" placeholder="17.00"
+                oninput="fmtInputTC(this)" onchange="entradasCalcPreview()"
+                style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px 8px 36px;color:var(--text);font-size:13px;">
+            </div>
+          </div>
+          <div id="tcPreview" style="margin-top:8px;font-size:12px;color:var(--muted);min-height:18px;"></div>
+        </div>
+      </div>
+
+      <!-- Notas -->
+      <div style="margin-bottom:12px;">
         <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Notas (opcional)</label>
         <input id="entradaNotas" type="text" placeholder="Descripción…"
           style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;">
       </div>
-      <button onclick="saveEntrada()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">➕ Agregar entrada</button>
+
+      <button onclick="saveEntrada()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">➕ Agregar entrada</button>
     </div>
 
     <!-- Lista de entradas -->
@@ -539,9 +561,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div id="entradasList" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
 
     <!-- Total -->
-    <div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:12px;font-weight:700;color:var(--muted);">TOTAL EN MXN</span>
-      <span id="entradasTotal" style="font-size:18px;font-weight:800;color:var(--green);">$0.00 MXN</span>
+    <div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;font-weight:700;color:var(--muted);">TOTAL MXN</span>
+        <span id="entradasTotal" style="font-size:20px;font-weight:800;color:var(--green);">$0.00</span>
+      </div>
+      <div id="entradasTotalUSD" style="text-align:right;font-size:11px;color:var(--muted);margin-top:2px;"></div>
     </div>
 
     <div style="margin-top:14px;text-align:right;">
@@ -931,11 +956,12 @@ function toggleAccordion(el) {
 let entradasData = JSON.parse(localStorage.getItem('mitech_entradas') || '[]');
 
 function getEntradasTotal() {
-  const tc = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
   let totalMXN = 0;
   entradasData.forEach(e => {
-    const m = parseFloat(e.monto || 0);
-    totalMXN += e.moneda === 'USD' ? m * tc : m;
+    const m   = parseFloat(e.monto || 0);
+    const etc = parseFloat(e.tc || tcGlobal);
+    totalMXN += e.moneda === 'USD' ? m * etc : m;
   });
   return totalMXN;
 }
@@ -950,50 +976,124 @@ function closeEntradasModal() {
   document.getElementById('entradasModal').classList.remove('open');
 }
 
+/* ─ Helpers de formato de input ─ */
+function parseMoney(str) {
+  if (!str) return 0;
+  return parseFloat(String(str).replace(/[^0-9.]/g,'')) || 0;
+}
+function fmtInputMoney(el) {
+  const raw = el.value.replace(/[^0-9.]/g,'');
+  const parts = raw.split('.');
+  const int   = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const dec   = parts[1] !== undefined ? '.' + parts[1].slice(0,2) : '';
+  const start = el.selectionStart, len = el.value.length;
+  el.value = int + dec;
+  const diff = el.value.length - len;
+  el.setSelectionRange(start + diff, start + diff);
+  entradasCalcPreview();
+}
+function fmtInputTC(el) {
+  const raw = el.value.replace(/[^0-9.]/g,'');
+  const parts = raw.split('.');
+  const int   = parts[0];
+  const dec   = parts[1] !== undefined ? '.' + parts[1].slice(0,4) : '';
+  el.value = int + dec;
+  entradasCalcPreview();
+}
+
+let _entradaMonedaActual = 'MXN';
+
+function entradasSetMoneda(m) {
+  _entradaMonedaActual = m;
+  const btnMXN = document.getElementById('btnEntMXN');
+  const btnUSD = document.getElementById('btnEntUSD');
+  if (m === 'MXN') {
+    btnMXN.style.background = 'var(--accent)'; btnMXN.style.borderColor = 'var(--accent)'; btnMXN.style.color = '#fff';
+    btnUSD.style.background = 'var(--surface2)'; btnUSD.style.borderColor = 'var(--border)'; btnUSD.style.color = 'var(--muted)';
+    document.getElementById('tcRow').style.display = 'none';
+    document.getElementById('labelEntMonto').textContent = 'Monto (MXN)';
+    document.getElementById('entradaMonedaSym').textContent = '$';
+  } else {
+    btnUSD.style.background = '#1a3a5c'; btnUSD.style.borderColor = '#3b82f6'; btnUSD.style.color = '#60a5fa';
+    btnMXN.style.background = 'var(--surface2)'; btnMXN.style.borderColor = 'var(--border)'; btnMXN.style.color = 'var(--muted)';
+    document.getElementById('tcRow').style.display = 'block';
+    document.getElementById('labelEntMonto').textContent = 'Monto (USD)';
+    document.getElementById('entradaMonedaSym').textContent = 'USD $';
+    const savedTC = localStorage.getItem('mitech_tc') || '17';
+    if (!document.getElementById('tcValue').value) document.getElementById('tcValue').value = savedTC;
+  }
+  entradasCalcPreview();
+}
+
+function entradasCalcPreview() {
+  const monto = parseMoney(document.getElementById('entradaMonto').value);
+  const tc    = parseMoney(document.getElementById('tcValue').value) || 17;
+  const prev  = document.getElementById('tcPreview');
+  if (!prev) return;
+  if (_entradaMonedaActual === 'USD' && monto > 0) {
+    const mxn = monto * tc;
+    prev.innerHTML = `<span style="color:#ffc107;font-weight:700;">USD $${monto.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+      <span style="color:var(--muted);"> × TC ${tc.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})} = </span>
+      <span style="color:var(--green);font-weight:700;">$${mxn.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})} MXN</span>`;
+  } else {
+    prev.textContent = '';
+  }
+}
+
 function entradasRenderList() {
-  const tc = parseFloat(document.getElementById('tcValue').value || 17);
+  const tc = parseMoney(document.getElementById('tcValue').value) || parseFloat(localStorage.getItem('mitech_tc')||'17');
   const ul = document.getElementById('entradasList');
   if (!ul) return;
   ul.innerHTML = entradasData.map((e,i) => {
-    const mxnEq = e.moneda === 'USD' ? (parseFloat(e.monto)*tc).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}) : null;
+    const m    = parseFloat(e.monto);
+    const etcv = parseFloat(e.tc || tc);
+    const mxnEq = e.moneda === 'USD' ? m * etcv : null;
+    const fmtUSD = v => '$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const fmtMXN = v => '$'+v.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
     return `<div class="entrada-row">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:12px;font-weight:700;color:var(--accent);">${e.fuente}</span>
         <button onclick="deleteEntrada(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;">✕</button>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-        <span style="font-size:14px;font-weight:800;color:var(--text);">${e.moneda==='USD'?'🇺🇸':'🇲🇽'} ${e.moneda==='USD'?'$'+parseFloat(e.monto).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' USD':'$'+parseFloat(e.monto).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+' MXN'}</span>
-        ${mxnEq ? `<span style="font-size:10px;color:var(--muted);">≈ $${mxnEq} MXN</span>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;">
+        <div>
+          <span style="font-size:15px;font-weight:800;color:var(--text);">${e.moneda==='USD'?'🇺🇸 '+fmtUSD(m)+' USD':'🇲🇽 '+fmtMXN(m)+' MXN'}</span>
+          ${e.moneda==='USD'? `<div style="font-size:11px;color:var(--green);margin-top:2px;">≈ ${fmtMXN(mxnEq)} MXN <span style="color:var(--muted);">(TC ${etcv.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})})</span></div>` : ''}
+        </div>
+        ${e.notas ? `<span style="font-size:11px;color:var(--muted);text-align:right;max-width:120px;">${e.notas}</span>` : ''}
       </div>
-      ${e.notas ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${e.notas}</div>` : ''}
     </div>`;
   }).join('') || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin entradas registradas</div>';
-  let total = 0;
-  const tcv = parseFloat(document.getElementById('tcValue').value || 17);
-  entradasData.forEach(e => { total += e.moneda==='USD' ? parseFloat(e.monto)*tcv : parseFloat(e.monto); });
-  const tel = document.getElementById('entradasTotal');
-  if (tel) tel.textContent = '$'+total.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+' MXN';
-}
 
-function entradasMonedaChange() {
-  const m = document.getElementById('entradaMoneda').value;
-  document.getElementById('tcRow').style.display = m === 'USD' ? 'flex' : 'none';
+  // Totales
+  const tcv = parseMoney(document.getElementById('tcValue').value) || parseFloat(localStorage.getItem('mitech_tc')||'17');
+  let totalMXN = 0, totalUSD = 0;
+  entradasData.forEach(e => {
+    const m = parseFloat(e.monto);
+    const etcv = parseFloat(e.tc || tcv);
+    if (e.moneda === 'USD') { totalUSD += m; totalMXN += m * etcv; }
+    else { totalMXN += m; }
+  });
+  const tel = document.getElementById('entradasTotal');
+  const telUSD = document.getElementById('entradasTotalUSD');
+  if (tel) tel.textContent = '$'+totalMXN.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (telUSD) telUSD.textContent = totalUSD > 0 ? 'Incluye USD $'+totalUSD.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' convertidos a MXN' : '';
 }
 
 function saveEntrada() {
   const fuente  = document.getElementById('entradaFuente').value;
-  const monto   = parseFloat(document.getElementById('entradaMonto').value);
-  const moneda  = document.getElementById('entradaMoneda').value;
+  const montoRaw= document.getElementById('entradaMonto').value;
+  const monto   = parseMoney(montoRaw);
+  const moneda  = _entradaMonedaActual;
   const notas   = document.getElementById('entradaNotas').value.trim();
-  const tc      = parseFloat(document.getElementById('tcValue').value || 17);
-  if (!fuente || isNaN(monto) || monto <= 0) { toast('Selecciona fuente y monto válido','err'); return; }
+  const tc      = parseMoney(document.getElementById('tcValue').value) || 17;
+  if (!fuente || !monto || monto <= 0) { toast('Selecciona fuente y monto válido','err'); return; }
   if (moneda === 'USD') localStorage.setItem('mitech_tc', tc);
-  entradasData.push({ fuente, monto, moneda, notas, fecha: new Date().toISOString() });
+  entradasData.push({ fuente, monto, moneda, tc: moneda==='USD'?tc:null, notas, fecha: new Date().toISOString() });
   localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
   document.getElementById('entradaMonto').value = '';
   document.getElementById('entradaNotas').value = '';
-  document.getElementById('tcRow').style.display = 'none';
-  document.getElementById('entradaMoneda').value = 'MXN';
+  entradasSetMoneda('MXN');
   entradasRenderList();
   showTab('dashboard');
 }
@@ -1016,12 +1116,12 @@ function renderDashboard(c) {
     if (tipo.includes('gasto') || tipo.includes('egreso') || tipo.includes('expense')) totalGastos += monto;
   });
 
-  const tc = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
   const totalEntradasMXN = getEntradasTotal();
   const nEntradas = entradasData.length;
   const fuentesResumen = ['Mercado Libre','MI Kapital USA','Pinos','Depósito de Clientes','Otros'].map(f => {
     const items = entradasData.filter(e => e.fuente === f);
-    const sumMXN = items.reduce((a,e) => a + (e.moneda==='USD' ? parseFloat(e.monto)*tc : parseFloat(e.monto)), 0);
+    const sumMXN = items.reduce((a,e) => { const etc=parseFloat(e.tc||tcGlobal); return a + (e.moneda==='USD' ? parseFloat(e.monto)*etc : parseFloat(e.monto)); }, 0);
     return { f, sumMXN, n: items.length };
   }).filter(x => x.n > 0);
 
@@ -1987,6 +2087,7 @@ function cxpSetCategoria(cat) {
 </script>
 </body>
 </html>
+
 
 
 
