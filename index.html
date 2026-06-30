@@ -288,6 +288,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #registroPagoModal.open{display:flex;opacity:1;pointer-events:all;}
 #agregarGastoPlanModal{display:none;}
 #agregarGastoPlanModal.open{display:flex;opacity:1;pointer-events:all;}
+#gastosDetalleModal{display:none;}
+#gastosDetalleModal.open{display:flex;opacity:1;pointer-events:all;}
 .entrada-row{
   background:var(--surface);border:1px solid var(--border);
   border-radius:10px;padding:10px 12px;
@@ -677,6 +679,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     </div>
 
     <div class="budget-field" style="margin-bottom:12px;">
+      <label>Moneda del pago</label>
+      <select id="registroPagoMoneda" onchange="registroPagoToggleMoneda(this.value)">
+        <option value="MXN">🇲🇽 MXN — Pesos mexicanos</option>
+        <option value="USD">🇺🇸 USD — Dólares</option>
+      </select>
+    </div>
+    <div id="registroPagoTcWrap" class="budget-field" style="margin-bottom:12px;display:none;">
+      <label>Tipo de cambio (MXN por USD)</label>
+      <input id="registroPagoTc" type="text" inputmode="decimal" placeholder="17.00" oninput="fmtInputTC(this)">
+    </div>
+
+    <div class="budget-field" style="margin-bottom:12px;">
       <label>¿El pago es total o parcial?</label>
       <select id="registroPagoTipo" onchange="registroPagoToggleMonto(this.value)">
         <option value="total">Pago total (liquida lo pendiente)</option>
@@ -685,7 +699,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     </div>
 
     <div id="registroPagoMontoWrap" class="budget-field" style="margin-bottom:4px;display:none;">
-      <label>Monto pagado (MXN)</label>
+      <label id="registroPagoMontoLabel">Monto pagado (MXN)</label>
       <input id="registroPagoMonto" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
     </div>
     <div id="registroPagoMontoHint" style="font-size:10px;color:var(--muted);margin-bottom:14px;display:none;">Si seleccionaste varios conceptos y el pago es parcial, el monto se reparte proporcionalmente entre ellos según lo pendiente de cada uno.</div>
@@ -694,6 +708,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarRegistroPago()">💾 Confirmar pago</button>
       <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeRegistroPagoModal()">Cancelar</button>
     </div>
+  </div>
+</div>
+
+<!-- ── MODAL DETALLE GASTOS EFECTUADOS ── -->
+<div id="gastosDetalleModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(700px,96vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);">💸 Gastos Efectuados — Detalle</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Historial de pagos registrados</div>
+      </div>
+      <button onclick="closeGastosDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">✕</button>
+    </div>
+    <div id="gastosDetalleResumen" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;"></div>
+    <div id="gastosDetalleBody" style="overflow-x:auto;"></div>
   </div>
 </div>
 
@@ -1113,6 +1142,9 @@ document.getElementById('registroPagoModal').addEventListener('click', function(
 document.getElementById('agregarGastoPlanModal').addEventListener('click', function(e) {
   if (e.target === this) closeAgregarGastoPlanModal();
 });
+document.getElementById('gastosDetalleModal').addEventListener('click', function(e) {
+  if (e.target === this) closeGastosDetalleModal();
+});
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
   const acc = el.closest('.accordion');
@@ -1313,9 +1345,12 @@ async function renderDashboard(c) {
     return { f, sumMXN, n: items.length, monedaDom };
   }).filter(x => x.n > 0);
 
-  // Gastos Totales: ahora representa SOLO lo realmente pagado/efectuado
-  // del Plan de Pagos (gastos_efectuados), no el dataset viejo de allData.datos.
+  // Gastos Totales: SOLO pagos efectuados reales (gastos_efectuados)
   const totalGastosEfectuados = gastosEfectuadosTotalGeneral();
+  const { mxnRaw: gastosMXNraw, usdRaw: gastosUSDraw } = gastosEfectuadosTotalMonedas();
+  const saldoMXN = totalEntradasMXN - totalGastosEfectuados;
+  const saldoUSD = tcGlobal > 0 ? saldoMXN / tcGlobal : 0;
+  const saldoColor = saldoMXN >= 0 ? 'var(--green)' : 'var(--red)';
 
   const nowWeekKey  = getWeekKey();
   const budgetGen   = budgetData.find(b => b.semana === nowWeekKey) || null;
@@ -1348,7 +1383,8 @@ async function renderDashboard(c) {
     <!-- Dashboard: Budget izquierda | KPIs derecha -->
     <div id="dashboardGrid" style="display:grid;grid-template-columns:minmax(240px,290px) 1fr;gap:16px;align-items:start;">
 
-      <!-- IZQUIERDA: Presupuesto Semanal (standalone) -->
+      <!-- IZQUIERDA: Presupuesto + Saldo Bancario -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
       <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
            style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};margin:0;">
         <div class="kpi-label">${budgetSymbol} Presupuesto Semanal</div>
@@ -1374,6 +1410,31 @@ async function renderDashboard(c) {
             Define tu presupuesto semanal para ver el progreso de gasto en tiempo real.
           </div>`}
       </div>
+
+      <!-- KPI Saldo Bancario -->
+      <div class="kpi-card" style="margin:0;border-color:${saldoColor};">
+        <div class="kpi-label">🏦 Saldo Bancario</div>
+        <div class="kpi-value" style="font-size:22px;color:${saldoColor};">
+          ${saldoMXN >= 0 ? '+' : ''}${fmt(saldoMXN)}
+        </div>
+        <div class="kpi-sub" style="margin-top:4px;">Entradas menos gastos efectuados</div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px;font-size:11px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:var(--muted);">🇲🇽 Gastos MXN</span>
+            <span style="color:var(--red);font-weight:700;">-${fmt(gastosMXNraw)}</span>
+          </div>
+          ${gastosUSDraw > 0 ? `
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:var(--muted);">🇺🇸 Gastos USD</span>
+            <span style="color:#60a5fa;font-weight:700;">-$${gastosUSDraw.toFixed(2)} USD</span>
+          </div>` : ''}
+          <div style="display:flex;justify-content:space-between;padding-top:4px;border-top:1px solid var(--border);margin-top:2px;">
+            <span style="color:var(--muted);">🇺🇸 Equiv. USD</span>
+            <span style="color:${saldoColor};font-weight:700;">${saldoUSD >= 0 ? '+' : ''}$${saldoUSD.toFixed(2)} USD</span>
+          </div>
+        </div>
+      </div>
+      </div><!-- /izquierda flex -->
 
       <!-- DERECHA: Accordion con Entradas + Gastos -->
       <div class="accordion open" id="acc-kpis">
@@ -1438,11 +1499,23 @@ async function renderDashboard(c) {
                 </div>` : ''}
             </div>
 
-            <!-- KPI Gastos Efectuados (antes "Gastos Totales") -->
-            <div class="kpi-card" style="margin:0;">
+            <!-- KPI Gastos Efectuados — clickeable -->
+            <div class="kpi-card kpi-clickable" onclick="openGastosDetalleModal()" style="margin:0;">
               <div class="kpi-label">💸 Gastos Efectuados</div>
-              <div class="kpi-value negative">${fmt(totalGastosEfectuados)}</div>
-              <div class="kpi-sub">Suma de pagos registrados (totales + parciales)</div>
+              <div class="kpi-value negative" style="font-size:22px;">${fmt(totalGastosEfectuados)}</div>
+              <div class="kpi-sub">Total MXN equivalente · Clic para ver detalle</div>
+              <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
+                <div style="display:flex;justify-content:space-between;">
+                  <span style="color:var(--muted);">🇲🇽 En pesos MXN</span>
+                  <span style="color:var(--red);font-weight:700;">${fmt(gastosMXNraw)}</span>
+                </div>
+                ${gastosUSDraw > 0 ? `
+                <div style="display:flex;justify-content:space-between;">
+                  <span style="color:var(--muted);">🇺🇸 En dólares USD</span>
+                  <span style="color:#60a5fa;font-weight:700;">$${gastosUSDraw.toFixed(2)} USD</span>
+                </div>` : ''}
+              </div>
+              <div class="kpi-click-hint" style="margin-top:6px;">🔎 Clic para ver historial</div>
             </div>
 
 
@@ -2068,9 +2141,10 @@ function closePlanPagoModal() {
 }
 
 /* Usuario confirma el plan elegido en el modal de selección */
-function confirmPlanPago(plan) {
+async function confirmPlanPago(plan) {
   planPagoSetActivo(plan);
   closePlanPagoModal();
+  await gastosEfectuadosFetch(true); // refrescar para reflejar pagos en el nuevo plan
   toast('Plan "' + (PLAN_PAGO_CFG[plan]?.label || plan) + '" activado ✓');
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
@@ -2109,7 +2183,7 @@ async function openPlanPagoDetalleModal() {
   if (!plan) { openPlanPagoModal(); return; }
   const ok = await cxpEnsureData();
   if (!ok) { toast('No hay datos de CxP disponibles', 'err'); return; }
-  await gastosEfectuadosFetch();
+  await gastosEfectuadosFetch(true); // always fresh al abrir detalle
 
   const cfg = PLAN_PAGO_CFG[plan] || PLAN_PAGO_CFG.all;
   document.getElementById('planPagoDetalleTitulo').textContent = cfg.label + ' — Detalle';
@@ -2314,7 +2388,12 @@ function abrirRegistroPagoSeleccion() {
   document.getElementById('registroPagoTotalPendiente').textContent = fmt(totalPendiente);
   document.getElementById('registroPagoMonto').value = items.length === 1 ? totalPendiente.toFixed(2) : '';
   document.getElementById('registroPagoTipo').value = 'total';
+  document.getElementById('registroPagoMoneda').value = 'MXN';
+  registroPagoToggleMoneda('MXN');
   registroPagoToggleMonto('total');
+  // Pre-llenar TC con el último tipo de cambio guardado
+  const tcActual = localStorage.getItem('mitech_tc') || '17';
+  document.getElementById('registroPagoTc').value = parseFloat(tcActual).toFixed(2);
   document.getElementById('registroPagoModal').classList.add('open');
 }
 
@@ -2324,6 +2403,13 @@ function registroPagoToggleMonto(tipo) {
   const show = (tipo === 'parcial');
   if (wrap) wrap.style.display = show ? '' : 'none';
   if (hint) hint.style.display = show ? '' : 'none';
+}
+
+function registroPagoToggleMoneda(moneda) {
+  const tcWrap = document.getElementById('registroPagoTcWrap');
+  if (tcWrap) tcWrap.style.display = moneda === 'USD' ? '' : 'none';
+  const lbl = document.getElementById('registroPagoMontoLabel');
+  if (lbl) lbl.textContent = moneda === 'USD' ? 'Monto pagado (USD)' : 'Monto pagado (MXN)';
 }
 
 function closeRegistroPagoModal() {
@@ -2337,20 +2423,31 @@ function closeRegistroPagoModal() {
 async function confirmarRegistroPago() {
   const items = window._pagoSeleccionItems;
   if (!items || items.length === 0) return;
-  const tipo = document.getElementById('registroPagoTipo').value;
+  const tipo    = document.getElementById('registroPagoTipo').value;
+  const moneda  = document.getElementById('registroPagoMoneda').value || 'MXN';
+  const tc      = moneda === 'USD' ? (parseMoney(document.getElementById('registroPagoTc').value) || parseFloat(localStorage.getItem('mitech_tc') || '17')) : 1;
+  // montoCapturado está en la moneda seleccionada (MXN o USD)
   const montoCapturado = parseMoney(document.getElementById('registroPagoMonto').value);
 
   let registros = [];
   if (tipo === 'total') {
-    registros = items.map(it => ({ ...it, montoPagado: it.pendiente, tipoPago: 'total' }));
+    // pagar exactamente lo pendiente de cada concepto (pendiente está en MXN)
+    registros = items.map(it => {
+      const montoPagado = moneda === 'USD' ? Math.round((it.pendiente / tc) * 100) / 100 : it.pendiente;
+      return { ...it, montoPagado, moneda, tc: moneda === 'USD' ? tc : null, tipoPago: 'total' };
+    });
   } else {
     if (!montoCapturado || montoCapturado <= 0) { toast('Captura el monto pagado', 'err'); return; }
+    // convertir montoCapturado a MXN para comparar con pendiente (en MXN)
+    const montoCapturadoMXN = moneda === 'USD' ? montoCapturado * tc : montoCapturado;
     const totalPendiente = items.reduce((s,it) => s + it.pendiente, 0);
-    if (montoCapturado > totalPendiente) { toast('El monto pagado no puede exceder lo pendiente (' + fmt(totalPendiente) + ')', 'err'); return; }
+    if (montoCapturadoMXN > totalPendiente + 0.01) { toast('El monto pagado no puede exceder lo pendiente (' + fmt(totalPendiente) + (moneda==='USD'?' = $'+(totalPendiente/tc).toFixed(2)+' USD':'')+')', 'err'); return; }
     registros = items.map(it => {
-      const proporcion = totalPendiente > 0 ? it.pendiente / totalPendiente : 0;
-      const montoPagado = Math.round(montoCapturado * proporcion * 100) / 100;
-      return { ...it, montoPagado, tipoPago: montoPagado >= it.pendiente ? 'total' : 'parcial' };
+      const proporcion    = totalPendiente > 0 ? it.pendiente / totalPendiente : 0;
+      const parcialMXN    = Math.round(montoCapturadoMXN * proporcion * 100) / 100;
+      const montoPagado   = moneda === 'USD' ? Math.round((parcialMXN / tc) * 100) / 100 : parcialMXN;
+      const esTotalConcepto = parcialMXN >= it.pendiente - 0.01;
+      return { ...it, montoPagado, moneda, tc: moneda==='USD'?tc:null, tipoPago: esTotalConcepto ? 'total' : 'parcial' };
     });
   }
 
@@ -2446,16 +2543,35 @@ async function gastosEfectuadosFetch(force) {
   }
 }
 
-/* Suma de lo ya pagado (de cualquier plan/usuario) para una clave de concepto dada */
+/* Convierte un registro de gasto a su equivalente en MXN */
+function gastoToMXN(g) {
+  const monto = parseFloat(g.monto_pagado) || 0;
+  if ((g.moneda || 'MXN') === 'MXN') return monto;
+  const tc = parseFloat(g.tc) || parseFloat(localStorage.getItem('mitech_tc')) || 17;
+  return monto * tc;
+}
+
+/* Suma de lo ya pagado (en MXN equiv.) para una clave de concepto */
 function gastosEfectuadosTotalPorClave(clave) {
   return gastosEfectuadosData
     .filter(g => g.concepto_key === clave)
-    .reduce((s,g) => s + (parseFloat(g.monto_pagado) || 0), 0);
+    .reduce((s,g) => s + gastoToMXN(g), 0);
 }
 
-/* Suma total general de gastos efectuados (para el KPI "Gastos Totales") */
+/* Suma total en MXN equiv. de todos los gastos */
 function gastosEfectuadosTotalGeneral() {
-  return gastosEfectuadosData.reduce((s,g) => s + (parseFloat(g.monto_pagado) || 0), 0);
+  return gastosEfectuadosData.reduce((s,g) => s + gastoToMXN(g), 0);
+}
+
+/* Totales desglosados por moneda original */
+function gastosEfectuadosTotalMonedas() {
+  let mxnRaw = 0, usdRaw = 0, totalMXN = 0;
+  gastosEfectuadosData.forEach(g => {
+    const monto = parseFloat(g.monto_pagado) || 0;
+    if ((g.moneda || 'MXN') === 'USD') { usdRaw += monto; } else { mxnRaw += monto; }
+    totalMXN += gastoToMXN(g);
+  });
+  return { mxnRaw, usdRaw, totalMXN };
 }
 
 /* Valida que una clave de concepto exista realmente en el plan/catálogo
@@ -2480,6 +2596,8 @@ async function gastosEfectuadosRegistrar(items) {
     categoria:     it.categoria,
     monto_concepto:parseFloat(it.montoConcepto) || 0,
     monto_pagado:  parseFloat(it.montoPagado) || 0,
+    moneda:        it.moneda || 'MXN',
+    tc:            it.tc ? parseFloat(it.tc) : null,
     tipo_pago:     it.tipoPago, // 'total' | 'parcial'
     fecha:         new Date().toISOString(),
     usuario:       userObj.nombre || userObj.usuario || userObj.email || 'desconocido',
@@ -2494,6 +2612,74 @@ async function gastosEfectuadosRegistrar(items) {
     toast('Error al guardar el pago', 'err');
     return false;
   }
+}
+
+/* ══════════════════════════════════════════
+   MODAL DETALLE GASTOS EFECTUADOS
+══════════════════════════════════════════ */
+function openGastosDetalleModal() {
+  renderGastosDetalleModal();
+  document.getElementById('gastosDetalleModal').classList.add('open');
+}
+
+function closeGastosDetalleModal() {
+  document.getElementById('gastosDetalleModal').classList.remove('open');
+}
+
+function renderGastosDetalleModal() {
+  const data = [...gastosEfectuadosData].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const { mxnRaw, usdRaw, totalMXN } = gastosEfectuadosTotalMonedas();
+
+  // Resumen de totales
+  document.getElementById('gastosDetalleResumen').innerHTML = [
+    { label: 'Total MXN equiv.', val: fmt(totalMXN), color: 'var(--red)' },
+    { label: '🇲🇽 En pesos', val: fmt(mxnRaw), color: 'var(--muted)' },
+    ...(usdRaw > 0 ? [{ label: '🇺🇸 En dólares', val: '$'+usdRaw.toFixed(2)+' USD', color: '#60a5fa' }] : []),
+    { label: 'Registros', val: data.length, color: 'var(--accent)' },
+  ].map(k => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;min-width:110px;">
+      <div style="font-size:10px;color:var(--muted);">${k.label}</div>
+      <div style="font-size:15px;font-weight:700;color:${k.color};margin-top:2px;">${k.val}</div>
+    </div>`).join('');
+
+  if (data.length === 0) {
+    document.getElementById('gastosDetalleBody').innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px;">Sin pagos registrados aún</div>';
+    return;
+  }
+
+  let html = `<table class="cxp-table" style="min-width:560px;">
+    <thead><tr>
+      <th style="text-align:left;">Fecha</th>
+      <th style="text-align:left;">Concepto</th>
+      <th style="text-align:left;">Categoría</th>
+      <th>Moneda</th>
+      <th>Monto</th>
+      <th>Equiv. MXN</th>
+      <th>Tipo</th>
+      <th style="text-align:left;">Usuario</th>
+    </tr></thead><tbody>`;
+
+  data.forEach(g => {
+    const moneda = g.moneda || 'MXN';
+    const monto = parseFloat(g.monto_pagado) || 0;
+    const equivMXN = gastoToMXN(g);
+    const fecha = g.fecha ? new Date(g.fecha).toLocaleDateString('es-MX', {day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+    const monedaColor = moneda === 'USD' ? '#60a5fa' : 'var(--green)';
+    const tipoColor = g.tipo_pago === 'total' ? 'var(--green)' : 'var(--yellow)';
+    html += `<tr>
+      <td style="font-size:11px;color:var(--muted);">${fecha}</td>
+      <td>${g.concepto || '—'}</td>
+      <td style="font-size:11px;color:var(--muted);">${g.categoria || '—'}</td>
+      <td style="text-align:center;"><span style="background:var(--surface);border:1px solid ${monedaColor}33;border-radius:4px;padding:2px 6px;font-size:10px;color:${monedaColor};font-weight:700;">${moneda}</span></td>
+      <td style="text-align:right;font-weight:700;color:var(--red);">-${moneda==='USD'?'$'+monto.toFixed(2)+' USD':fmt(monto)}</td>
+      <td style="text-align:right;color:var(--muted);font-size:11px;">${moneda==='USD'?fmt(equivMXN):'—'}</td>
+      <td style="text-align:center;"><span style="color:${tipoColor};font-size:11px;font-weight:700;">${g.tipo_pago||'—'}</span></td>
+      <td style="font-size:11px;color:var(--muted);">${g.usuario||'—'}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('gastosDetalleBody').innerHTML = html;
 }
 
 /* ══════════════════════════════════════════
