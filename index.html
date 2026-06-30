@@ -260,6 +260,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 /* ── MODAL ENTRADAS ─────────────────────────────────── */
 #entradasModal{display:none;}
 #entradasModal.open{display:flex;opacity:1;pointer-events:all;}
+/* ── MODAL PLAN DE PAGOS ───────────────────────────── */
+#planPagoModal{display:none;}
+#planPagoModal.open{display:flex;opacity:1;pointer-events:all;}
+#planPagoDetalleModal{display:none;}
+#planPagoDetalleModal.open{display:flex;opacity:1;pointer-events:all;}
 .entrada-row{
   background:var(--surface);border:1px solid var(--border);
   border-radius:10px;padding:10px 12px;
@@ -462,7 +467,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div class="budget-row">
       <div class="budget-field">
         <label id="budgetMontoLabel">Monto Presupuestado (MXN)</label>
-        <input id="budgetMonto" type="number" placeholder="0.00" step="100" min="0">
+        <input id="budgetMonto" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
       </div>
       <div class="budget-field">
         <label>Alerta al % del gasto</label>
@@ -573,6 +578,67 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
     <div style="margin-top:14px;text-align:right;">
       <button onclick="closeEntradasModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL PLAN DE PAGOS (selección) ── -->
+<div id="planPagoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(420px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">📑 Elegir Plan de Pagos</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:18px;">Selecciona el plan que quieres activar en el Dashboard</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button onclick="confirmPlanPago('all')"
+        style="text-align:left;padding:14px;border-radius:10px;border:2px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text);">
+        <div style="font-weight:800;font-size:14px;">💰 Total General</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Todos los conceptos y montos completos</div>
+      </button>
+      <button onclick="confirmPlanPago('recomendado')"
+        style="text-align:left;padding:14px;border-radius:10px;border:2px solid rgba(63,185,80,.4);background:rgba(63,185,80,.07);cursor:pointer;color:var(--text);">
+        <div style="font-weight:800;font-size:14px;color:var(--green);">✅ Recomendado</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Pago óptimo sugerido</div>
+      </button>
+      <button onclick="confirmPlanPago('urgente')"
+        style="text-align:left;padding:14px;border-radius:10px;border:2px solid rgba(240,136,62,.4);background:rgba(240,136,62,.07);cursor:pointer;color:var(--text);">
+        <div style="font-weight:800;font-size:14px;color:#f0883e;">⚠️ Urgente</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Pago de atención inmediata</div>
+      </button>
+      <button onclick="confirmPlanPago('supervivencia')"
+        style="text-align:left;padding:14px;border-radius:10px;border:2px solid rgba(255,77,109,.4);background:rgba(255,77,109,.07);cursor:pointer;color:var(--text);">
+        <div style="font-weight:800;font-size:14px;color:var(--red);">🆘 Supervivencia</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Monto mínimo crítico para operar</div>
+      </button>
+    </div>
+
+    <div style="margin-top:18px;text-align:right;">
+      <button onclick="closePlanPagoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL PLAN DE PAGOS (detalle) ── -->
+<div id="planPagoDetalleModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(720px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+      <div>
+        <div id="planPagoDetalleTitulo" style="font-size:18px;font-weight:800;color:var(--text);">📑 Plan de Pagos</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo</div>
+      </div>
+      <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
+    </div>
+
+    <div class="cxp-chips" id="planPagoChips" style="margin-top:14px;"></div>
+
+    <div class="cxp-table-wrap" style="margin-top:8px;">
+      <table class="cxp-table" id="planPagoTabla">
+        <thead id="planPagoHead"></thead>
+        <tbody id="planPagoBody"></tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:14px;text-align:right;">
+      <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;">Cerrar</button>
     </div>
   </div>
 </div>
@@ -896,7 +962,7 @@ function budgetSetMoneda(moneda, btn) {
 
 function saveBudget() {
   const semana = getWeekKey();
-  const monto  = parseFloat(document.getElementById('budgetMonto').value);
+  const monto  = parseMoney(document.getElementById('budgetMonto').value);
   const alerta = parseFloat(document.getElementById('budgetAlerta').value) || 80;
   const notas  = document.getElementById('budgetNotas').value.trim();
   if (isNaN(monto) || monto <= 0) { toast('Ingresa un monto válido', 'err'); return; }
@@ -946,6 +1012,12 @@ document.getElementById('budgetModal').addEventListener('click', function(e) {
 document.getElementById('entradasModal').addEventListener('click', function(e) {
   if (e.target === this) closeEntradasModal();
 });
+document.getElementById('planPagoModal').addEventListener('click', function(e) {
+  if (e.target === this) closePlanPagoModal();
+});
+document.getElementById('planPagoDetalleModal').addEventListener('click', function(e) {
+  if (e.target === this) closePlanPagoDetalleModal();
+});
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
   const acc = el.closest('.accordion');
@@ -979,11 +1051,17 @@ function closeEntradasModal() {
 }
 
 /* ─ Helpers de formato de input ─ */
+/* Quita comas/símbolos de separador y regresa número real, p.ej. "1,234.50" -> 1234.50
+   Regresa NaN si está vacío/no numérico, para que isNaN() detecte campos sin llenar */
 function parseMoney(str) {
-  if (!str) return 0;
-  return parseFloat(String(str).replace(/[^0-9.]/g,'')) || 0;
+  if (str === null || str === undefined || String(str).trim() === '') return NaN;
+  const n = parseFloat(String(str).replace(/[^0-9.\-]/g,''));
+  return isNaN(n) ? NaN : n;
 }
-function fmtInputMoney(el) {
+
+/* Formatea un <input> con separadores de miles en vivo mientras se escribe.
+   cb: callback opcional a ejecutar después de formatear (ej. recalcular preview) */
+function fmtInputMoneyGeneric(el, cb) {
   const raw = el.value.replace(/[^0-9.]/g,'');
   const parts = raw.split('.');
   const int   = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
@@ -992,7 +1070,11 @@ function fmtInputMoney(el) {
   el.value = int + dec;
   const diff = el.value.length - len;
   el.setSelectionRange(start + diff, start + diff);
-  entradasCalcPreview();
+  if (cb) cb();
+}
+
+function fmtInputMoney(el) {
+  fmtInputMoneyGeneric(el, entradasCalcPreview);
 }
 function fmtInputTC(el) {
   const raw = el.value.replace(/[^0-9.]/g,'');
@@ -1152,6 +1234,11 @@ function renderDashboard(c) {
   const budgetSymbol= budgetGen?.moneda === 'USD' ? '🇺🇸' : '🇲🇽';
   const budgetLabel = getWeekLabel(nowWeekKey);
 
+  // Plan de Pagos activo (independiente del tab CxP, mismo dataset cxpData)
+  const planActivo = planPagoGetActivo();
+  const planCfg = planActivo ? (PLAN_PAGO_CFG[planActivo] || PLAN_PAGO_CFG.all) : null;
+  const planMonto = planActivo ? planPagoGetMonto(planActivo) : 0;
+
 
   c.innerHTML = `
     <!-- Dashboard: Budget izquierda | KPIs derecha -->
@@ -1216,12 +1303,26 @@ function renderDashboard(c) {
               </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para agregar</div>`}
             </div>
 
+            <!-- KPI Plan de Pagos -->
+            <div class="kpi-card kpi-clickable" onclick="${planActivo ? 'openPlanPagoDetalleModal()' : 'openPlanPagoModal()'}"
+                 style="border-color:${planActivo ? planCfg.color : 'var(--border)'};margin:0;">
+              <div class="kpi-label">📑 Plan de Pagos</div>
+              <div class="kpi-value" style="font-size:22px;color:${planActivo ? planCfg.color : 'var(--accent)'};">
+                ${planActivo ? fmt(planMonto) : '— Sin plan activo —'}
+              </div>
+              <div class="kpi-sub" style="margin-top:4px;">${planActivo ? planCfg.label + ' · ' + planCfg.sub : 'Clic para elegir plan'}</div>
+              ${planActivo
+                ? `<div class="kpi-click-hint" style="margin-top:6px;">🔎 Clic para ver detalle</div>`
+                : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para activar</div>`}
+            </div>
+
             <!-- KPI Gastos -->
             <div class="kpi-card" style="margin:0;">
               <div class="kpi-label">💸 Gastos Totales</div>
               <div class="kpi-value negative">${fmt(totalGastos)}</div>
               <div class="kpi-sub">Suma acumulada</div>
             </div>
+
 
           </div>
         </div>
@@ -1386,7 +1487,7 @@ function renderCaptura(c) {
         </div>
         <div class="form-field">
           <label>Monto (MXN)</label>
-          <input id="capMonto" type="number" placeholder="0.00" step="0.01">
+          <input id="capMonto" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
         </div>
         <div class="form-field">
           <label>Tipo</label>
@@ -1450,7 +1551,7 @@ function renderDatosTable() {
 async function saveCaptura() {
   const concepto_id = document.getElementById('capConcepto').value;
   const periodo     = document.getElementById('capPeriodo').value;
-  const monto       = parseFloat(document.getElementById('capMonto').value);
+  const monto       = parseMoney(document.getElementById('capMonto').value);
   const tipo        = document.getElementById('capTipo').value;
   const notas       = document.getElementById('capNotas').value;
 
@@ -1890,15 +1991,12 @@ async function cxpHandleFile(e) {
 }
 
 /* ── CARGA SUPABASE (fallback) ───────────── */
-async function cxpLoadSupabase() {
-  document.getElementById('cxpBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>Cargando desde Supabase…</td></tr>';
+/* Carga pura de datos desde Supabase a cxpData (sin tocar DOM del tab CxP).
+   Se puede llamar desde Dashboard o desde CxP indistintamente. */
+async function cxpFetchSupabaseData() {
   try {
     const { data, error } = await sb.from('catalogo_cxp').select('*').order('categoria');
-    if (error || !data || data.length === 0) {
-      document.getElementById('cxpBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">Sin datos en Supabase. Carga un Excel para comenzar.</td></tr>';
-      return;
-    }
-    // Mapear columnas de Supabase al formato interno
+    if (error || !data || data.length === 0) return false;
     cxpData = data.map(r => ({
       tipo:          r.tipo || '',
       nivel:         r.nivel || '',
@@ -1910,12 +2008,28 @@ async function cxpLoadSupabase() {
       urgente:       parseFloat(r.urgente || 0),
       supervivencia: parseFloat(r.supervivencia || r.sobrevivencia || 0),
     })).filter(r => r.concepto.trim() !== '');
-    document.getElementById('cxpUploadStatus').textContent = '✔ Supabase · catalogo_cxp · ' + cxpData.length + ' conceptos';
-    cxpRenderAll();
+    return cxpData.length > 0;
   } catch(err) {
     console.error(err);
-    document.getElementById('cxpBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--red)">Error de conexión. Carga un Excel para trabajar offline.</td></tr>';
+    return false;
   }
+}
+
+/* Asegura que cxpData tenga información, usado por Dashboard (Plan de Pagos) */
+async function cxpEnsureData() {
+  if (cxpData.length > 0) return true;
+  return await cxpFetchSupabaseData();
+}
+
+async function cxpLoadSupabase() {
+  document.getElementById('cxpBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)"><div class="spinner" style="margin:0 auto 10px"></div>Cargando desde Supabase…</td></tr>';
+  const ok = await cxpFetchSupabaseData();
+  if (!ok) {
+    document.getElementById('cxpBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">Sin datos en Supabase. Carga un Excel para comenzar.</td></tr>';
+    return;
+  }
+  document.getElementById('cxpUploadStatus').textContent = '✔ Supabase · catalogo_cxp · ' + cxpData.length + ' conceptos';
+  cxpRenderAll();
 }
 
 /* ── RENDER KPIs ─────────────────────────── */
@@ -2048,6 +2162,159 @@ function cxpSetFiltro(f) {
 function cxpSetCategoria(cat) {
   cxpCategoria = (cat === 'Todos') ? null : cat;
   cxpRenderAll();
+}
+
+/* ══════════════════════════════════════════
+   PLAN DE PAGOS (Dashboard → Indicadores Clave)
+   Usa cxpData (mismas filas que el tab CxP) para
+   activar uno de los 4 planes y mostrar su KPI +
+   detalle directamente en el Dashboard.
+══════════════════════════════════════════ */
+const PLAN_PAGO_CFG = {
+  all:          { label:'💰 Total General',  color:'#58a6ff', sub:'Todos los conceptos' },
+  recomendado:  { label:'✅ Recomendado',     color:'var(--green)', sub:'Pago óptimo sugerido' },
+  urgente:      { label:'⚠️ Urgente',         color:'#f0883e', sub:'Atención inmediata' },
+  supervivencia:{ label:'🆘 Supervivencia',   color:'var(--red)', sub:'Mínimo crítico' },
+};
+
+function planPagoGetActivo() {
+  return localStorage.getItem('mitech_plan_pago_activo') || null;
+}
+
+function planPagoSetActivo(plan) {
+  localStorage.setItem('mitech_plan_pago_activo', plan);
+}
+
+function planPagoClear() {
+  localStorage.removeItem('mitech_plan_pago_activo');
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+/* Abre el modal de selección de plan */
+async function openPlanPagoModal() {
+  const ok = await cxpEnsureData();
+  if (!ok) { toast('No hay datos de CxP disponibles. Carga un Excel en el tab CxP primero.', 'err'); return; }
+  document.getElementById('planPagoModal').classList.add('open');
+}
+function closePlanPagoModal() {
+  document.getElementById('planPagoModal').classList.remove('open');
+}
+
+/* Usuario confirma el plan elegido en el modal de selección */
+function confirmPlanPago(plan) {
+  planPagoSetActivo(plan);
+  closePlanPagoModal();
+  toast('Plan "' + (PLAN_PAGO_CFG[plan]?.label || plan) + '" activado ✓');
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+/* Permite cambiar de plan desde el modal de detalle */
+function cambiarPlanPago() {
+  closePlanPagoDetalleModal();
+  openPlanPagoModal();
+}
+
+/* Calcula el monto total del plan activo a partir de cxpData */
+function planPagoGetMonto(plan) {
+  const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
+  if (plan === 'all') return rows.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
+  return rows.reduce((s,r) => s + (parseFloat(r[plan])||0), 0);
+}
+
+/* Abre el modal de detalle del plan ya activo, reutilizando la misma
+   lógica visual (chips + tabla agrupada) que el tab CxP */
+async function openPlanPagoDetalleModal() {
+  const plan = planPagoGetActivo();
+  if (!plan) { openPlanPagoModal(); return; }
+  const ok = await cxpEnsureData();
+  if (!ok) { toast('No hay datos de CxP disponibles', 'err'); return; }
+
+  const cfg = PLAN_PAGO_CFG[plan] || PLAN_PAGO_CFG.all;
+  document.getElementById('planPagoDetalleTitulo').textContent = cfg.label + ' — Detalle';
+
+  const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
+
+  // Chips de categoría (independientes de los de CxP para no interferir con ese tab)
+  const cats = [...new Set(rows.map(r => r.categoria).filter(Boolean))].sort();
+  let planPagoCategoriaActiva = null;
+  const renderChips = () => {
+    document.getElementById('planPagoChips').innerHTML =
+      ['Todos', ...cats].map(cat => `
+        <span class="cxp-chip ${(cat==='Todos'&&!planPagoCategoriaActiva)||(cat===planPagoCategoriaActiva)?'chip-active':''}"
+          onclick="planPagoSetCategoria('${cat}')">${cat}</span>
+      `).join('');
+  };
+
+  window._planPagoState = { plan, rows, categoria: null };
+  renderChips();
+  planPagoRenderTabla();
+
+  document.getElementById('planPagoDetalleModal').classList.add('open');
+}
+
+function planPagoSetCategoria(cat) {
+  if (!window._planPagoState) return;
+  window._planPagoState.categoria = (cat === 'Todos') ? null : cat;
+  const cats = [...new Set(window._planPagoState.rows.map(r => r.categoria).filter(Boolean))].sort();
+  document.getElementById('planPagoChips').innerHTML =
+    ['Todos', ...cats].map(c => `
+      <span class="cxp-chip ${(c==='Todos'&&!window._planPagoState.categoria)||(c===window._planPagoState.categoria)?'chip-active':''}"
+        onclick="planPagoSetCategoria('${c}')">${c}</span>
+    `).join('');
+  planPagoRenderTabla();
+}
+
+function planPagoRenderTabla() {
+  const st = window._planPagoState;
+  if (!st) return;
+  const { plan, rows, categoria } = st;
+  const colPlan = plan === 'all' ? null : plan;
+
+  document.getElementById('planPagoHead').innerHTML = `<tr>
+    <th style="text-align:left">Concepto</th>
+    <th>Categoría</th>
+    <th class="${plan==='all'?'col-active':''}">Total</th>
+    ${colPlan ? `<th class="${'col-'+colPlan}">${colPlan.charAt(0).toUpperCase()+colPlan.slice(1)}</th>` : ''}
+  </tr>`;
+
+  const filtradas = categoria ? rows.filter(r => r.categoria === categoria) : rows;
+  const grupos = {};
+  filtradas.forEach(r => {
+    const g = r.categoria || 'General';
+    if (!grupos[g]) grupos[g] = [];
+    grupos[g].push(r);
+  });
+
+  let html = '';
+  let grandTotal = 0, grandPlan = 0;
+  Object.entries(grupos).forEach(([grupo, gRows]) => {
+    const subtot  = gRows.reduce((s,r) => s + (r.total||0), 0);
+    const subplan = colPlan ? gRows.reduce((s,r) => s + (r[colPlan]||0), 0) : null;
+    grandTotal += subtot;
+    if (subplan !== null) grandPlan += subplan;
+
+    html += `<tr class="cxp-group"><th colspan="99">${grupo} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span></th></tr>`;
+    gRows.forEach(r => {
+      html += `<tr>
+        <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
+        <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
+        <td class="${plan==='all'?'col-active':''}">${fmt(r.total)}</td>
+        ${colPlan ? `<td class="${'col-'+colPlan}">${fmt(r[colPlan])}</td>` : ''}
+      </tr>`;
+    });
+  });
+
+  html += `<tr class="cxp-total">
+    <td>TOTAL GENERAL</td><td></td>
+    <td class="${plan==='all'?'col-active':''}">${fmt(grandTotal)}</td>
+    ${colPlan ? `<td class="${'col-'+colPlan}">${fmt(grandPlan)}</td>` : ''}
+  </tr>`;
+
+  document.getElementById('planPagoBody').innerHTML = html;
+}
+
+function closePlanPagoDetalleModal() {
+  document.getElementById('planPagoDetalleModal').classList.remove('open');
 }
 
 /* ══════════════════════════════════════════
