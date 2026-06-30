@@ -284,7 +284,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #planPagoModal.open{display:flex;opacity:1;pointer-events:all;}
 #planPagoDetalleModal{display:none;}
 #planPagoDetalleModal.open{display:flex;opacity:1;pointer-events:all;}
+#registroPagoModal{display:none;}
 #registroPagoModal.open{display:flex;opacity:1;pointer-events:all;}
+#agregarGastoPlanModal{display:none;}
 #agregarGastoPlanModal.open{display:flex;opacity:1;pointer-events:all;}
 .entrada-row{
   background:var(--surface);border:1px solid var(--border);
@@ -666,7 +668,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 </div>
 
 <!-- ── MODAL REGISTRAR PAGO (total/parcial) ── -->
-<div id="registroPagoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;display:none;">
+<div id="registroPagoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(440px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">💳 Registrar Pago</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Captura el monto exacto pagado para los conceptos seleccionados</div>
@@ -679,17 +681,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
     <div class="budget-field" style="margin-bottom:12px;">
       <label>¿El pago es total o parcial?</label>
-      <select id="registroPagoTipo">
+      <select id="registroPagoTipo" onchange="registroPagoToggleMonto(this.value)">
         <option value="total">Pago total (liquida lo pendiente)</option>
         <option value="parcial">Pago parcial (capturar monto)</option>
       </select>
     </div>
 
-    <div class="budget-field" style="margin-bottom:4px;">
+    <div id="registroPagoMontoWrap" class="budget-field" style="margin-bottom:4px;display:none;">
       <label>Monto pagado (MXN)</label>
       <input id="registroPagoMonto" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
     </div>
-    <div style="font-size:10px;color:var(--muted);margin-bottom:14px;">Si seleccionaste varios conceptos y el pago es parcial, el monto se reparte proporcionalmente entre ellos según lo pendiente de cada uno.</div>
+    <div id="registroPagoMontoHint" style="font-size:10px;color:var(--muted);margin-bottom:14px;display:none;">Si seleccionaste varios conceptos y el pago es parcial, el monto se reparte proporcionalmente entre ellos según lo pendiente de cada uno.</div>
 
     <div style="display:flex;gap:10px;">
       <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarRegistroPago()">💾 Confirmar pago</button>
@@ -699,7 +701,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 </div>
 
 <!-- ── MODAL AGREGAR GASTO AL PLAN ── -->
-<div id="agregarGastoPlanModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;display:none;">
+<div id="agregarGastoPlanModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(460px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">➕ Agregar Gasto al Plan</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Este concepto se agrega al catálogo y afecta a TODOS los planes (Total, Recomendado, Urgente, Supervivencia), aunque no estés viendo ese plan ahora.</div>
@@ -978,6 +980,9 @@ function showTab(tab) {
     case 'usuarios':  renderUsuarios(c); break;
   }
 }
+
+/* stub: tab reporte removido de nav, se conserva la función por compatibilidad */
+function renderReporte(c) { if (c) c.innerHTML = ''; }
 
 /* ══════════════════════════════════════════
    TAB: DASHBOARD
@@ -2312,7 +2317,16 @@ function abrirRegistroPagoSeleccion() {
   document.getElementById('registroPagoTotalPendiente').textContent = fmt(totalPendiente);
   document.getElementById('registroPagoMonto').value = items.length === 1 ? totalPendiente.toFixed(2) : '';
   document.getElementById('registroPagoTipo').value = 'total';
+  registroPagoToggleMonto('total');
   document.getElementById('registroPagoModal').classList.add('open');
+}
+
+function registroPagoToggleMonto(tipo) {
+  const wrap = document.getElementById('registroPagoMontoWrap');
+  const hint = document.getElementById('registroPagoMontoHint');
+  const show = (tipo === 'parcial');
+  if (wrap) wrap.style.display = show ? '' : 'none';
+  if (hint) hint.style.display = show ? '' : 'none';
 }
 
 function closeRegistroPagoModal() {
@@ -2500,6 +2514,7 @@ async function gastosEfectuadosRegistrar(items) {
 </script>
 </body>
 </html>
+
 
 
 
