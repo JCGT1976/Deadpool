@@ -2206,12 +2206,17 @@ async function cxpFetchSupabaseData() {
       categoria:     r.categoria || r.grupo || 'General',
       concepto:      r.concepto || r.nombre || r.descripcion || '',
       nota:          r.nota || '',
-      total:         parseFloat(r.total || r.monto || 0),
-      recomendado:   parseFloat(r.recomendado || 0),
-      urgente:       parseFloat(r.urgente || 0),
-      supervivencia: parseFloat(r.supervivencia || r.sobrevivencia || 0),
+      total:         parseFloat(r.total ?? r.monto ?? 0),
+      recomendado:   parseFloat(r.recomendado ?? 0),
+      urgente:       parseFloat(r.urgente ?? 0),
+      supervivencia: parseFloat(r.supervivencia ?? r.sobrevivencia ?? 0),
     })).filter(r => r.concepto.trim() !== '');
     cxpData.forEach(r => r._key = r.clave || cxpRowKey(r));
+    // Deduplica por _key: si hubo inserciones dobles en Supabase (fallback sin onConflict),
+    // evita que un concepto con supervivencia>0 aparezca junto a otro del mismo concepto con supervivencia=0
+    const _dedupMap = new Map();
+    cxpData.forEach(r => { if (!_dedupMap.has(r._key)) _dedupMap.set(r._key, r); });
+    cxpData = Array.from(_dedupMap.values());
     return cxpData.length > 0;
   } catch(err) {
     console.error(err);
