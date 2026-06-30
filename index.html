@@ -2281,6 +2281,7 @@ function cxpRenderTabla(rows) {
   banner.textContent = bc.txt;
 
   const colPlan = col === 'all' ? null : col;
+  const colMonto = col === 'all' ? 'total' : col;
 
   // Encabezado
   document.getElementById('cxpHead').innerHTML = `<tr>
@@ -2290,8 +2291,9 @@ function cxpRenderTabla(rows) {
     ${colPlan ? `<th class="${'col-'+colPlan}">${colPlan.charAt(0).toUpperCase()+colPlan.slice(1)}</th>` : ''}
   </tr>`;
 
-  // Filtrar por categoría
-  const filtradas = cxpCategoria ? rows.filter(r => r.categoria === cxpCategoria) : rows;
+  // Filtrar por categoría, y ocultar conceptos sin monto a pagar en esta columna
+  const filtradas = (cxpCategoria ? rows.filter(r => r.categoria === cxpCategoria) : rows)
+    .filter(r => (parseFloat(r[colMonto]) || 0) > 0);
 
   // Agrupar por categoría
   const grupos = {};
@@ -2553,7 +2555,8 @@ function planPagoRenderTabla() {
     <th>Estado</th>
   </tr>`;
 
-  const filtradas = categoria ? rows.filter(r => r.categoria === categoria) : rows;
+  const filtradas = (categoria ? rows.filter(r => r.categoria === categoria) : rows)
+    .filter(r => (parseFloat(r[colPlan]) || 0) > 0);
   const grupos = {};
   filtradas.forEach(r => {
     const g = r.categoria || 'General';
