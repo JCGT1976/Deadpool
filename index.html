@@ -1152,92 +1152,84 @@ function renderDashboard(c) {
   const budgetSymbol= budgetGen?.moneda === 'USD' ? '🇺🇸' : '🇲🇽';
   const budgetLabel = getWeekLabel(nowWeekKey);
 
+
   c.innerHTML = `
-    <!-- ── Accordion: KPIs ── -->
-    <div class="accordion open" id="acc-kpis">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">📊</span>
-        <span class="accordion-title">Indicadores Clave</span>
-        <span class="accordion-badge">${nEntradas} entradas</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    <!-- Dashboard: Budget izquierda | KPIs derecha -->
+    <div style="display:grid;grid-template-columns:minmax(240px,290px) 1fr;gap:16px;align-items:start;">
+
+      <!-- IZQUIERDA: Presupuesto Semanal (standalone) -->
+      <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
+           style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};margin:0;">
+        <div class="kpi-label">${budgetSymbol} Presupuesto Semanal</div>
+        <div class="kpi-value" style="font-size:22px;color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
+          ${budgetMonto > 0 ? fmtBudget(budgetMonto, budgetGen?.moneda) : '— Sin monto —'}
+        </div>
+        <div class="kpi-sub" style="margin-top:2px;">${budgetLabel}</div>
+        ${budgetMonto > 0 ? `
+          <div class="kpi-budget-bar" style="margin-top:12px;">
+            <div class="kpi-budget-bar-fill" style="width:${budgetPct.toFixed(1)}%;background:${budgetColor};"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;">
+            <span style="font-size:11px;color:${budgetColor};font-weight:700;">${budgetPct.toFixed(1)}%</span>
+            <span style="font-size:11px;color:var(--muted);">${budgetStatus}</span>
+          </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Ejecutado</div>
+            <div style="font-size:14px;font-weight:700;color:${budgetColor};">${fmt(budgetEjec)}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">de ${fmtBudget(budgetMonto, budgetGen?.moneda)}</div>
+          </div>` : `
+          <div class="kpi-click-hint" style="margin-top:12px;">✏️ Clic para configurar</div>
+          <div style="margin-top:10px;font-size:10px;color:var(--muted);line-height:1.6;">
+            Define tu presupuesto semanal para ver el progreso de gasto en tiempo real.
+          </div>`}
       </div>
-      <div class="accordion-body">
-        <div class="accordion-inner">
 
-          <!-- Layout: KPIs izquierda | Presupuesto derecha -->
-          <div style="display:grid;grid-template-columns:1fr 1px minmax(220px,320px);gap:0;margin-bottom:0;align-items:stretch;">
+      <!-- DERECHA: Accordion con Entradas + Gastos -->
+      <div class="accordion open" id="acc-kpis">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+          <span class="accordion-icon">📊</span>
+          <span class="accordion-title">Indicadores Clave</span>
+          <span class="accordion-badge">${nEntradas} entradas</span>
+          <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="accordion-body">
+          <div class="accordion-inner" style="display:flex;flex-direction:column;gap:14px;">
 
-            <!-- Columna izquierda: Entradas + Gastos apilados -->
-            <div style="display:flex;flex-direction:column;gap:14px;padding-right:16px;">
-
-              <!-- KPI Entradas -->
-              <div class="kpi-card kpi-clickable" onclick="openEntradasModal()"
-                   style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};margin:0;flex:1;">
-                <div class="kpi-label">💵 Entradas</div>
-                <div class="kpi-value positive" style="font-size:24px;color:var(--green);">
-                  ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : '— Sin entradas —'}
-                </div>
-                <div class="kpi-sub" style="margin-top:4px;">${nEntradas > 0 ? nEntradas+' registro'+(nEntradas>1?'s':'') : 'Clic para registrar'}</div>
-                ${fuentesResumen.length > 0 ? `
-                <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-                  ${fuentesResumen.map(x=>{
-                    const color = x.monedaDom==='USD' ? '#60a5fa' : x.monedaDom==='MXN' ? 'var(--green)' : '#a78bfa';
-                    const border = x.monedaDom==='USD' ? 'rgba(96,165,250,.3)' : x.monedaDom==='MXN' ? 'rgba(34,197,94,.3)' : 'rgba(167,139,250,.3)';
-                    return `<div style="background:var(--surface);border:1px solid ${border};border-radius:6px;padding:3px 8px;font-size:10px;">
-                      <span style="color:var(--muted);">${x.f}</span>
-                      <span style="color:${color};font-weight:700;margin-left:4px;">$${Math.round(x.sumMXN).toLocaleString('es-MX')}</span>
-                    </div>`;
-                  }).join('')}
-                </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para agregar</div>`}
+            <!-- KPI Entradas -->
+            <div class="kpi-card kpi-clickable" onclick="openEntradasModal()"
+                 style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};margin:0;">
+              <div class="kpi-label">💵 Entradas</div>
+              <div class="kpi-value positive" style="font-size:24px;color:var(--green);">
+                ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : '— Sin entradas —'}
               </div>
-
-              <!-- KPI Gastos -->
-              <div class="kpi-card" style="margin:0;flex:1;">
-                <div class="kpi-label">💸 Gastos Totales</div>
-                <div class="kpi-value negative">${fmt(totalGastos)}</div>
-                <div class="kpi-sub">Suma acumulada</div>
-              </div>
-
+              <div class="kpi-sub" style="margin-top:4px;">${nEntradas > 0 ? nEntradas+' registro'+(nEntradas>1?'s':'') : 'Clic para registrar'}</div>
+              ${fuentesResumen.length > 0 ? `
+              <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                ${fuentesResumen.map(x=>{
+                  const color = x.monedaDom==='USD' ? '#60a5fa' : x.monedaDom==='MXN' ? 'var(--green)' : '#a78bfa';
+                  const border = x.monedaDom==='USD' ? 'rgba(96,165,250,.3)' : x.monedaDom==='MXN' ? 'rgba(34,197,94,.3)' : 'rgba(167,139,250,.3)';
+                  return `<div style="background:var(--surface);border:1px solid ${border};border-radius:6px;padding:3px 8px;font-size:10px;">
+                    <span style="color:var(--muted);">${x.f}</span>
+                    <span style="color:${color};font-weight:700;margin-left:4px;">$${Math.round(x.sumMXN).toLocaleString('es-MX')}</span>
+                  </div>`;
+                }).join('')}
+              </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para agregar</div>`}
             </div>
 
-            <!-- Separador vertical -->
-            <div style="background:var(--border);opacity:.6;align-self:stretch;"></div>
-
-            <!-- Columna derecha: Presupuesto Semanal (independiente) -->
-            <div style="padding-left:16px;display:flex;flex-direction:column;">
-              <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
-                   style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};margin:0;flex:1;">
-                <div class="kpi-label">${budgetSymbol} Presupuesto Semanal</div>
-                <div class="kpi-value" style="font-size:20px;color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
-                  ${budgetMonto > 0 ? fmtBudget(budgetMonto, budgetGen?.moneda) : '— Sin monto —'}
-                </div>
-                <div class="kpi-sub" style="margin-top:2px;">${budgetLabel}</div>
-                ${budgetMonto > 0 ? `
-                  <div class="kpi-budget-bar" style="margin-top:10px;">
-                    <div class="kpi-budget-bar-fill" style="width:${budgetPct.toFixed(1)}%;background:${budgetColor};"></div>
-                  </div>
-                  <div style="display:flex;justify-content:space-between;margin-top:6px;">
-                    <span style="font-size:11px;color:${budgetColor};font-weight:700;">${budgetPct.toFixed(1)}%</span>
-                    <span style="font-size:11px;color:var(--muted);">${budgetStatus}</span>
-                  </div>
-                  <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-                    <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Ejecutado</div>
-                    <div style="font-size:13px;font-weight:700;color:${budgetColor};">${fmt(budgetEjec)}</div>
-                    <div style="font-size:10px;color:var(--muted);margin-top:2px;">de ${fmtBudget(budgetMonto, budgetGen?.moneda)}</div>
-                  </div>` : `
-                  <div class="kpi-click-hint" style="margin-top:10px;">✏️ Clic para configurar</div>
-                  <div style="margin-top:12px;font-size:10px;color:var(--muted);line-height:1.6;">
-                    Define tu presupuesto semanal para ver el progreso de gasto en tiempo real.
-                  </div>`}
-              </div>
+            <!-- KPI Gastos -->
+            <div class="kpi-card" style="margin:0;">
+              <div class="kpi-label">💸 Gastos Totales</div>
+              <div class="kpi-value negative">${fmt(totalGastos)}</div>
+              <div class="kpi-sub">Suma acumulada</div>
             </div>
 
           </div>
-
         </div>
       </div>
+
     </div>
   `;
+
 }
 
 
