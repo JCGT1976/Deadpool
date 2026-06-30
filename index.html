@@ -1434,6 +1434,27 @@ async function renderDashboard(c) {
           </div>
         </div>
       </div>
+
+      <!-- KPI Plan Total (placeholder) -->
+      <div class="kpi-card kpi-clickable" onclick="${planActivo ? 'openPlanPagoDetalleModal()' : 'openPlanPagoModal()'}" style="margin:0;border-color:${planActivo ? 'var(--accent)' : 'var(--border)'};opacity:${planActivo?1:.6};">
+        <div class="kpi-label">📊 Plan Total</div>
+        <div class="kpi-value" style="font-size:22px;color:${planActivo ? 'var(--accent)' : 'var(--muted)'};margin-bottom:4px;">
+          ${planActivo ? fmt(planMonto) : '— Sin plan activo —'}
+        </div>
+        ${planActivo ? `
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:8px;border-top:1px solid var(--border);">
+          <span style="color:var(--muted);">Pagado</span>
+          <span style="color:var(--green);font-weight:700;">${fmt(planMonto - planPendiente)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px;">
+          <span style="color:var(--muted);">Pendiente</span>
+          <span style="color:${planPendiente>0?'var(--red)':'var(--muted)'};font-weight:700;">${fmt(planPendiente)}</span>
+        </div>
+        <div style="margin-top:8px;background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;">
+          <div style="width:${planMonto>0?Math.min(((planMonto-planPendiente)/planMonto*100),100).toFixed(1):0}%;height:100%;background:var(--green);border-radius:4px;"></div>
+        </div>` : ''}
+        <div class="kpi-click-hint" style="margin-top:8px;font-size:10px;color:var(--muted);">⏳ Recuérdame qué generamos con este KPI</div>
+      </div>
       </div><!-- /izquierda flex -->
 
       <!-- DERECHA: Accordion con Entradas + Gastos -->
@@ -2299,8 +2320,15 @@ function planPagoRenderTabla() {
     <th>Estado</th>
   </tr>`;
 
-  const filtradas = (categoria ? rows.filter(r => r.categoria === categoria) : rows)
+  // Todos los conceptos con monto en este plan (base para totales)
+  const todas = (categoria ? rows.filter(r => r.categoria === categoria) : rows)
     .filter(r => (parseFloat(r[colPlan]) || 0) > 0);
+  // Solo los pendientes (excluye los 100% liquidados)
+  const filtradas = todas.filter(r =>
+    Math.max((parseFloat(r[colPlan])||0) - gastosEfectuadosTotalPorClave(r._key), 0) > 0
+  );
+  const nLiquidados = todas.length - filtradas.length;
+
   const grupos = {};
   filtradas.forEach(r => {
     const g = r.categoria || 'General';
@@ -2308,13 +2336,20 @@ function planPagoRenderTabla() {
     grupos[g].push(r);
   });
 
-  let html = '';
+  // Totales calculados sobre TODAS las filas (incl. liquidadas) para el pie
   let grandPlan = 0, grandPagado = 0, grandPendiente = 0;
+  todas.forEach(r => {
+    const mp = parseFloat(r[colPlan]) || 0;
+    const pg = Math.min(gastosEfectuadosTotalPorClave(r._key), mp);
+    grandPlan += mp; grandPagado += pg; grandPendiente += Math.max(mp - pg, 0);
+  });
+
+  let html = '';
+  let _unused = 0; // grandPlan/Pagado/Pendiente ya calculados arriba
   Object.entries(grupos).forEach(([grupo, gRows]) => {
-    const subplan = gRows.reduce((s,r) => s + (parseFloat(r[colPlan])||0), 0);
+    const subplan   = gRows.reduce((s,r) => s + (parseFloat(r[colPlan])||0), 0);
     const subpagado = gRows.reduce((s,r) => s + Math.min(gastosEfectuadosTotalPorClave(r._key), parseFloat(r[colPlan])||0), 0);
-    grandPlan += subplan;
-    grandPagado += subpagado;
+    _unused += subplan + subpagado; // evitar unused-var warning
 
     const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
     const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
@@ -2347,6 +2382,12 @@ function planPagoRenderTabla() {
     });
   });
 
+  // Banner de liquidados ocultos
+  if (nLiquidados > 0) {
+    html += `<tr><td colspan="7" style="text-align:center;padding:8px;font-size:11px;color:var(--muted);background:rgba(63,185,80,.05);border-top:1px solid var(--border);">
+      ✅ ${nLiquidados} concepto${nLiquidados>1?'s':''} liquidado${nLiquidados>1?'s':''} ocult${nLiquidados>1?'os':'o'} del plan
+    </td></tr>`;
+  }
   html += `<tr class="cxp-total">
     <td></td><td>TOTAL GENERAL</td><td></td>
     <td class="${plan==='all'?'col-active':''}">${fmt(grandPlan)}</td>
