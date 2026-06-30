@@ -290,6 +290,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #agregarGastoPlanModal.open{display:flex;opacity:1;pointer-events:all;}
 #gastosDetalleModal{display:none;}
 #gastosDetalleModal.open{display:flex;opacity:1;pointer-events:all;}
+#cierreSemanaModal{display:none;}
+#cierreSemanaModal.open{display:flex;opacity:1;pointer-events:all;}
+#resetTotalModal{display:none;}
+#resetTotalModal.open{display:flex;opacity:1;pointer-events:all;}
+#reporteSemanaModal{display:none;}
+#reporteSemanaModal.open{display:flex;opacity:1;pointer-events:all;}
+.btn-danger{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.4);}
+.btn-danger:hover{background:rgba(255,77,109,.3);}
 .entrada-row{
   background:var(--surface);border:1px solid var(--border);
   border-radius:10px;padding:10px 12px;
@@ -708,6 +716,66 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarRegistroPago()">💾 Confirmar pago</button>
       <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeRegistroPagoModal()">Cancelar</button>
     </div>
+  </div>
+</div>
+
+<!-- ── MODAL CIERRE DE SEMANA ── -->
+<div id="cierreSemanaModal" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1200;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(520px,95vw);max-height:90vh;overflow-y:auto;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.6);">
+    <div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px;">🔒 Cierre de Semana</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:18px;">Archiva la semana actual y reinicia los contadores para la próxima semana.</div>
+    <div id="cierreSemanaResumen" style="margin-bottom:18px;"></div>
+    <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--yellow);margin-bottom:18px;">
+      ⚠️ Esta acción eliminará las entradas y gastos efectuados de esta semana de los KPIs. El historial queda guardado localmente. Los conceptos del plan <strong>no pagados se acumulan como arrastre</strong> para la próxima semana.
+    </div>
+    <div class="budget-field" style="margin-bottom:18px;">
+      <label>Nota del cierre (opcional)</label>
+      <input id="cierreSemanaNote" type="text" placeholder="Ej: Semana 26 — pagos parciales por vacaciones">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarCierreSemana()">✅ Confirmar Cierre</button>
+      <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeCierreSemanaModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL RESET TOTAL (solo admin) ── -->
+<div id="resetTotalModal" style="position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1300;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:2px solid var(--red);border-radius:16px;width:min(460px,95vw);padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.7);">
+    <div style="font-size:20px;font-weight:800;color:var(--red);margin-bottom:4px;">♻️ Reset Total — Zona de Peligro</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:18px;">Solo administradores. Esta acción es <strong style="color:var(--red);">IRREVERSIBLE</strong>.</div>
+    <div style="background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--red);margin-bottom:18px;line-height:1.7;">
+      Se eliminarán permanentemente:<br>
+      • Todos los gastos efectuados (Supabase)<br>
+      • Todas las entradas (localStorage)<br>
+      • Arrastre acumulado<br>
+      • Plan activo seleccionado
+    </div>
+    <div class="budget-field" style="margin-bottom:18px;">
+      <label>Escribe <strong>RESET</strong> para confirmar</label>
+      <input id="resetTotalConfirmInput" type="text" placeholder="RESET" oninput="resetTotalCheckConfirm()">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button id="resetTotalBtn" class="btn-sm btn-danger" style="flex:1;opacity:.4;cursor:not-allowed;" disabled onclick="confirmarResetTotal()">♻️ Ejecutar Reset</button>
+      <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeResetTotalModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL REPORTE SEMANAL ── -->
+<div id="reporteSemanaModal" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1200;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(860px,97vw);max-height:92vh;overflow-y:auto;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:var(--text);">📋 Reporte Semanal</div>
+        <div id="reporteSemanaSubtitulo" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="reporteImprimir()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">🖨️ Imprimir</button>
+        <button onclick="closeReporteSemanaModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">✕</button>
+      </div>
+    </div>
+    <div id="reporteSemanaBody"></div>
   </div>
 </div>
 
@@ -1145,6 +1213,12 @@ document.getElementById('agregarGastoPlanModal').addEventListener('click', funct
 document.getElementById('gastosDetalleModal').addEventListener('click', function(e) {
   if (e.target === this) closeGastosDetalleModal();
 });
+document.getElementById('cierreSemanaModal').addEventListener('click', function(e) {
+  if (e.target === this) closeCierreSemanaModal();
+});
+document.getElementById('reporteSemanaModal').addEventListener('click', function(e) {
+  if (e.target === this) closeReporteSemanaModal();
+});
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
   const acc = el.closest('.accordion');
@@ -1351,6 +1425,10 @@ async function renderDashboard(c) {
   const saldoMXN = totalEntradasMXN - totalGastosEfectuados;
   const saldoUSD = tcGlobal > 0 ? saldoMXN / tcGlobal : 0;
   const saldoColor = saldoMXN >= 0 ? 'var(--green)' : 'var(--red)';
+  // Arrastre: deuda acumulada de semanas anteriores
+  const arrastreData = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+  const arrastreMonto = arrastreData.monto || 0;
+  const arrastreCierres = arrastreData.cierres || 0;
 
   const nowWeekKey  = getWeekKey();
   const budgetGen   = budgetData.find(b => b.semana === nowWeekKey) || null;
@@ -1435,8 +1513,8 @@ async function renderDashboard(c) {
         </div>
       </div>
 
-      <!-- KPI Plan Total (placeholder) -->
-      <div class="kpi-card kpi-clickable" onclick="${planActivo ? 'openPlanPagoDetalleModal()' : 'openPlanPagoModal()'}" style="margin:0;border-color:${planActivo ? 'var(--accent)' : 'var(--border)'};opacity:${planActivo?1:.6};">
+      <!-- KPI Plan Total → abre reporte semanal -->
+      <div class="kpi-card kpi-clickable" onclick="openReporteSemanaModal()" style="margin:0;border-color:var(--accent);opacity:${cxpData.length>0?1:.5};">
         <div class="kpi-label">📊 Plan Total</div>
         <div class="kpi-value" style="font-size:22px;color:${planActivo ? 'var(--accent)' : 'var(--muted)'};margin-bottom:4px;">
           ${planActivo ? fmt(planMonto) : '— Sin plan activo —'}
@@ -1453,7 +1531,7 @@ async function renderDashboard(c) {
         <div style="margin-top:8px;background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;">
           <div style="width:${planMonto>0?Math.min(((planMonto-planPendiente)/planMonto*100),100).toFixed(1):0}%;height:100%;background:var(--green);border-radius:4px;"></div>
         </div>` : ''}
-        <div class="kpi-click-hint" style="margin-top:8px;font-size:10px;color:var(--muted);">⏳ Recuérdame qué generamos con este KPI</div>
+        <div class="kpi-click-hint" style="margin-top:8px;font-size:10px;color:var(--muted);">📋 Clic para ver reporte semanal</div>
       </div>
       </div><!-- /izquierda flex -->
 
@@ -1544,6 +1622,18 @@ async function renderDashboard(c) {
         </div>
       </div>
 
+    </div>
+
+    <!-- Barra de acciones semanales -->
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);">
+        ${arrastreCierres > 0 ? `<span style="background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.3);border-radius:6px;padding:3px 8px;color:var(--yellow);font-weight:700;">⬆️ Arrastre ${arrastreCierres} semana${arrastreCierres>1?'s':''}: ${fmt(arrastreMonto)}</span>` : '<span>Sin arrastre de semanas anteriores</span>'}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="openReporteSemanaModal()" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">📋 Reporte</button>
+        <button onclick="openCierreSemanaModal()" style="background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">🔒 Cerrar Semana</button>
+        ${currentUser?.rol === 'admin' ? `<button onclick="openResetTotalModal()" style="background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">♻️ Reset</button>` : ''}
+      </div>
     </div>
   `;
 
@@ -2722,6 +2812,292 @@ function renderGastosDetalleModal() {
   html += '</tbody></table>';
   document.getElementById('gastosDetalleBody').innerHTML = html;
 }
+
+/* ══════════════════════════════════════════
+   CIERRE DE SEMANA
+══════════════════════════════════════════ */
+
+function openCierreSemanaModal() {
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const totalE  = getEntradasTotal();
+  const planAct = planPagoGetActivo();
+  const planMnt = planAct ? planPagoGetMonto(planAct) : 0;
+  const planPnd = planAct ? planPagoGetPendiente(planAct) : 0;
+  const totalG  = gastosEfectuadosTotalGeneral();
+  const arrData = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+
+  document.getElementById('cierreSemanaResumen').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      ${[
+        { l:'💵 Entradas',       v: fmt(totalE),        c:'var(--green)' },
+        { l:'💸 Pagado',         v: fmt(totalG),        c:'var(--red)'   },
+        { l:'📑 Plan activo',    v: planAct ? fmt(planMnt) : '—', c:'var(--accent)' },
+        { l:'⏳ Pendiente',      v: planAct ? fmt(planPnd) : '—', c: planPnd>0?'var(--red)':'var(--muted)' },
+        { l:'⬆️ Arrastre ant.', v: fmt(arrData.monto), c:'var(--yellow)' },
+        { l:'⬆️ Nuevo arrastre', v: fmt(arrData.monto + planPnd), c:'var(--yellow)', bold:true },
+      ].map(k=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+        <div style="font-size:10px;color:var(--muted);">${k.l}</div>
+        <div style="font-size:14px;font-weight:${k.bold?800:700};color:${k.c};margin-top:2px;">${k.v}</div>
+      </div>`).join('')}
+    </div>`;
+  document.getElementById('cierreSemanaNote').value = '';
+  document.getElementById('cierreSemanaModal').classList.add('open');
+}
+
+function closeCierreSemanaModal() {
+  document.getElementById('cierreSemanaModal').classList.remove('open');
+}
+
+async function confirmarCierreSemana() {
+  const nota = document.getElementById('cierreSemanaNote').value.trim();
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const planAct = planPagoGetActivo();
+  const planPnd = planAct ? planPagoGetPendiente(planAct) : 0;
+  const totalG  = gastosEfectuadosTotalGeneral();
+  const totalE  = getEntradasTotal();
+
+  // Archivar snapshot en localStorage
+  const semanaKey = getWeekKey();
+  const historial = JSON.parse(localStorage.getItem('mitech_cierres_hist') || '[]');
+  historial.unshift({
+    semana: semanaKey,
+    label: getWeekLabel(semanaKey),
+    fecha: new Date().toISOString(),
+    nota,
+    totalEntradas: totalE,
+    totalPagado: totalG,
+    planActivo: planAct,
+    planPendiente: planPnd,
+    nGastos: gastosEfectuadosData.length,
+    nEntradas: entradasData.length,
+  });
+  localStorage.setItem('mitech_cierres_hist', JSON.stringify(historial.slice(0, 52))); // máx 52 semanas
+
+  // Acumular arrastre
+  const arrAnterior = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+  const nuevoArrastre = { monto: arrAnterior.monto + planPnd, cierres: arrAnterior.cierres + 1 };
+  localStorage.setItem('mitech_arrastre', JSON.stringify(nuevoArrastre));
+
+  // Eliminar gastos_efectuados de Supabase
+  try {
+    const { error } = await sb.from('gastos_efectuados').delete().not('fecha', 'is', null);
+    if (error) console.warn('Error al limpiar gastos_efectuados:', error);
+  } catch(e) { console.warn(e); }
+  gastosEfectuadosData = [];
+  gastosEfectuadosLoaded = false;
+
+  // Limpiar entradas
+  entradasData = [];
+  localStorage.setItem('mitech_entradas', '[]');
+
+  // Limpiar plan activo (nueva semana, elegir plan de nuevo)
+  planPagoClear();
+
+  closeCierreSemanaModal();
+  toast('✅ Semana cerrada — KPIs reiniciados. Arrastre acumulado.');
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+/* ══════════════════════════════════════════
+   RESET TOTAL (solo admin)
+══════════════════════════════════════════ */
+
+function openResetTotalModal() {
+  const user = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
+  if (user.rol !== 'admin') { toast('Solo administradores pueden ejecutar el reset', 'err'); return; }
+  document.getElementById('resetTotalConfirmInput').value = '';
+  document.getElementById('resetTotalBtn').disabled = true;
+  document.getElementById('resetTotalBtn').style.opacity = '.4';
+  document.getElementById('resetTotalBtn').style.cursor = 'not-allowed';
+  document.getElementById('resetTotalModal').classList.add('open');
+}
+
+function closeResetTotalModal() {
+  document.getElementById('resetTotalModal').classList.remove('open');
+}
+
+function resetTotalCheckConfirm() {
+  const val = document.getElementById('resetTotalConfirmInput').value.trim();
+  const btn = document.getElementById('resetTotalBtn');
+  const ok = val === 'RESET';
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '.4';
+  btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
+
+async function confirmarResetTotal() {
+  const user = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
+  if (user.rol !== 'admin') { toast('Sin permisos', 'err'); return; }
+  if (document.getElementById('resetTotalConfirmInput').value.trim() !== 'RESET') return;
+
+  // Eliminar gastos_efectuados
+  try {
+    const { error } = await sb.from('gastos_efectuados').delete().not('fecha', 'is', null);
+    if (error) console.warn('Error reset gastos:', error);
+  } catch(e) { console.warn(e); }
+  gastosEfectuadosData = [];
+  gastosEfectuadosLoaded = false;
+
+  // Limpiar entradas, plan, arrastre, historial
+  entradasData = [];
+  localStorage.setItem('mitech_entradas', '[]');
+  localStorage.removeItem('mitech_arrastre');
+  localStorage.removeItem('mitech_cierres_hist');
+  planPagoClear();
+
+  closeResetTotalModal();
+  toast('♻️ Reset total ejecutado — todo limpio');
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+/* ══════════════════════════════════════════
+   REPORTE SEMANAL
+══════════════════════════════════════════ */
+
+function openReporteSemanaModal() {
+  renderReporteSemanaModal();
+  document.getElementById('reporteSemanaModal').classList.add('open');
+}
+
+function closeReporteSemanaModal() {
+  document.getElementById('reporteSemanaModal').classList.remove('open');
+}
+
+function renderReporteSemanaModal() {
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const semanaKey = getWeekKey();
+  const semanaLbl = getWeekLabel(semanaKey);
+  const planAct   = planPagoGetActivo();
+  const planCfgR  = planAct ? (PLAN_PAGO_CFG[planAct] || PLAN_PAGO_CFG.all) : null;
+  const colPlanR  = planAct === 'all' ? 'total' : planAct;
+  const planMntR  = planAct ? planPagoGetMonto(planAct) : 0;
+  const planPndR  = planAct ? planPagoGetPendiente(planAct) : 0;
+  const planTotAll = cxpData.filter(r => r.concepto && r.total !== undefined).reduce((s,r) => s + (parseFloat(r.total)||0), 0);
+  const totalE    = getEntradasTotal();
+  const totalG    = gastosEfectuadosTotalGeneral();
+  const brecha    = totalE - planPndR;
+  const pctEjec   = planMntR > 0 ? Math.min((totalG / planMntR) * 100, 100) : 0;
+  const arrData   = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+
+  document.getElementById('reporteSemanaSubtitulo').textContent =
+    semanaLbl + (planCfgR ? ' · Plan: ' + planCfgR.label : ' · Sin plan activo');
+
+  // Sección Entradas
+  const fuentesR = ['Mercado Libre','MI Kapital USA','Pinos','Depósito de Clientes','Otros'].map(f => {
+    const items = entradasData.filter(e => e.fuente === f);
+    const sumMXN = items.reduce((a,e) => {
+      const etc = parseFloat(e.tc||tcGlobal);
+      return a + (e.moneda==='USD' ? parseFloat(e.monto)*etc : parseFloat(e.monto));
+    }, 0);
+    return { f, sumMXN, n: items.length };
+  }).filter(x => x.n > 0);
+
+  // Sección Plan — tabla comparativa
+  const rowsR = cxpData.filter(r => r.concepto && r.total !== undefined);
+  const grupos = {};
+  rowsR.forEach(r => {
+    const g = r.categoria || 'General';
+    if (!grupos[g]) grupos[g] = [];
+    grupos[g].push(r);
+  });
+
+  let tablaHtml = `<table class="cxp-table" style="min-width:640px;font-size:11px;">
+    <thead><tr>
+      <th style="text-align:left;">Concepto</th>
+      <th>Plan Total</th>
+      ${planAct && planAct !== 'all' ? `<th>${planCfgR?.label || planAct}</th>` : ''}
+      <th>Pagado</th>
+      <th>Pendiente</th>
+      <th>Estado</th>
+    </tr></thead><tbody>`;
+
+  let gTot=0, gPlanAct=0, gPagado=0, gPendiente=0;
+  Object.entries(grupos).forEach(([grupo, gRows]) => {
+    tablaHtml += `<tr class="cxp-group"><th colspan="10" style="text-align:left;">${grupo}</th></tr>`;
+    gRows.forEach(r => {
+      const mTot  = parseFloat(r.total)||0;
+      const mPlan = planAct ? (parseFloat(r[colPlanR])||0) : mTot;
+      const pagado  = Math.min(gastosEfectuadosTotalPorClave(r._key), mTot);
+      const pend    = Math.max(mPlan - pagado, 0);
+      const liq     = pend <= 0 && mPlan > 0;
+      gTot+=mTot; gPlanAct+=mPlan; gPagado+=pagado; gPendiente+=pend;
+      tablaHtml += `<tr>
+        <td>${r.concepto}${r.nota?`<span style="color:var(--muted);font-size:9px;"> — ${r.nota}</span>`:''}</td>
+        <td style="text-align:right;">${fmt(mTot)}</td>
+        ${planAct && planAct !== 'all' ? `<td style="text-align:right;color:var(--accent);">${fmt(mPlan)}</td>` : ''}
+        <td style="text-align:right;color:var(--green);">${pagado>0?fmt(pagado):'—'}</td>
+        <td style="text-align:right;color:${pend>0?'var(--red)':'var(--muted)'};">${pend>0?fmt(pend):'—'}</td>
+        <td style="text-align:center;">${liq?'✅':pagado>0?'🟡':'⏳'}</td>
+      </tr>`;
+    });
+  });
+  tablaHtml += `<tr class="cxp-total">
+    <td>TOTALES</td>
+    <td style="text-align:right;">${fmt(gTot)}</td>
+    ${planAct && planAct !== 'all' ? `<td style="text-align:right;color:var(--accent);">${fmt(gPlanAct)}</td>` : ''}
+    <td style="text-align:right;color:var(--green);">${fmt(gPagado)}</td>
+    <td style="text-align:right;color:var(--red);">${fmt(gPendiente)}</td>
+    <td></td>
+  </tr></tbody></table>`;
+
+  document.getElementById('reporteSemanaBody').innerHTML = `
+    <!-- KPIs resumen -->
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;">
+      ${[
+        { l:'💵 Entradas',      v:fmt(totalE),    c:'var(--green)' },
+        { l:'📑 Plan activo',   v:planAct?fmt(planMntR):'—', c:'var(--accent)' },
+        { l:'📊 Plan total',    v:fmt(planTotAll), c:'var(--muted)' },
+        { l:'💸 Pagado',        v:fmt(totalG),     c:'var(--red)' },
+        { l:'⏳ Pendiente',     v:fmt(planPndR),   c:planPndR>0?'var(--red)':'var(--muted)' },
+        { l:'📐 Brecha',        v:fmt(brecha),     c:brecha>=0?'var(--green)':'var(--red)' },
+        { l:'% Ejecutado',      v:pctEjec.toFixed(1)+'%', c:pctEjec>=80?'var(--green)':'var(--yellow)' },
+        { l:'⬆️ Arrastre',     v:fmt(arrData.monto), c:'var(--yellow)' },
+      ].map(k=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:110px;flex:1;">
+        <div style="font-size:10px;color:var(--muted);">${k.l}</div>
+        <div style="font-size:14px;font-weight:700;color:${k.c};margin-top:2px;">${k.v}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- Entradas -->
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">💵 Entradas de la semana</div>
+    ${fuentesR.length === 0
+      ? '<div style="color:var(--muted);font-size:12px;margin-bottom:14px;">Sin entradas registradas</div>'
+      : `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+          ${fuentesR.map(x=>`<div style="background:var(--surface);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:7px 12px;">
+            <div style="font-size:10px;color:var(--muted);">${x.f}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--green);">${fmt(x.sumMXN)}</div>
+          </div>`).join('')}
+          <div style="background:var(--surface);border:1px solid rgba(34,197,94,.5);border-radius:8px;padding:7px 12px;">
+            <div style="font-size:10px;color:var(--muted);">TOTAL</div>
+            <div style="font-size:13px;font-weight:800;color:var(--green);">${fmt(totalE)}</div>
+          </div>
+        </div>`}
+
+    <!-- Tabla plan vs realidad -->
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">
+      📊 Plan de Pagos vs Realidad ${planCfgR ? '· ' + planCfgR.label : ''}
+    </div>
+    <div style="overflow-x:auto;margin-bottom:14px;">${tablaHtml}</div>
+
+    <!-- Historial de cierres -->
+    ${(()=>{
+      const hist = JSON.parse(localStorage.getItem('mitech_cierres_hist') || '[]');
+      if (hist.length === 0) return '';
+      return `<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">🗂️ Historial de Cierres</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          ${hist.slice(0,5).map(c=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span style="font-weight:700;color:var(--text);">${c.label||c.semana}</span>
+            <span style="color:var(--muted);">${c.nota||''}</span>
+            <span style="color:var(--green);">Entradas: ${fmt(c.totalEntradas||0)}</span>
+            <span style="color:var(--red);">Pagado: ${fmt(c.totalPagado||0)}</span>
+            <span style="color:var(--yellow);">Pendiente: ${fmt(c.planPendiente||0)}</span>
+          </div>`).join('')}
+        </div>`;
+    })()}
+  `;
+}
+
+function reporteImprimir() { window.print(); }
 
 /* ══════════════════════════════════════════
    AUTO-RESTORE SESSION
