@@ -431,10 +431,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div class="topbar-user">
       <span class="name" id="topName"></span>
       <span class="role-badge" id="topRole"></span>
-      <button class="btn-icon" onclick="exportExcel()" id="btnExport">
-        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span class="label">Excel</span>
-      </button>
       <button class="btn-icon" onclick="doLogout()">
         <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         <span class="label">Salir</span>
@@ -451,11 +447,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   <!-- nav tabs -->
   <div class="nav" id="navTabs">
     <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard">📊 Dashboard</button>
-    <button class="nav-tab" onclick="showTab('reporte')" data-tab="reporte">📋 Reporte</button>
     <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp">💳 CxP</button>
-    <button class="nav-tab admin-only" onclick="showTab('captura')" data-tab="captura" style="display:none">✏️ Captura</button>
     <button class="nav-tab admin-only" onclick="showTab('usuarios')" data-tab="usuarios" style="display:none">👥 Usuarios</button>
-    <button class="nav-tab admin-only" onclick="showTab('catalogo')" data-tab="catalogo" style="display:none">📂 Catálogo</button>
   </div>
 
   <!-- content area -->
@@ -926,9 +919,10 @@ async function loginSuccess(userData) {
   // mostrar tabs según rol
   if (userData.rol === 'admin' || userData.rol === 'cohost') {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display='');
-  }
+  // Permisos por rol: solo lectura para view/income (sin tabs de admin)
   if (userData.rol === 'view' || userData.rol === 'income') {
-    document.getElementById('btnExport').style.display='none';
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display='none');
+  }
   }
 
   startTimer();
@@ -959,41 +953,11 @@ function doLogout() {
 ══════════════════════════════════════════ */
 async function loadAllData() {
   try {
-    // Intentar cargar catálogo (nombre probable de tabla)
-    const tableNames = ['catalogo','catalogo_conceptos','conceptos','catalogo_financiero','reporte_conceptos'];
-    for (const t of tableNames) {
-      const { data, error } = await sb.from(t).select('*').limit(100);
-      if (!error && data) {
-        allData.catalogo = data;
-        allData.catalogoTable = t;
-        break;
-      }
-    }
-
-    // Cargar datos financieros (capturas)
-    const dataTables = ['datos','datos_financieros','capturas','reporte_datos','financiero'];
-    for (const t of dataTables) {
-      const { data, error } = await sb.from(t).select('*').limit(500);
-      if (!error && data) {
-        allData.datos = data;
-        allData.datosTable = t;
-        break;
-      }
-    }
-
-    // Usuarios (solo admin)
+    // Usuarios (solo admin / cohost)
     if (currentUser.rol === 'admin' || currentUser.rol === 'cohost') {
       const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
       if (data) allData.usuarios = data;
     }
-
-    console.log('Tablas encontradas:', {
-      catalogo: allData.catalogoTable,
-      datos: allData.datosTable
-    });
-    console.log('Catálogo:', allData.catalogo?.length, 'registros');
-    console.log('Datos:', allData.datos?.length, 'registros');
-
   } catch(e) {
     console.error('Error cargando datos:', e);
     toast('Error al cargar datos', 'err');
@@ -1010,11 +974,8 @@ function showTab(tab) {
   const c = document.getElementById('mainContent');
   switch(tab) {
     case 'dashboard': renderDashboard(c); break;
-    case 'reporte':   renderReporte(c); break;
     case 'cxp':       renderCxP(c); break;
-    case 'captura':   renderCaptura(c); break;
     case 'usuarios':  renderUsuarios(c); break;
-    case 'catalogo':  renderCatalogo(c); break;
   }
 }
 
@@ -1494,255 +1455,6 @@ async function renderDashboard(c) {
 
 
 
-/* ══════════════════════════════════════════
-   TAB: REPORTE
-══════════════════════════════════════════ */
-function renderReporte(c) {
-  const cat = allData.catalogo || [];
-  const dat = allData.datos || [];
-
-  if (cat.length === 0 && dat.length === 0) {
-    c.innerHTML = `<div class="loading-wrap">
-      <div style="font-size:13px;color:var(--muted)">Sin datos en catálogo o registros financieros.<br>Ve al tab Catálogo para revisar la conexión.</div>
-    </div>`;
-    return;
-  }
-
-  // Si tenemos catálogo, construir reporte agrupado
-  const cols = cat.length > 0 ? Object.keys(cat[0]) : [];
-  const colConcepto = cols.find(c => c.toLowerCase().includes('concepto') || c.toLowerCase().includes('nombre') || c.toLowerCase() === 'descripcion') || cols[0];
-  const colCategoria = cols.find(c => c.toLowerCase().includes('categoria') || c.toLowerCase().includes('grupo') || c.toLowerCase().includes('tipo')) || null;
-  const colMonto = cols.find(c => c.toLowerCase().includes('monto') || c.toLowerCase().includes('amount') || c.toLowerCase().includes('valor') || c.toLowerCase().includes('importe')) || null;
-
-  // Agrupar por categoría si existe
-  let html = `
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">📊</span>
-        <span class="accordion-title">Estado Financiero</span>
-        <span class="accordion-badge">${cat.length} conceptos</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body"><div class="accordion-inner">`;
-
-  if (colCategoria) {
-    const grupos = {};
-    cat.forEach(row => {
-      const g = row[colCategoria] || 'Sin categoría';
-      if (!grupos[g]) grupos[g] = [];
-      grupos[g].push(row);
-    });
-
-    html += `<table class="fin-table">
-      <thead><tr>
-        <th>Concepto</th>
-        ${colMonto ? '<th>Monto</th>' : ''}
-        ${cols.filter(c=>c!==colConcepto&&c!==colCategoria&&c!==colMonto&&c!=='id'&&c!=='created_at').map(c=>`<th>${c}</th>`).join('')}
-      </tr></thead>
-      <tbody>`;
-
-    let grandTotal = 0;
-    Object.entries(grupos).forEach(([grupo, rows]) => {
-      html += `<tr class="group-header"><td colspan="99">${grupo}</td></tr>`;
-      let subTotal = 0;
-      rows.forEach(row => {
-        const monto = colMonto ? parseFloat(row[colMonto] || 0) : null;
-        if (monto) subTotal += monto;
-        const extraCols = cols.filter(c=>c!==colConcepto&&c!==colCategoria&&c!==colMonto&&c!=='id'&&c!=='created_at');
-        html += `<tr>
-          <td>${row[colConcepto]||'—'}</td>
-          ${colMonto ? `<td><span class="amount ${monto<0?'neg':''}">${fmt(monto)}</span></td>` : ''}
-          ${extraCols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}
-        </tr>`;
-      });
-      if (colMonto) {
-        grandTotal += subTotal;
-        html += `<tr class="subtotal"><td>Subtotal ${grupo}</td><td>${fmt(subTotal)}</td></tr>`;
-      }
-    });
-
-    if (colMonto) {
-      html += `<tr class="${grandTotal>=0?'total':'negative-total'}"><td>TOTAL</td><td>${fmt(grandTotal)}</td></tr>`;
-    }
-    html += `</tbody></table>`;
-  } else {
-    // Sin categoría, tabla simple
-    const visibleCols = cols.filter(c=>c!=='id'&&c!=='created_at');
-    html += `<table class="fin-table">
-      <thead><tr>${visibleCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-      <tbody>
-        ${cat.map(row=>`<tr>${visibleCols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}</tr>`).join('')}
-      </tbody>
-    </table>`;
-  }
-
-  // Cerrar accordion
-  html += `</div></div></div>`;
-
-  // Accordion de registros financieros
-  if (dat.length > 0) {
-    const datCols = Object.keys(dat[0]).filter(c=>c!=='id');
-    html += `
-      <div class="accordion open">
-        <div class="accordion-header" onclick="toggleAccordion(this)">
-          <span class="accordion-icon">🗂️</span>
-          <span class="accordion-title">Registros Financieros</span>
-          <span class="accordion-badge">${dat.length} registros</span>
-          <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="accordion-body"><div class="accordion-inner">
-          <table class="fin-table">
-            <thead><tr><th>#</th>${datCols.map(c=>'<th>'+c+'</th>').join('')}</tr></thead>
-            <tbody>
-              ${dat.slice(0,30).map((row,i)=>'<tr><td style="color:var(--muted)">'+(i+1)+'</td>'+datCols.map(c=>'<td>'+(row[c]??'—')+'</td>').join('')+'</tr>').join('')}
-            </tbody>
-          </table>
-          <div style="font-size:11px;color:var(--muted);margin-top:8px;">Mostrando \${Math.min(30,dat.length)} de \${dat.length} registros</div>
-        </div></div>
-      </div>`;
-  }
-
-  c.innerHTML = html;
-}
-
-/* ══════════════════════════════════════════
-   TAB: CAPTURA (admin/cohost)
-══════════════════════════════════════════ */
-function renderCaptura(c) {
-  if (!['admin','cohost'].includes(currentUser.rol)) {
-    c.innerHTML = '<div class="loading-wrap">Sin acceso a esta sección.</div>'; return;
-  }
-
-  const cat = allData.catalogo || [];
-  const optsCat = cat.map(r => {
-    const cols = Object.keys(r);
-    const colN = cols.find(c=>c.toLowerCase().includes('concepto')||c.toLowerCase().includes('nombre'))||cols[0];
-    return `<option value="${r.id||r[cols[0]]}">${r[colN]}</option>`;
-  }).join('');
-
-  c.innerHTML = `
-    <!-- Accordion Formulario Captura -->
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">✏️</span>
-        <span class="accordion-title">Registrar Dato Financiero</span>
-        <span class="accordion-badge">Nuevo registro</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body"><div class="accordion-inner">
-    <div class="panel">
-      <h3>✏️ Registrar dato financiero</h3>
-      <div class="form-grid">
-        <div class="form-field">
-          <label>Concepto</label>
-          <select id="capConcepto">
-            <option value="">— Selecciona —</option>
-            ${optsCat}
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Período (ej. 2025-01)</label>
-          <input id="capPeriodo" type="month" value="${new Date().toISOString().slice(0,7)}">
-        </div>
-        <div class="form-field">
-          <label>Monto (MXN)</label>
-          <input id="capMonto" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
-        </div>
-        <div class="form-field">
-          <label>Tipo</label>
-          <select id="capTipo">
-            <option value="ingreso">Ingreso</option>
-            <option value="egreso">Egreso</option>
-            <option value="presupuesto">Presupuesto</option>
-          </select>
-        </div>
-        <div class="form-field" style="grid-column:1/-1">
-          <label>Notas (opcional)</label>
-          <input id="capNotas" type="text" placeholder="Observaciones…">
-        </div>
-      </div>
-      <div style="margin-top:16px;display:flex;gap:10px">
-        <button class="btn-sm btn-success" onclick="saveCaptura()">💾 Guardar registro</button>
-        <button class="btn-sm btn-accent" onclick="loadAllData().then(()=>showTab('captura'))">🔄 Recargar</button>
-      </div>
-    </div>
-
-    </div><!-- /.panel -->
-      </div></div>
-    </div><!-- /.accordion formulario -->
-
-    <!-- Accordion Registros Recientes -->
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">🗂️</span>
-        <span class="accordion-title">Registros Recientes</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body"><div class="accordion-inner">
-        <div id="capTabla">${renderDatosTable()}</div>
-      </div></div>
-    </div>
-  `;
-}
-
-function renderDatosTable() {
-  const dat = allData.datos || [];
-  if (dat.length === 0) return `<div class="loading-wrap" style="padding:20px">Sin registros aún.</div>`;
-  const cols = Object.keys(dat[0]).filter(c=>c!=='id');
-  return `
-    <div class="panel">
-      <table class="fin-table">
-        <thead><tr><th>#</th>${cols.map(c=>`<th>${c}</th>`).join('')}${currentUser.rol==='admin'?'<th></th>':''}</tr></thead>
-        <tbody>
-          ${dat.slice(0,50).map((row,i)=>`
-            <tr>
-              <td style="color:var(--muted)">${i+1}</td>
-              ${cols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}
-              ${currentUser.rol==='admin'?`<td><button class="btn-sm btn-danger" onclick="deleteRegistro('${row.id}')">✕</button></td>`:''}
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">Mostrando ${Math.min(50,dat.length)} de ${dat.length} registros</div>
-    </div>`;
-}
-
-async function saveCaptura() {
-  const concepto_id = document.getElementById('capConcepto').value;
-  const periodo     = document.getElementById('capPeriodo').value;
-  const monto       = parseMoney(document.getElementById('capMonto').value);
-  const tipo        = document.getElementById('capTipo').value;
-  const notas       = document.getElementById('capNotas').value;
-
-  if (!concepto_id || !periodo || isNaN(monto)) {
-    toast('Completa concepto, período y monto', 'err'); return;
-  }
-
-  const tableName = allData.datosTable || 'datos_financieros';
-  const payload = { concepto_id, periodo, monto, tipo, notas, capturado_por: currentUser.nombre };
-
-  const { error } = await sb.from(tableName).insert([payload]);
-  if (error) {
-    // Si la tabla no existe, intentar crearla via SQL no es posible con anon key
-    toast(`Error: ${error.message}`, 'err');
-    console.error(error);
-    return;
-  }
-  toast('Registro guardado ✓');
-  document.getElementById('capMonto').value = '';
-  document.getElementById('capNotas').value = '';
-  await loadAllData();
-  document.getElementById('capTabla').innerHTML = renderDatosTable();
-}
-
-async function deleteRegistro(id) {
-  if (!confirm('¿Eliminar este registro?')) return;
-  const { error } = await sb.from(allData.datosTable).delete().eq('id', id);
-  if (error) { toast('Error al eliminar', 'err'); return; }
-  toast('Registro eliminado');
-  await loadAllData();
-  showTab('captura');
-}
 
 /* ══════════════════════════════════════════
    TAB: USUARIOS (admin)
@@ -1860,74 +1572,6 @@ async function createUser() {
   const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
   if (data) allData.usuarios = data;
   showTab('usuarios');
-}
-
-/* ══════════════════════════════════════════
-   TAB: CATÁLOGO (admin)
-══════════════════════════════════════════ */
-function renderCatalogo(c) {
-  if (!['admin','cohost'].includes(currentUser.rol)) {
-    c.innerHTML = '<div class="loading-wrap">Sin acceso.</div>'; return;
-  }
-  const cat = allData.catalogo || [];
-  const cols = cat.length > 0 ? Object.keys(cat[0]).filter(c=>c!=='created_at') : [];
-
-  c.innerHTML = `
-    <!-- Accordion Catálogo -->
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">📂</span>
-        <span class="accordion-title">Catálogo de Conceptos</span>
-        <span class="accordion-badge">${cat.length} conceptos</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body"><div class="accordion-inner">
-    <div class="panel">
-      <h3>📂 Catálogo de conceptos</h3>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:13px;color:var(--muted)">${cat.length} conceptos · Tabla: <code style="color:var(--accent)">${allData.catalogoTable||'No detectada'}</code></div>
-        <button class="btn-sm btn-accent" onclick="loadAllData().then(()=>showTab('catalogo'))">🔄 Recargar</button>
-      </div>
-      ${cat.length > 0 ? `
-        <table class="fin-table">
-          <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-          <tbody>
-            ${cat.map(row=>`<tr>${cols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}</tr>`).join('')}
-          </tbody>
-        </table>
-      ` : `
-        <div style="text-align:center;padding:30px;color:var(--muted)">
-          <div style="font-size:24px;margin-bottom:8px">⚠️</div>
-          <div>Tabla de catálogo no detectada automáticamente.</div>
-          <div style="font-size:12px;margin-top:8px">Abre F12 → Consola para ver el diagnóstico.</div>
-        </div>
-      `}
-    </div><!-- /.panel -->
-      </div></div>
-    </div><!-- /.accordion -->
-  `;
-}
-
-/* ══════════════════════════════════════════
-   EXPORT EXCEL
-══════════════════════════════════════════ */
-function exportExcel() {
-  const cat = allData.catalogo || [];
-  const dat = allData.datos || [];
-  if (cat.length === 0 && dat.length === 0) { toast('Sin datos para exportar', 'err'); return; }
-
-  const wb = XLSX.utils.book_new();
-  if (cat.length > 0) {
-    const ws1 = XLSX.utils.json_to_sheet(cat);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Catálogo');
-  }
-  if (dat.length > 0) {
-    const ws2 = XLSX.utils.json_to_sheet(dat);
-    XLSX.utils.book_append_sheet(wb, ws2, 'Datos Financieros');
-  }
-  const fecha = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `MiTech_Reporte_${fecha}.xlsx`);
-  toast('Excel descargado ✓');
 }
 
 /* ══════════════════════════════════════════
