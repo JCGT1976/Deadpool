@@ -652,7 +652,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button onclick="openAgregarGastoPlanModal()" style="background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
+        ${canAccess('cxp') ? `<button onclick="openAgregarGastoPlanModal()" style="background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>` : ''}
         <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
         <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;" title="Cerrar">✕</button>
       </div>
@@ -662,7 +662,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
     <div id="planPagoBarraAccion" style="display:none;align-items:center;justify-content:space-between;background:rgba(0,194,255,.08);border:1px solid var(--accent);border-radius:8px;padding:8px 14px;margin-top:10px;">
       <span id="planPagoSeleccionCount" style="font-size:12px;font-weight:700;color:var(--text);"></span>
-      <button class="btn-sm btn-accent" onclick="abrirRegistroPagoSeleccion()">💳 Registrar pago</button>
+      ${canAccess('reg_pago') ? `<button class="btn-sm btn-accent" onclick="abrirRegistroPagoSeleccion()">💳 Registrar pago</button>` : ''}
     </div>
 
     <div class="cxp-table-wrap" style="margin-top:8px;">
@@ -1002,6 +1002,8 @@ async function doFirstChange(userData) {
 }
 
 async function loginSuccess(userData) {
+  // Cargar permisos personalizados (o defaults del rol)
+  userData.permisos = permisosGet(userData.id || userData.username, userData.rol);
   currentUser = userData;
   sessionStorage.setItem('mitech_user', JSON.stringify(userData));
   document.getElementById('loginScreen').style.display = 'none';
@@ -1630,9 +1632,9 @@ async function renderDashboard(c) {
         ${arrastreCierres > 0 ? `<span style="background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.3);border-radius:6px;padding:3px 8px;color:var(--yellow);font-weight:700;">⬆️ Arrastre ${arrastreCierres} semana${arrastreCierres>1?'s':''}: ${fmt(arrastreMonto)}</span>` : '<span>Sin arrastre de semanas anteriores</span>'}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button onclick="openReporteSemanaModal()" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">📋 Reporte</button>
-        <button onclick="openCierreSemanaModal()" style="background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">🔒 Cerrar Semana</button>
-        ${currentUser?.rol === 'admin' ? `<button onclick="openResetTotalModal()" style="background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">♻️ Reset</button>` : ''}
+        ${canAccess('reporte') ? `<button onclick="openReporteSemanaModal()" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">📋 Reporte</button>` : ''}
+        ${canAccess('cierre') ? `<button onclick="openCierreSemanaModal()" style="background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">🔒 Cerrar Semana</button>` : ''}
+        ${canAccess('reset') ? `<button onclick="openResetTotalModal()" style="background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">♻️ Reset</button>` : ''}
       </div>
     </div>
   `;
@@ -1650,76 +1652,203 @@ function renderUsuarios(c) {
     c.innerHTML = '<div class="loading-wrap">Solo administradores.</div>'; return;
   }
   const users = allData.usuarios || [];
+  // Estado del panel de usuarios
+  if (!window._usuPanelState) window._usuPanelState = { selId: users[0]?.id || null, tab: 'permisos' };
+  const st = window._usuPanelState;
+  if (!users.find(u => u.id === st.selId)) st.selId = users[0]?.id || null;
+  const selUser = users.find(u => u.id === st.selId);
+
+  const ROLE_COLORS = {
+    admin:  { bg:'rgba(255,77,109,.15)', border:'rgba(255,77,109,.4)', text:'#ff4d6d' },
+    cohost: { bg:'rgba(139,92,246,.15)', border:'rgba(139,92,246,.4)', text:'#8b5cf6' },
+    view:   { bg:'rgba(0,194,255,.15)',  border:'rgba(0,194,255,.4)',  text:'#00c2ff' },
+    income: { bg:'rgba(63,185,80,.15)', border:'rgba(63,185,80,.4)',  text:'#3fb950' },
+  };
+
+  function userCard(u) {
+    const rc = ROLE_COLORS[u.rol] || ROLE_COLORS.view;
+    const isSel = u.id === st.selId;
+    return `<div onclick="usuSelectUser('${u.id}')" style="background:${isSel?'var(--surface)':'transparent'};border:1px solid ${isSel?rc.border:'var(--border)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;opacity:${u.activo?1:.5};">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);">${u.nombre}</div>
+          <div style="font-size:11px;color:var(--muted);">@${u.username}</div>
+        </div>
+        <span style="background:${rc.bg};border:1px solid ${rc.border};color:${rc.text};border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">${u.rol}</span>
+      </div>
+      ${!u.activo ? '<div style="font-size:10px;color:var(--red);margin-top:3px;">● Inactivo</div>' : ''}
+    </div>`;
+  }
+
+  function permsGrid(u) {
+    const perms = permisosGet(u.id, u.rol);
+    const isAdmin = u.rol === 'admin';
+    return PERMS_MODULOS.map(m => {
+      const on = isAdmin || !!perms[m.id];
+      return `<div onclick="${isAdmin ? '' : `usuTogglePerm('${u.id}','${m.id}')`}"
+        style="background:${on?'rgba(63,185,80,.07)':'var(--surface)'};border:1px solid ${on?'rgba(63,185,80,.3)':'var(--border)'};border-radius:8px;padding:9px 12px;cursor:${isAdmin?'not-allowed':'pointer'};display:flex;align-items:center;gap:10px;transition:all .15s;">
+        <div style="width:32px;height:18px;border-radius:9px;background:${on?'var(--green)':'var(--border)'};position:relative;flex-shrink:0;">
+          <div style="width:12px;height:12px;border-radius:50%;background:#fff;position:absolute;top:3px;left:${on?'17px':'3px'};transition:left .2s;"></div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:${on?'var(--text)':'var(--muted)'};">${m.label}</div>
+          <div style="font-size:10px;color:var(--muted);">${m.desc}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function rolSelector(u) {
+    const isAdmin = u.rol === 'admin';
+    return ['admin','cohost','view','income'].map(r => {
+      const rc = ROLE_COLORS[r];
+      const sel = u.rol === r;
+      return `<div onclick="${isAdmin?'':`usuChangeRol('${u.id}','${r}')`}"
+        style="background:${sel?rc.bg:'transparent'};border:1px solid ${sel?rc.border:'var(--border)'};color:${sel?rc.text:'var(--muted)'};border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:${isAdmin?'not-allowed':'pointer'};">${r}</div>`;
+    }).join('');
+  }
 
   c.innerHTML = `
-    <!-- Accordion Gestión de Usuarios -->
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">👥</span>
-        <span class="accordion-title">Gestión de Usuarios</span>
-        <span class="accordion-badge">${users.length} usuarios</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+  <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
+
+    <!-- Columna izquierda: lista de usuarios -->
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Usuarios (${users.length})</div>
+      ${users.map(userCard).join('')}
+      <div style="border:1px dashed var(--border);border-radius:10px;padding:10px;text-align:center;color:var(--muted);font-size:12px;cursor:pointer;" onclick="usuShowCrearForm()">
+        ＋ Nuevo usuario
       </div>
-      <div class="accordion-body"><div class="accordion-inner">
-    <div class="panel">
-      <h3>👥 Gestión de usuarios</h3>
-      <table class="user-table">
-        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Activo</th><th>1er Acceso</th><th>Acciones</th></tr></thead>
-        <tbody>
-          ${users.map(u=>`
-            <tr>
-              <td><code style="color:var(--accent)">${u.username}</code></td>
-              <td>${u.nombre}</td>
-              <td><span class="role-badge role-${u.rol}">${u.rol}</span></td>
-              <td>${u.activo ? '✅' : '❌'}</td>
-              <td>${u.debe_cambiar ? '⏳ Pendiente' : '✓'}</td>
-              <td style="display:flex;gap:6px">
-                ${u.id !== currentUser.id ? `
-                  <button class="btn-sm ${u.activo?'btn-danger':'btn-success'}" onclick="toggleUser('${u.id}',${u.activo})">
-                    ${u.activo?'Desactivar':'Activar'}
-                  </button>
-                  <button class="btn-sm btn-accent" onclick="resetPwd('${u.id}')">Reset pwd</button>
-                ` : '<span style="color:var(--muted);font-size:11px">(tú)</span>'}
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
     </div>
 
-    <div class="panel">
-      <h3>➕ Nuevo usuario</h3>
-      <div class="form-grid">
-        <div class="form-field">
-          <label>Usuario (login)</label>
-          <input id="nuUsuario" type="text" placeholder="juan.perez">
+    <!-- Panel derecho -->
+    <div id="usuPanelDer">
+    ${selUser ? `
+      <div style="background:var(--surface);border:1px solid ${(ROLE_COLORS[selUser.rol]||ROLE_COLORS.view).border};border-radius:14px;padding:20px;">
+
+        <!-- Header usuario -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+          <div>
+            <div style="font-size:17px;font-weight:800;">${selUser.nombre}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">@${selUser.username}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            ${selUser.id !== currentUser.id ? `
+            <div onclick="toggleUser('${selUser.id}',${selUser.activo})" style="background:${selUser.activo?'rgba(63,185,80,.12)':'rgba(255,77,109,.12)'};border:1px solid ${selUser.activo?'rgba(63,185,80,.4)':'rgba(255,77,109,.4)'};color:${selUser.activo?'var(--green)':'var(--red)'};border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;">
+              ${selUser.activo ? '● Activo' : '○ Inactivo'}
+            </div>
+            <div onclick="resetPwd('${selUser.id}')" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;">🔑 Reset pwd</div>
+            ` : '<span style="font-size:11px;color:var(--muted);">(tú)</span>'}
+          </div>
         </div>
-        <div class="form-field">
-          <label>Nombre completo</label>
-          <input id="nuNombre" type="text" placeholder="Juan Pérez">
+
+        <!-- Tabs -->
+        <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;">
+          ${['permisos','perfil','nuevo'].map(t => {
+            const labels = { permisos:'🔐 Permisos', perfil:'👤 Perfil', nuevo:'➕ Nuevo usuario' };
+            const sel = st.tab === t;
+            return `<div onclick="usuSetTab('${t}')" style="padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;color:${sel?'var(--accent)':'var(--muted)'};border-bottom:2px solid ${sel?'var(--accent)':'transparent'};margin-bottom:-1px;">${labels[t]}</div>`;
+          }).join('')}
         </div>
-        <div class="form-field">
-          <label>Rol</label>
-          <select id="nuRol">
-            <option value="view">view</option>
-            <option value="income">income</option>
-            <option value="cohost">cohost</option>
-            <option value="admin">admin</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Contraseña inicial</label>
-          <input id="nuPwd" type="password" placeholder="Mínimo 8 caracteres">
-        </div>
+
+        ${st.tab === 'permisos' ? `
+          <!-- Rol base -->
+          <div style="margin-bottom:16px;">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;">ROL BASE</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">${rolSelector(selUser)}</div>
+            ${selUser.rol === 'admin' ? '<div style="font-size:10px;color:var(--muted);margin-top:6px;">⚠️ El admin tiene acceso completo. No se puede restringir.</div>' : `
+            <div onclick="usuResetPerms('${selUser.id}')" style="margin-top:8px;font-size:11px;color:var(--accent);cursor:pointer;">↺ Restablecer permisos por defecto del rol</div>`}
+          </div>
+          <!-- Grid de permisos -->
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">ACCESO POR MÓDULO</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="permsGrid_${selUser.id}">
+            ${permsGrid(selUser)}
+          </div>
+          <div style="margin-top:16px;display:flex;gap:8px;">
+            <button class="btn-sm btn-accent" style="flex:1;" onclick="usuGuardarPerms('${selUser.id}')">💾 Guardar permisos</button>
+          </div>
+        ` : st.tab === 'perfil' ? `
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            ${[['Nombre completo',selUser.nombre],['Usuario (login)',selUser.username],['Rol',selUser.rol]].map(([l,v])=>`
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;">${l}</div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;">${v}</div>
+            </div>`).join('')}
+            <div style="font-size:11px;color:var(--muted);font-style:italic;">Edición de perfil disponible próximamente.</div>
+          </div>
+        ` : `
+          <div id="usuCrearForm">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+              <div class="budget-field"><label>Usuario (login)</label><input id="nuUsuario" type="text" placeholder="juan.perez"></div>
+              <div class="budget-field"><label>Nombre completo</label><input id="nuNombre" type="text" placeholder="Juan Pérez"></div>
+              <div class="budget-field"><label>Rol</label>
+                <select id="nuRol"><option value="view">view</option><option value="income">income</option><option value="cohost">cohost</option><option value="admin">admin</option></select>
+              </div>
+              <div class="budget-field"><label>Contraseña inicial</label><input id="nuPwd" type="password" placeholder="Mínimo 8 caracteres"></div>
+            </div>
+            <button class="btn-sm btn-accent" onclick="createUser()">➕ Crear usuario</button>
+          </div>
+        `}
       </div>
-      <div style="margin-top:16px">
-        <button class="btn-sm btn-success" onclick="createUser()">➕ Crear usuario</button>
-      </div>
-    </div><!-- /.panel -->
-      </div></div>
-    </div><!-- /.accordion -->
-  `;
+    ` : '<div style="color:var(--muted);padding:32px;text-align:center;">Selecciona un usuario</div>'}
+    </div>
+  </div>`;
 }
+
+/* Helpers del panel de usuarios */
+function usuSelectUser(id) {
+  if (!window._usuPanelState) window._usuPanelState = {};
+  window._usuPanelState.selId = id;
+  showTab('usuarios');
+}
+function usuSetTab(tab) {
+  if (!window._usuPanelState) window._usuPanelState = {};
+  window._usuPanelState.tab = tab;
+  showTab('usuarios');
+}
+function usuShowCrearForm() { usuSetTab('nuevo'); }
+function usuChangeRol(userId, newRol) {
+  const users = allData.usuarios || [];
+  const u = users.find(x => String(x.id) === String(userId));
+  if (!u) return;
+  // Actualizar rol en Supabase
+  sb.from('usuarios').update({ rol: newRol }).eq('id', userId).then(({ error }) => {
+    if (error) { toast('Error al cambiar rol', 'err'); return; }
+    // Restablecer permisos al default del nuevo rol
+    permisosSet(userId, { ...PERMS_DEFAULT[newRol] });
+    u.rol = newRol;
+    toast('Rol actualizado ✓');
+    showTab('usuarios');
+  });
+}
+function usuTogglePerm(userId, modId) {
+  const users = allData.usuarios || [];
+  const u = users.find(x => String(x.id) === String(userId));
+  if (!u || u.rol === 'admin') return;
+  const perms = permisosGet(userId, u.rol);
+  perms[modId] = !perms[modId];
+  permisosSet(userId, perms);
+  // Actualizar si es el usuario actual
+  if (currentUser && String(currentUser.id) === String(userId)) currentUser.permisos = perms;
+  showTab('usuarios');
+}
+function usuResetPerms(userId) {
+  const users = allData.usuarios || [];
+  const u = users.find(x => String(x.id) === String(userId));
+  if (!u) return;
+  permisosSet(userId, { ...PERMS_DEFAULT[u.rol] });
+  if (currentUser && String(currentUser.id) === String(userId)) currentUser.permisos = { ...PERMS_DEFAULT[u.rol] };
+  toast('Permisos restablecidos al default del rol ✓');
+  showTab('usuarios');
+}
+function usuGuardarPerms(userId) {
+  toast('Permisos guardados ✓');
+  // Los permisos ya se guardan en localStorage en usuTogglePerm
+  // Si el usuario actual está editando sus propios permisos, recargar dashboard
+  if (currentUser && String(currentUser.id) === String(userId)) {
+    currentUser.permisos = permisosGet(userId, currentUser.rol);
+  }
+}
+
 
 async function toggleUser(id, activo) {
   const { error } = await sb.from('usuarios').update({ activo: !activo }).eq('id', id);
@@ -3095,6 +3224,52 @@ function renderReporteSemanaModal() {
         </div>`;
     })()}
   `;
+}
+
+/* ══════════════════════════════════════════
+   SISTEMA DE PERMISOS POR MÓDULO
+══════════════════════════════════════════ */
+
+const PERMS_MODULOS = [
+  { id:'dashboard',  label:'📊 Dashboard',        desc:'KPIs y vista general' },
+  { id:'entradas',   label:'💵 Entradas',          desc:'Registrar ingresos' },
+  { id:'cxp',        label:'📂 CxP',              desc:'Cuentas por pagar / catálogo' },
+  { id:'plan_pagos', label:'📑 Plan de Pagos',     desc:'Ver y seleccionar plan activo' },
+  { id:'reg_pago',   label:'💳 Registrar Pago',    desc:'Marcar conceptos como pagados' },
+  { id:'gastos_det', label:'💸 Detalle Gastos',    desc:'Ver historial de pagos' },
+  { id:'reporte',    label:'📋 Reporte Semanal',   desc:'Generar y ver reporte' },
+  { id:'cierre',     label:'🔒 Cierre de Semana',  desc:'Cerrar semana y acumular arrastre' },
+  { id:'reset',      label:'♻️ Reset Total',       desc:'Reiniciar todo a cero' },
+  { id:'usuarios',   label:'👥 Gestión Usuarios',  desc:'Crear/editar usuarios' },
+  { id:'catalogo',   label:'🗂️ Catálogo CxP',     desc:'Editar catálogo de conceptos' },
+];
+
+const PERMS_DEFAULT = {
+  admin:  Object.fromEntries(PERMS_MODULOS.map(m => [m.id, true])),
+  cohost: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['reset','usuarios','catalogo'].includes(m.id)])),
+  view:   Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','reporte','gastos_det'].includes(m.id)])),
+  income: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','entradas'].includes(m.id)])),
+};
+
+/* Obtiene permisos del usuario: custom si existen, sino defaults del rol */
+function permisosGet(userId, rol) {
+  const all = JSON.parse(localStorage.getItem('mitech_permisos_v1') || '{}');
+  return all[userId] || { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
+}
+
+/* Guarda permisos custom de un usuario */
+function permisosSet(userId, permisos) {
+  const all = JSON.parse(localStorage.getItem('mitech_permisos_v1') || '{}');
+  all[userId] = permisos;
+  localStorage.setItem('mitech_permisos_v1', JSON.stringify(all));
+}
+
+/* Verifica si el usuario actual puede acceder a un módulo */
+function canAccess(modId) {
+  if (!currentUser) return false;
+  if (currentUser.rol === 'admin') return true;
+  const perms = currentUser.permisos || PERMS_DEFAULT[currentUser.rol] || {};
+  return !!perms[modId];
 }
 
 function reporteImprimir() { window.print(); }
