@@ -265,6 +265,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #planPagoModal.open{display:flex;opacity:1;pointer-events:all;}
 #planPagoDetalleModal{display:none;}
 #planPagoDetalleModal.open{display:flex;opacity:1;pointer-events:all;}
+#registroPagoModal.open{display:flex;opacity:1;pointer-events:all;}
+#agregarGastoPlanModal.open{display:flex;opacity:1;pointer-events:all;}
 .entrada-row{
   background:var(--surface);border:1px solid var(--border);
   border-radius:10px;padding:10px 12px;
@@ -625,10 +627,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <div id="planPagoDetalleTitulo" style="font-size:18px;font-weight:800;color:var(--text);">📑 Plan de Pagos</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo</div>
       </div>
-      <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
+      <div style="display:flex;gap:8px;">
+        <button onclick="openAgregarGastoPlanModal()" style="background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
+        <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
+      </div>
     </div>
 
     <div class="cxp-chips" id="planPagoChips" style="margin-top:14px;"></div>
+
+    <div id="planPagoBarraAccion" style="display:none;align-items:center;justify-content:space-between;background:rgba(0,194,255,.08);border:1px solid var(--accent);border-radius:8px;padding:8px 14px;margin-top:10px;">
+      <span id="planPagoSeleccionCount" style="font-size:12px;font-weight:700;color:var(--text);"></span>
+      <button class="btn-sm btn-accent" onclick="abrirRegistroPagoSeleccion()">💳 Registrar pago</button>
+    </div>
 
     <div class="cxp-table-wrap" style="margin-top:8px;">
       <table class="cxp-table" id="planPagoTabla">
@@ -639,6 +649,95 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
     <div style="margin-top:14px;text-align:right;">
       <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL REGISTRAR PAGO (total/parcial) ── -->
+<div id="registroPagoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;display:none;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(440px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">💳 Registrar Pago</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Captura el monto exacto pagado para los conceptos seleccionados</div>
+
+    <div id="registroPagoResumen" style="max-height:160px;overflow-y:auto;margin-bottom:14px;"></div>
+
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--text);padding:6px 0;border-top:1px solid var(--border);margin-bottom:14px;">
+      <span>Total pendiente</span><span id="registroPagoTotalPendiente">$0</span>
+    </div>
+
+    <div class="budget-field" style="margin-bottom:12px;">
+      <label>¿El pago es total o parcial?</label>
+      <select id="registroPagoTipo">
+        <option value="total">Pago total (liquida lo pendiente)</option>
+        <option value="parcial">Pago parcial (capturar monto)</option>
+      </select>
+    </div>
+
+    <div class="budget-field" style="margin-bottom:4px;">
+      <label>Monto pagado (MXN)</label>
+      <input id="registroPagoMonto" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:14px;">Si seleccionaste varios conceptos y el pago es parcial, el monto se reparte proporcionalmente entre ellos según lo pendiente de cada uno.</div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarRegistroPago()">💾 Confirmar pago</button>
+      <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeRegistroPagoModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL AGREGAR GASTO AL PLAN ── -->
+<div id="agregarGastoPlanModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;display:none;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(460px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">➕ Agregar Gasto al Plan</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Este concepto se agrega al catálogo y afecta a TODOS los planes (Total, Recomendado, Urgente, Supervivencia), aunque no estés viendo ese plan ahora.</div>
+
+    <div class="budget-row">
+      <div class="budget-field">
+        <label>Categoría</label>
+        <input id="nuevoGastoCategoria" type="text" placeholder="Ej. Nómina, Renta, Proveedores…">
+      </div>
+      <div class="budget-field">
+        <label>Tipo (opcional)</label>
+        <input id="nuevoGastoTipo" type="text" placeholder="Ej. Fijo, Variable…">
+      </div>
+    </div>
+    <div class="budget-row" style="grid-template-columns:1fr;">
+      <div class="budget-field">
+        <label>Concepto</label>
+        <input id="nuevoGastoConcepto" type="text" placeholder="Descripción del gasto">
+      </div>
+    </div>
+    <div class="budget-row">
+      <div class="budget-field">
+        <label>Monto Total</label>
+        <input id="nuevoGastoTotal" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+      </div>
+      <div class="budget-field">
+        <label>Recomendado</label>
+        <input id="nuevoGastoRecomendado" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+      </div>
+    </div>
+    <div class="budget-row">
+      <div class="budget-field">
+        <label>Urgente</label>
+        <input id="nuevoGastoUrgente" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+      </div>
+      <div class="budget-field">
+        <label>Supervivencia</label>
+        <input id="nuevoGastoSupervivencia" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+      </div>
+    </div>
+    <div class="budget-row" style="grid-template-columns:1fr;">
+      <div class="budget-field">
+        <label>Nota (opcional)</label>
+        <input id="nuevoGastoNota" type="text" placeholder="Descripción adicional…">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:6px;">
+      <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarAgregarGastoPlan()">💾 Agregar al Plan</button>
+      <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeAgregarGastoPlanModal()">Cancelar</button>
     </div>
   </div>
 </div>
@@ -909,6 +1008,14 @@ function showTab(tab) {
 let budgetData   = JSON.parse(localStorage.getItem('mitech_budgets') || '[]');
 let budgetMoneda = localStorage.getItem('mitech_budget_moneda') || 'MXN';
 
+/* ══════════════════════════════════════════
+   GASTOS EFECTUADOS — estado global
+   Persisten en Supabase (tabla gastos_efectuados) para multiusuario.
+   Se cachean en memoria (gastosEfectuadosData) tras la primera carga.
+══════════════════════════════════════════ */
+let gastosEfectuadosData = [];
+let gastosEfectuadosLoaded = false;
+
 function getWeekKey(date) {
   const d = date ? new Date(date) : new Date();
   const jan1 = new Date(d.getFullYear(), 0, 1);
@@ -1017,6 +1124,12 @@ document.getElementById('planPagoModal').addEventListener('click', function(e) {
 });
 document.getElementById('planPagoDetalleModal').addEventListener('click', function(e) {
   if (e.target === this) closePlanPagoDetalleModal();
+});
+document.getElementById('registroPagoModal').addEventListener('click', function(e) {
+  if (e.target === this) closeRegistroPagoModal();
+});
+document.getElementById('agregarGastoPlanModal').addEventListener('click', function(e) {
+  if (e.target === this) closeAgregarGastoPlanModal();
 });
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
@@ -1198,16 +1311,13 @@ function deleteEntrada(i) {
   showTab('dashboard');
 }
 
-function renderDashboard(c) {
+async function renderDashboard(c) {
   const cat = allData.catalogo || [];
   const dat = allData.datos || [];
 
-  let totalGastos = 0;
-  dat.forEach(row => {
-    const monto = parseFloat(row.monto || row.amount || row.valor || 0);
-    const tipo = (row.tipo || row.categoria || row.type || '').toLowerCase();
-    if (tipo.includes('gasto') || tipo.includes('egreso') || tipo.includes('expense')) totalGastos += monto;
-  });
+  // Asegura datos de plan (cxpData) y gastos efectuados antes de calcular KPIs
+  await cxpEnsureData();
+  await gastosEfectuadosFetch();
 
   const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
   const totalEntradasMXN = getEntradasTotal();
@@ -1221,10 +1331,14 @@ function renderDashboard(c) {
     return { f, sumMXN, n: items.length, monedaDom };
   }).filter(x => x.n > 0);
 
+  // Gastos Totales: ahora representa SOLO lo realmente pagado/efectuado
+  // del Plan de Pagos (gastos_efectuados), no el dataset viejo de allData.datos.
+  const totalGastosEfectuados = gastosEfectuadosTotalGeneral();
+
   const nowWeekKey  = getWeekKey();
   const budgetGen   = budgetData.find(b => b.semana === nowWeekKey) || null;
   const budgetMonto = budgetGen ? budgetGen.monto  : 0;
-  const budgetEjec  = totalGastos;
+  const budgetEjec  = totalGastosEfectuados;
   const budgetAlerta= budgetGen ? budgetGen.alerta : 80;
   const budgetPct   = budgetMonto > 0 ? Math.min((budgetEjec / budgetMonto)*100, 100) : 0;
   const budgetColor = budgetPct >= 100 ? 'var(--red)' : budgetPct >= budgetAlerta ? 'var(--yellow)' : 'var(--green)';
@@ -1238,7 +1352,15 @@ function renderDashboard(c) {
   const planActivo = planPagoGetActivo();
   const planCfg = planActivo ? (PLAN_PAGO_CFG[planActivo] || PLAN_PAGO_CFG.all) : null;
   const planMonto = planActivo ? planPagoGetMonto(planActivo) : 0;
+  const planPendiente = planActivo ? planPagoGetPendiente(planActivo) : 0;
 
+  // KPI Brecha: Entradas (caja disponible) vs. lo que aún falta cubrir del
+  // Plan de Pagos activo. Positivo = alcanza; negativo = falta dinero.
+  const brecha = planActivo ? (totalEntradasMXN - planPendiente) : null;
+  const brechaColor = brecha === null ? 'var(--border)' : brecha >= 0 ? 'var(--green)' : 'var(--red)';
+  const brechaTxtColor = brecha === null ? 'var(--accent)' : brecha >= 0 ? 'var(--green)' : 'var(--red)';
+  const brechaStatus = brecha === null ? 'Activa un plan para calcular la brecha'
+    : brecha >= 0 ? '✅ Las entradas cubren el pendiente' : '⚠️ Faltan recursos para cubrir el pendiente';
 
   c.innerHTML = `
     <!-- Dashboard: Budget izquierda | KPIs derecha -->
@@ -1261,7 +1383,7 @@ function renderDashboard(c) {
             <span style="font-size:11px;color:var(--muted);">${budgetStatus}</span>
           </div>
           <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-            <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Ejecutado</div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Ejecutado (gastos efectuados)</div>
             <div style="font-size:14px;font-weight:700;color:${budgetColor};">${fmt(budgetEjec)}</div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px;">de ${fmtBudget(budgetMonto, budgetGen?.moneda)}</div>
           </div>` : `
@@ -1311,16 +1433,34 @@ function renderDashboard(c) {
                 ${planActivo ? fmt(planMonto) : '— Sin plan activo —'}
               </div>
               <div class="kpi-sub" style="margin-top:4px;">${planActivo ? planCfg.label + ' · ' + planCfg.sub : 'Clic para elegir plan'}</div>
-              ${planActivo
-                ? `<div class="kpi-click-hint" style="margin-top:6px;">🔎 Clic para ver detalle</div>`
+              ${planActivo ? `
+                <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:11px;">
+                  <span style="color:var(--muted);">Pendiente por pagar</span>
+                  <span style="color:${planPendiente>0?'var(--red)':'var(--green)'};font-weight:700;">${fmt(planPendiente)}</span>
+                </div>
+                <div class="kpi-click-hint" style="margin-top:6px;">🔎 Clic para ver detalle</div>`
                 : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para activar</div>`}
             </div>
 
-            <!-- KPI Gastos -->
+            <!-- KPI Brecha Entradas vs Plan de Pagos -->
+            <div class="kpi-card" style="margin:0;border-color:${brechaColor};">
+              <div class="kpi-label">📐 Brecha Entradas vs. Plan</div>
+              <div class="kpi-value" style="font-size:22px;color:${brechaTxtColor};">
+                ${brecha === null ? '— Sin plan activo —' : fmt(brecha)}
+              </div>
+              <div class="kpi-sub" style="margin-top:4px;">${brechaStatus}</div>
+              ${brecha !== null ? `
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Entradas</span><span style="color:var(--green);font-weight:700;">${fmt(totalEntradasMXN)}</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Pendiente del plan</span><span style="color:var(--red);font-weight:700;">${fmt(planPendiente)}</span></div>
+                </div>` : ''}
+            </div>
+
+            <!-- KPI Gastos Efectuados (antes "Gastos Totales") -->
             <div class="kpi-card" style="margin:0;">
-              <div class="kpi-label">💸 Gastos Totales</div>
-              <div class="kpi-value negative">${fmt(totalGastos)}</div>
-              <div class="kpi-sub">Suma acumulada</div>
+              <div class="kpi-label">💸 Gastos Efectuados</div>
+              <div class="kpi-value negative">${fmt(totalGastosEfectuados)}</div>
+              <div class="kpi-sub">Suma de pagos registrados (totales + parciales)</div>
             </div>
 
 
@@ -1978,8 +2118,14 @@ async function cxpHandleFile(e) {
       })
       .filter(r => r.concepto && r.concepto.toString().trim() !== '');
 
-    document.getElementById('cxpUploadStatus').textContent = '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos';
-    toast('Excel cargado: ' + cxpData.length + ' conceptos ✓');
+    cxpData.forEach(r => r._key = cxpRowKey(r));
+
+    document.getElementById('cxpUploadStatus').textContent = '⏳ Sincronizando con Supabase…';
+    const syncOk = await cxpSyncToSupabase(cxpData);
+
+    document.getElementById('cxpUploadStatus').textContent =
+      '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos' + (syncOk ? ' · Supabase ✓' : ' · ⚠️ no se sincronizó a Supabase');
+    toast(syncOk ? 'Excel cargado y sincronizado a Supabase ✓' : 'Excel cargado, pero falló la sincronización a Supabase', syncOk ? 'ok' : 'err');
     cxpFiltro = 'all';
     cxpCategoria = null;
     cxpRenderAll();
@@ -1987,6 +2133,43 @@ async function cxpHandleFile(e) {
     console.error(err);
     document.getElementById('cxpUploadStatus').textContent = '❌ Error al leer el archivo';
     toast('Error al leer Excel', 'err');
+  }
+}
+
+/* ── SYNC EXCEL → SUPABASE ───────────────────
+   Sube (upsert) el catálogo cargado desde Excel a la tabla catalogo_cxp,
+   usando categoria+concepto como llave de negocio (clave). Esto da a cada
+   concepto una identidad estable entre sesiones/usuarios sin depender del
+   Excel a futuro. */
+async function cxpSyncToSupabase(rows) {
+  try {
+    const payload = rows.map(r => ({
+      clave:         r._key,
+      tipo:          r.tipo || '',
+      nivel:         r.nivel || '',
+      categoria:     r.categoria || 'General',
+      concepto:      r.concepto || '',
+      nota:          r.nota || '',
+      total:         parseFloat(r.total) || 0,
+      recomendado:   parseFloat(r.recomendado) || 0,
+      urgente:       parseFloat(r.urgente) || 0,
+      supervivencia: parseFloat(r.supervivencia) || 0,
+    }));
+    const { error } = await sb.from('catalogo_cxp').upsert(payload, { onConflict: 'clave' });
+    if (error) {
+      // Fallback: la tabla puede no tener aún la columna 'clave' como única.
+      // Reintenta sin especificar onConflict (inserta tal cual; puede duplicar
+      // si se repite el Excel, pero no rompe la carga del catálogo).
+      console.warn('Upsert con onConflict=clave falló, reintentando sin onConflict:', error);
+      const payloadSinClave = payload.map(({clave, ...rest}) => rest);
+      const { error: error2 } = await sb.from('catalogo_cxp').insert(payloadSinClave);
+      if (error2) { console.error('Sync catalogo_cxp (fallback):', error2); return false; }
+      return true;
+    }
+    return true;
+  } catch(err) {
+    console.error(err);
+    return false;
   }
 }
 
@@ -1998,6 +2181,7 @@ async function cxpFetchSupabaseData() {
     const { data, error } = await sb.from('catalogo_cxp').select('*').order('categoria');
     if (error || !data || data.length === 0) return false;
     cxpData = data.map(r => ({
+      clave:         r.clave || null,
       tipo:          r.tipo || '',
       nivel:         r.nivel || '',
       categoria:     r.categoria || r.grupo || 'General',
@@ -2008,6 +2192,7 @@ async function cxpFetchSupabaseData() {
       urgente:       parseFloat(r.urgente || 0),
       supervivencia: parseFloat(r.supervivencia || r.sobrevivencia || 0),
     })).filter(r => r.concepto.trim() !== '');
+    cxpData.forEach(r => r._key = r.clave || cxpRowKey(r));
     return cxpData.length > 0;
   } catch(err) {
     console.error(err);
@@ -2019,6 +2204,16 @@ async function cxpFetchSupabaseData() {
 async function cxpEnsureData() {
   if (cxpData.length > 0) return true;
   return await cxpFetchSupabaseData();
+}
+
+/* ── CLAVE ESTABLE POR CONCEPTO ──────────────
+   Identifica un concepto de forma única e idéntica venga de Excel o de
+   Supabase, para poder registrar gastos efectuados contra él sin importar
+   el origen de los datos. */
+function cxpRowKey(r) {
+  const norm = s => (s||'').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return norm(r.categoria) + '::' + norm(r.concepto);
 }
 
 async function cxpLoadSupabase() {
@@ -2221,6 +2416,20 @@ function planPagoGetMonto(plan) {
   return rows.reduce((s,r) => s + (parseFloat(r[plan])||0), 0);
 }
 
+/* Monto pendiente por pagar del plan activo (lo que falta de cubrir),
+   restando lo que ya se registró en gastos_efectuados por concepto.
+   Un concepto nunca cuenta como "pendiente" negativo: si ya se pagó más
+   de lo que pedía el plan, su pendiente es 0. */
+function planPagoGetPendiente(plan) {
+  const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
+  const colPlan = plan === 'all' ? 'total' : plan;
+  return rows.reduce((s,r) => {
+    const montoPlan = parseFloat(r[colPlan]) || 0;
+    const pagado = gastosEfectuadosTotalPorClave(r._key);
+    return s + Math.max(montoPlan - pagado, 0);
+  }, 0);
+}
+
 /* Abre el modal de detalle del plan ya activo, reutilizando la misma
    lógica visual (chips + tabla agrupada) que el tab CxP */
 async function openPlanPagoDetalleModal() {
@@ -2228,6 +2437,7 @@ async function openPlanPagoDetalleModal() {
   if (!plan) { openPlanPagoModal(); return; }
   const ok = await cxpEnsureData();
   if (!ok) { toast('No hay datos de CxP disponibles', 'err'); return; }
+  await gastosEfectuadosFetch();
 
   const cfg = PLAN_PAGO_CFG[plan] || PLAN_PAGO_CFG.all;
   document.getElementById('planPagoDetalleTitulo').textContent = cfg.label + ' — Detalle';
@@ -2236,16 +2446,15 @@ async function openPlanPagoDetalleModal() {
 
   // Chips de categoría (independientes de los de CxP para no interferir con ese tab)
   const cats = [...new Set(rows.map(r => r.categoria).filter(Boolean))].sort();
-  let planPagoCategoriaActiva = null;
   const renderChips = () => {
     document.getElementById('planPagoChips').innerHTML =
       ['Todos', ...cats].map(cat => `
-        <span class="cxp-chip ${(cat==='Todos'&&!planPagoCategoriaActiva)||(cat===planPagoCategoriaActiva)?'chip-active':''}"
+        <span class="cxp-chip ${(cat==='Todos'&&!window._planPagoState.categoria)||(cat===window._planPagoState.categoria)?'chip-active':''}"
           onclick="planPagoSetCategoria('${cat}')">${cat}</span>
       `).join('');
   };
 
-  window._planPagoState = { plan, rows, categoria: null };
+  window._planPagoState = { plan, rows, categoria: null, seleccion: new Set() };
   renderChips();
   planPagoRenderTabla();
 
@@ -2264,17 +2473,84 @@ function planPagoSetCategoria(cat) {
   planPagoRenderTabla();
 }
 
+/* Registro de claves "inseguras" (con comillas u otros caracteres) para
+   poder referenciarlas desde atributos onclick/onchange sin escapar texto
+   manualmente dentro de template literals (evita además falsos positivos
+   en el verificador estático del proyecto). */
+window._planPagoClaves = window._planPagoClaves || [];
+function planPagoRegistrarClaveSegura(valor) {
+  window._planPagoClaves.push(valor);
+  return window._planPagoClaves.length - 1;
+}
+
+/* Marca/desmarca un concepto individual en la selección de pago (por índice) */
+function planPagoToggleSeleccionIdx(idx, checked) {
+  const clave = window._planPagoClaves[idx];
+  planPagoToggleSeleccion(clave, checked);
+}
+function planPagoToggleSeleccion(clave, checked) {
+  const st = window._planPagoState;
+  if (!st) return;
+  if (checked) st.seleccion.add(clave); else st.seleccion.delete(clave);
+  planPagoRenderBarraAccion();
+  planPagoSyncCheckboxesGrupo();
+}
+
+/* Marca/desmarca todos los conceptos pendientes de una sección/categoría (por índice) */
+function planPagoToggleSeccionIdx(idx, checked) {
+  const grupo = window._planPagoClaves[idx];
+  planPagoToggleSeccion(grupo, checked);
+}
+function planPagoToggleSeccion(grupo, checked) {
+  const st = window._planPagoState;
+  if (!st) return;
+  const filtradas = st.categoria ? st.rows.filter(r => r.categoria === st.categoria) : st.rows;
+  const gRows = filtradas.filter(r => (r.categoria || 'General') === grupo);
+  gRows.forEach(r => {
+    const colPlan = st.plan === 'all' ? 'total' : st.plan;
+    const pendiente = Math.max((parseFloat(r[colPlan])||0) - gastosEfectuadosTotalPorClave(r._key), 0);
+    if (pendiente <= 0) return; // ya liquidado, no se puede volver a seleccionar
+    if (checked) st.seleccion.add(r._key); else st.seleccion.delete(r._key);
+  });
+  planPagoRenderTabla();
+}
+
+/* Sincroniza visualmente el checkbox "seleccionar sección" según el estado individual */
+function planPagoSyncCheckboxesGrupo() {
+  document.querySelectorAll('[data-plan-group-checkbox]').forEach(chk => {
+    const grupo = chk.dataset.planGroupCheckbox;
+    const rowsGrupo = document.querySelectorAll(`[data-plan-row-group="${grupo}"]:not([disabled])`);
+    const checked = Array.from(rowsGrupo);
+    chk.checked = checked.length > 0 && checked.every(c => c.checked);
+    chk.indeterminate = checked.some(c => c.checked) && !chk.checked;
+  });
+}
+
+function planPagoRenderBarraAccion() {
+  const st = window._planPagoState;
+  const bar = document.getElementById('planPagoBarraAccion');
+  if (!bar || !st) return;
+  const n = st.seleccion.size;
+  if (n === 0) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  document.getElementById('planPagoSeleccionCount').textContent = n + ' concepto' + (n>1?'s':'') + ' seleccionado' + (n>1?'s':'');
+}
+
 function planPagoRenderTabla() {
   const st = window._planPagoState;
   if (!st) return;
-  const { plan, rows, categoria } = st;
-  const colPlan = plan === 'all' ? null : plan;
+  window._planPagoClaves = []; // reset del registro de claves seguras por render
+  const { plan, rows, categoria, seleccion } = st;
+  const colPlan = plan === 'all' ? 'total' : plan;
 
   document.getElementById('planPagoHead').innerHTML = `<tr>
+    <th style="text-align:left;width:30px;"></th>
     <th style="text-align:left">Concepto</th>
     <th>Categoría</th>
-    <th class="${plan==='all'?'col-active':''}">Total</th>
-    ${colPlan ? `<th class="${'col-'+colPlan}">${colPlan.charAt(0).toUpperCase()+colPlan.slice(1)}</th>` : ''}
+    <th class="${plan==='all'?'col-active':''}">${plan==='all'?'Total':colPlan.charAt(0).toUpperCase()+colPlan.slice(1)}</th>
+    <th>Pagado</th>
+    <th>Pendiente</th>
+    <th>Estado</th>
   </tr>`;
 
   const filtradas = categoria ? rows.filter(r => r.categoria === categoria) : rows;
@@ -2286,35 +2562,256 @@ function planPagoRenderTabla() {
   });
 
   let html = '';
-  let grandTotal = 0, grandPlan = 0;
+  let grandPlan = 0, grandPagado = 0, grandPendiente = 0;
   Object.entries(grupos).forEach(([grupo, gRows]) => {
-    const subtot  = gRows.reduce((s,r) => s + (r.total||0), 0);
-    const subplan = colPlan ? gRows.reduce((s,r) => s + (r[colPlan]||0), 0) : null;
-    grandTotal += subtot;
-    if (subplan !== null) grandPlan += subplan;
+    const subplan = gRows.reduce((s,r) => s + (parseFloat(r[colPlan])||0), 0);
+    const subpagado = gRows.reduce((s,r) => s + Math.min(gastosEfectuadosTotalPorClave(r._key), parseFloat(r[colPlan])||0), 0);
+    grandPlan += subplan;
+    grandPagado += subpagado;
 
-    html += `<tr class="cxp-group"><th colspan="99">${grupo} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span></th></tr>`;
+    const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
+    const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
+    html += `<tr class="cxp-group">
+      <th style="text-align:left;">
+        <input type="checkbox" data-plan-group-checkbox="${grupoIdSafe}" onchange="planPagoToggleSeccionIdx(${grupoKeyIdx}, this.checked)" title="Seleccionar toda la sección">
+      </th>
+      <th colspan="99">${grupo} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span></th>
+    </tr>`;
     gRows.forEach(r => {
+      const montoPlan = parseFloat(r[colPlan]) || 0;
+      const pagado = Math.min(gastosEfectuadosTotalPorClave(r._key), montoPlan);
+      const pendiente = Math.max(montoPlan - pagado, 0);
+      grandPendiente += pendiente;
+      const liquidado = pendiente <= 0 && montoPlan > 0;
+      const checked = seleccion.has(r._key);
+      const rowKeyIdx = planPagoRegistrarClaveSegura(r._key);
       html += `<tr>
+        <td>
+          <input type="checkbox" data-plan-row-group="${grupoIdSafe}" ${liquidado ? 'disabled' : ''} ${checked ? 'checked' : ''}
+            onchange="planPagoToggleSeleccionIdx(${rowKeyIdx}, this.checked)">
+        </td>
         <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
-        <td class="${plan==='all'?'col-active':''}">${fmt(r.total)}</td>
-        ${colPlan ? `<td class="${'col-'+colPlan}">${fmt(r[colPlan])}</td>` : ''}
+        <td class="${plan==='all'?'col-active':''}">${fmt(montoPlan)}</td>
+        <td style="color:var(--green);">${pagado>0?fmt(pagado):'—'}</td>
+        <td style="color:${pendiente>0?'var(--red)':'var(--muted)'};">${pendiente>0?fmt(pendiente):'—'}</td>
+        <td style="text-align:center;">${liquidado ? '✅' : (pagado>0 ? '🟡' : '⏳')}</td>
       </tr>`;
     });
   });
 
   html += `<tr class="cxp-total">
-    <td>TOTAL GENERAL</td><td></td>
-    <td class="${plan==='all'?'col-active':''}">${fmt(grandTotal)}</td>
-    ${colPlan ? `<td class="${'col-'+colPlan}">${fmt(grandPlan)}</td>` : ''}
+    <td></td><td>TOTAL GENERAL</td><td></td>
+    <td class="${plan==='all'?'col-active':''}">${fmt(grandPlan)}</td>
+    <td style="color:var(--green);">${fmt(grandPagado)}</td>
+    <td style="color:var(--red);">${fmt(grandPendiente)}</td>
+    <td></td>
   </tr>`;
 
   document.getElementById('planPagoBody').innerHTML = html;
+  planPagoRenderBarraAccion();
+  planPagoSyncCheckboxesGrupo();
+}
+
+/* Abre el modal para capturar el monto exacto pagado de los conceptos
+   seleccionados (uno o varios, individual o por sección) */
+function openRegistroPagoModal() {
+  abrirRegistroPagoSeleccion();
+}
+function abrirRegistroPagoSeleccion() {
+  const st = window._planPagoState;
+  if (!st || st.seleccion.size === 0) return;
+  const colPlan = st.plan === 'all' ? 'total' : st.plan;
+  const items = st.rows.filter(r => st.seleccion.has(r._key)).map(r => {
+    const montoPlan = parseFloat(r[colPlan]) || 0;
+    const pagado = gastosEfectuadosTotalPorClave(r._key);
+    const pendiente = Math.max(montoPlan - pagado, 0);
+    return { clave: r._key, concepto: r.concepto, categoria: r.categoria || 'General', montoConcepto: montoPlan, pendiente };
+  }).filter(it => it.pendiente > 0);
+
+  if (items.length === 0) { toast('Los conceptos seleccionados ya están liquidados', 'err'); return; }
+
+  window._pagoSeleccionItems = items;
+  const totalPendiente = items.reduce((s,it) => s + it.pendiente, 0);
+
+  document.getElementById('registroPagoResumen').innerHTML =
+    items.map(it => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">
+      <span>${it.concepto}</span><span style="color:var(--muted);">${fmt(it.pendiente)} pendiente</span>
+    </div>`).join('');
+  document.getElementById('registroPagoTotalPendiente').textContent = fmt(totalPendiente);
+  document.getElementById('registroPagoMonto').value = items.length === 1 ? totalPendiente.toFixed(2) : '';
+  document.getElementById('registroPagoTipo').value = 'total';
+  document.getElementById('registroPagoModal').classList.add('open');
+}
+
+function closeRegistroPagoModal() {
+  document.getElementById('registroPagoModal').classList.remove('open');
+  window._pagoSeleccionItems = null;
+}
+
+/* Confirma el registro: si es "total", paga exactamente el pendiente de
+   cada concepto seleccionado; si es "parcial", reparte el monto capturado
+   proporcionalmente entre los conceptos seleccionados. */
+async function confirmarRegistroPago() {
+  const items = window._pagoSeleccionItems;
+  if (!items || items.length === 0) return;
+  const tipo = document.getElementById('registroPagoTipo').value;
+  const montoCapturado = parseMoney(document.getElementById('registroPagoMonto').value);
+
+  let registros = [];
+  if (tipo === 'total') {
+    registros = items.map(it => ({ ...it, montoPagado: it.pendiente, tipoPago: 'total' }));
+  } else {
+    if (!montoCapturado || montoCapturado <= 0) { toast('Captura el monto pagado', 'err'); return; }
+    const totalPendiente = items.reduce((s,it) => s + it.pendiente, 0);
+    if (montoCapturado > totalPendiente) { toast('El monto pagado no puede exceder lo pendiente (' + fmt(totalPendiente) + ')', 'err'); return; }
+    registros = items.map(it => {
+      const proporcion = totalPendiente > 0 ? it.pendiente / totalPendiente : 0;
+      const montoPagado = Math.round(montoCapturado * proporcion * 100) / 100;
+      return { ...it, montoPagado, tipoPago: montoPagado >= it.pendiente ? 'total' : 'parcial' };
+    });
+  }
+
+  const ok = await gastosEfectuadosRegistrar(registros);
+  if (!ok) return;
+
+  toast('Pago registrado ✓');
+  closeRegistroPagoModal();
+  window._planPagoState.seleccion.clear();
+  planPagoRenderTabla();
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
 
 function closePlanPagoDetalleModal() {
   document.getElementById('planPagoDetalleModal').classList.remove('open');
+}
+
+/* ══════════════════════════════════════════
+   AGREGAR GASTO NUEVO AL PLAN
+   Inserta un concepto nuevo directamente en Supabase (catalogo_cxp).
+   Al recargar cxpData desde Supabase, el nuevo concepto aparece en
+   TODOS los planes (all/recomendado/urgente/supervivencia) de inmediato,
+   sin importar qué plan esté seleccionado/activo en el dashboard.
+══════════════════════════════════════════ */
+function openAgregarGastoPlanModal() {
+  ['nuevoGastoCategoria','nuevoGastoTipo','nuevoGastoConcepto','nuevoGastoTotal',
+   'nuevoGastoRecomendado','nuevoGastoUrgente','nuevoGastoSupervivencia','nuevoGastoNota']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('agregarGastoPlanModal').classList.add('open');
+}
+
+function closeAgregarGastoPlanModal() {
+  document.getElementById('agregarGastoPlanModal').classList.remove('open');
+}
+
+async function confirmarAgregarGastoPlan() {
+  const categoria = document.getElementById('nuevoGastoCategoria').value.trim() || 'General';
+  const concepto  = document.getElementById('nuevoGastoConcepto').value.trim();
+  const tipo      = document.getElementById('nuevoGastoTipo').value.trim();
+  const nota      = document.getElementById('nuevoGastoNota').value.trim();
+  const total         = parseMoney(document.getElementById('nuevoGastoTotal').value) || 0;
+  const recomendado   = parseMoney(document.getElementById('nuevoGastoRecomendado').value) || 0;
+  const urgente       = parseMoney(document.getElementById('nuevoGastoUrgente').value) || 0;
+  const supervivencia = parseMoney(document.getElementById('nuevoGastoSupervivencia').value) || 0;
+
+  if (!concepto) { toast('Captura el concepto del gasto', 'err'); return; }
+  if (total <= 0) { toast('Captura un monto total mayor a 0', 'err'); return; }
+
+  const nuevaFila = { categoria, concepto, tipo, nota, total, recomendado, urgente, supervivencia };
+  nuevaFila._key = cxpRowKey(nuevaFila);
+
+  if (cxpConceptoExiste(nuevaFila._key)) {
+    toast('Ya existe un gasto con ese concepto y categoría en el plan', 'err');
+    return;
+  }
+
+  const ok = await cxpSyncToSupabase([nuevaFila]);
+  if (!ok) { toast('Error al guardar el gasto en Supabase', 'err'); return; }
+
+  await cxpFetchSupabaseData(); // recarga cxpData completo desde Supabase → afecta a todos los planes
+  toast('Gasto agregado al Plan de Pagos ✓ (afecta a todos los planes)');
+  closeAgregarGastoPlanModal();
+
+  // Refresca la vista de detalle si está abierta
+  if (window._planPagoState) {
+    window._planPagoState.rows = cxpData.filter(r => r.concepto && r.total !== undefined);
+    planPagoRenderTabla();
+  }
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+/* ══════════════════════════════════════════
+   GASTOS EFECTUADOS
+   Registran pagos (parciales o totales) contra un concepto del catálogo
+   CxP. Se identifican por r._key (categoria::concepto), por lo que afectan
+   a TODOS los planes (all/recomendado/urgente/supervivencia) sin importar
+   desde cuál se haya registrado el pago, y persisten en Supabase para
+   que se compartan entre usuarios/dispositivos.
+══════════════════════════════════════════ */
+
+/* Carga (o recarga) los gastos efectuados desde Supabase */
+async function gastosEfectuadosFetch(force) {
+  if (gastosEfectuadosLoaded && !force) return true;
+  try {
+    const { data, error } = await sb.from('gastos_efectuados').select('*').order('fecha', { ascending: false });
+    if (error) { console.error('gastos_efectuados fetch:', error); return false; }
+    gastosEfectuadosData = data || [];
+    gastosEfectuadosLoaded = true;
+    return true;
+  } catch(err) {
+    console.error(err);
+    return false;
+  }
+}
+
+/* Suma de lo ya pagado (de cualquier plan/usuario) para una clave de concepto dada */
+function gastosEfectuadosTotalPorClave(clave) {
+  return gastosEfectuadosData
+    .filter(g => g.concepto_key === clave)
+    .reduce((s,g) => s + (parseFloat(g.monto_pagado) || 0), 0);
+}
+
+/* Suma total general de gastos efectuados (para el KPI "Gastos Totales") */
+function gastosEfectuadosTotalGeneral() {
+  return gastosEfectuadosData.reduce((s,g) => s + (parseFloat(g.monto_pagado) || 0), 0);
+}
+
+/* Valida que una clave de concepto exista realmente en el plan/catálogo
+   cargado actualmente (cxpData). No se permite registrar un pago para
+   algo que no está en el plan de pagos. */
+function cxpConceptoExiste(clave) {
+  return cxpData.some(r => r._key === clave);
+}
+
+/* Registra uno o varios pagos. `items` es un array de
+   { clave, concepto, categoria, montoConcepto, montoPagado, tipoPago } */
+async function gastosEfectuadosRegistrar(items) {
+  const invalidos = items.filter(it => !cxpConceptoExiste(it.clave));
+  if (invalidos.length > 0) {
+    toast('No se puede registrar el pago: el concepto "' + invalidos[0].concepto + '" no está en el Plan de Pagos cargado.', 'err');
+    return false;
+  }
+  const userObj = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
+  const payload = items.map(it => ({
+    concepto_key:  it.clave,
+    concepto:      it.concepto,
+    categoria:     it.categoria,
+    monto_concepto:parseFloat(it.montoConcepto) || 0,
+    monto_pagado:  parseFloat(it.montoPagado) || 0,
+    tipo_pago:     it.tipoPago, // 'total' | 'parcial'
+    fecha:         new Date().toISOString(),
+    usuario:       userObj.nombre || userObj.usuario || userObj.email || 'desconocido',
+  }));
+  try {
+    const { error } = await sb.from('gastos_efectuados').insert(payload);
+    if (error) { console.error('Insert gastos_efectuados:', error); toast('Error al guardar el pago en Supabase', 'err'); return false; }
+    await gastosEfectuadosFetch(true);
+    return true;
+  } catch(err) {
+    console.error(err);
+    toast('Error al guardar el pago', 'err');
+    return false;
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -2332,6 +2829,7 @@ function closePlanPagoDetalleModal() {
 </script>
 </body>
 </html>
+
 
 
 
