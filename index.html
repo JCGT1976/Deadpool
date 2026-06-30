@@ -1584,20 +1584,6 @@ async function renderDashboard(c) {
                 : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para activar</div>`}
             </div>
 
-            <!-- KPI Brecha Entradas vs Plan de Pagos -->
-            <div class="kpi-card" style="margin:0;border-color:${brechaColor};">
-              <div class="kpi-label">📐 Brecha Entradas vs. Plan</div>
-              <div class="kpi-value" style="font-size:22px;color:${brechaTxtColor};">
-                ${brecha === null ? '— Sin plan activo —' : fmt(brecha)}
-              </div>
-              <div class="kpi-sub" style="margin-top:4px;">${brechaStatus}</div>
-              ${brecha !== null ? `
-                <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Entradas</span><span style="color:var(--green);font-weight:700;">${fmt(totalEntradasMXN)}</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Pendiente del plan</span><span style="color:var(--red);font-weight:700;">${fmt(planPendiente)}</span></div>
-                </div>` : ''}
-            </div>
-
             <!-- KPI Gastos Efectuados — clickeable -->
             <div class="kpi-card kpi-clickable" onclick="openGastosDetalleModal()" style="margin:0;">
               <div class="kpi-label">💸 Gastos Efectuados</div>
@@ -1615,6 +1601,20 @@ async function renderDashboard(c) {
                 </div>` : ''}
               </div>
               <div class="kpi-click-hint" style="margin-top:6px;">🔎 Clic para ver historial</div>
+            </div>
+
+            <!-- KPI Brecha Entradas vs Plan de Pagos -->
+            <div class="kpi-card" style="margin:0;border-color:${brechaColor};">
+              <div class="kpi-label">📐 Brecha Entradas vs. Plan</div>
+              <div class="kpi-value" style="font-size:22px;color:${brechaTxtColor};">
+                ${brecha === null ? '— Sin plan activo —' : fmt(brecha)}
+              </div>
+              <div class="kpi-sub" style="margin-top:4px;">${brechaStatus}</div>
+              ${brecha !== null ? `
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Entradas</span><span style="color:var(--green);font-weight:700;">${fmt(totalEntradasMXN)}</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Pendiente del plan</span><span style="color:var(--red);font-weight:700;">${fmt(planPendiente)}</span></div>
+                </div>` : ''}
             </div>
 
 
