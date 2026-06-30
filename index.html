@@ -641,9 +641,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <div id="planPagoDetalleTitulo" style="font-size:18px;font-weight:800;color:var(--text);">📑 Plan de Pagos</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo</div>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;align-items:center;">
         <button onclick="openAgregarGastoPlanModal()" style="background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
         <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
+        <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;" title="Cerrar">✕</button>
       </div>
     </div>
 
@@ -659,10 +660,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <thead id="planPagoHead"></thead>
         <tbody id="planPagoBody"></tbody>
       </table>
-    </div>
-
-    <div style="margin-top:14px;text-align:right;">
-      <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;">Cerrar</button>
     </div>
   </div>
 </div>
