@@ -1921,6 +1921,7 @@ async function createUser() {
 let cxpData = [];          // filas cargadas (Excel o Supabase)
 let cxpFiltro = 'all';     // KPI activo: all | recomendado | urgente | supervivencia
 let cxpCategoria = null;   // chip de categoría activo
+let cxpSemanaSeleccionada = localStorage.getItem('cxpSemanaSeleccionada') || null; // semana (YYYY-Www) del plan que se está cargando
 
 /* ── ESTILOS ────────────────────────────── */
 (function injectCxPStyles(){
@@ -2013,6 +2014,11 @@ function renderCxP(c) {
         <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="accordion-body"><div class="accordion-inner">
+    <!-- Semana que se va a cargar -->
+    <div class="budget-field" style="max-width:240px;margin-bottom:14px;">
+      <label>📅 Semana que vas a cargar</label>
+      <input type="week" id="cxpSemanaInput" value="${cxpSemanaSeleccionada || getWeekKey()}" onchange="cxpSemanaSeleccionada = this.value; localStorage.setItem('cxpSemanaSeleccionada', this.value);">
+    </div>
     <!-- Upload -->
     <div class="cxp-upload" id="cxpUploadZone" onclick="document.getElementById('cxpFileInput').click()">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="1.8">
@@ -2021,7 +2027,7 @@ function renderCxP(c) {
       </svg>
       <p><strong>📂 Cargar Excel de CxP</strong> · Arrastra o haz clic</p>
       <p style="font-size:11px;margin-top:4px;">Formato .xlsx · columnas: TIPO, CATEGORIA, CONCEPTO, TOTAL, RECOMENDADO, URGENTE, SUPERVIVENCIA</p>
-      <div class="cxp-upload-status" id="cxpUploadStatus">${cxpData.length > 0 ? '✔ '+cxpData.length+' conceptos cargados' : '📊 Sin archivo cargado · usando Supabase como fallback'}</div>
+      <div class="cxp-upload-status" id="cxpUploadStatus">${cxpData.length > 0 ? '✔ '+cxpData.length+' conceptos cargados' + (cxpSemanaSeleccionada ? ' · semana '+getWeekLabel(cxpSemanaSeleccionada) : '') : '📊 Sin archivo cargado · usando Supabase como fallback'}</div>
     </div>
     <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
       </div></div>
@@ -2084,8 +2090,15 @@ function renderCxP(c) {
 async function cxpHandleFile(e) {
   const file = e.target.files[0];
   if (!file) return;
-  document.getElementById('cxpUploadStatus').textContent = '⏳ Procesando ' + file.name + '…';
+  const statusEl = document.getElementById('cxpUploadStatus');
   try {
+    if (statusEl) statusEl.textContent = '⏳ Procesando ' + file.name + '…';
+
+    // Semana que el usuario indicó estar cargando (input type=week, arriba del recuadro)
+    const semanaInput = document.getElementById('cxpSemanaInput');
+    cxpSemanaSeleccionada = (semanaInput && semanaInput.value) ? semanaInput.value : getWeekKey();
+    localStorage.setItem('cxpSemanaSeleccionada', cxpSemanaSeleccionada);
+
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
     const sheetName = wb.SheetNames.find(n => /rep|cxp|cuentas|pagar/i.test(n)) || wb.SheetNames[0];
@@ -2096,7 +2109,7 @@ async function cxpHandleFile(e) {
     const norm = s => (s||'').toString().toUpperCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
 
-    cxpData = rows
+    const parsedRows = rows
       .filter(r => {
         const keys = Object.keys(r);
         return keys.some(k => norm(k).includes('CONCEPTO') || norm(k).includes('CONCEPT'));
@@ -2120,21 +2133,32 @@ async function cxpHandleFile(e) {
       })
       .filter(r => r.concepto && r.concepto.toString().trim() !== '');
 
-    cxpData.forEach(r => r._key = cxpRowKey(r));
+    if (parsedRows.length === 0) {
+      // Diagnóstico: si el archivo tiene filas pero ninguna columna se reconoció como CONCEPTO,
+      // avisamos con el detalle de qué encabezados sí vio, en vez de quedarnos en silencio.
+      const headersVistos = rows.length ? Object.keys(rows[0]).join(', ') : '(el archivo no tiene filas)';
+      throw new Error('No se reconoció ninguna fila con columna "CONCEPTO". Encabezados detectados: ' + headersVistos);
+    }
 
-    document.getElementById('cxpUploadStatus').textContent = '⏳ Sincronizando con Supabase…';
+    cxpData = parsedRows;
+    cxpData.forEach(r => { r._key = cxpRowKey(r); r._semana = cxpSemanaSeleccionada; });
+
+    if (statusEl) statusEl.textContent = '⏳ Sincronizando con Supabase…';
     const syncOk = await cxpSyncToSupabase(cxpData);
 
-    document.getElementById('cxpUploadStatus').textContent =
-      '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos' + (syncOk ? ' · Supabase ✓' : ' · ⚠️ no se sincronizó a Supabase');
-    toast(syncOk ? 'Excel cargado y sincronizado a Supabase ✓' : 'Excel cargado, pero falló la sincronización a Supabase', syncOk ? 'ok' : 'err');
+    const semanaLbl = getWeekLabel(cxpSemanaSeleccionada);
+    if (statusEl) statusEl.textContent =
+      '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos · semana ' + semanaLbl + (syncOk ? ' · Supabase ✓' : ' · ⚠️ no se sincronizó a Supabase');
+    toast(syncOk ? 'Excel cargado y sincronizado a Supabase ✓ (semana ' + semanaLbl + ')' : 'Excel cargado, pero falló la sincronización a Supabase', syncOk ? 'ok' : 'err');
     cxpFiltro = 'all';
     cxpCategoria = null;
     cxpRenderAll();
   } catch(err) {
-    console.error(err);
-    document.getElementById('cxpUploadStatus').textContent = '❌ Error al leer el archivo';
-    toast('Error al leer Excel', 'err');
+    console.error('cxpHandleFile error:', err);
+    const msg = (err && err.message) ? err.message : 'no se pudo leer el archivo';
+    if (statusEl) statusEl.textContent = '❌ Error: ' + msg;
+    else alert('❌ Error al cargar Excel: ' + msg); // fallback por si el DOM no tiene el status (no debería pasar)
+    toast('Error al cargar Excel: ' + msg, 'err');
   }
 }
 
@@ -2145,7 +2169,7 @@ async function cxpHandleFile(e) {
    Excel a futuro. */
 async function cxpSyncToSupabase(rows) {
   try {
-    const payload = rows.map(r => ({
+    const payloadBase = rows.map(r => ({
       clave:         r._key,
       tipo:          r.tipo || '',
       nivel:         r.nivel || '',
@@ -2157,13 +2181,21 @@ async function cxpSyncToSupabase(rows) {
       urgente:       parseFloat(r.urgente) || 0,
       supervivencia: parseFloat(r.supervivencia) || 0,
     }));
-    const { error } = await sb.from('catalogo_cxp').upsert(payload, { onConflict: 'clave' });
+    // Intento 1: con columna 'semana' incluida (requiere que exista en catalogo_cxp)
+    const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rows[i]._semana || null }));
+    let { error } = await sb.from('catalogo_cxp').upsert(payloadConSemana, { onConflict: 'clave' });
+    if (error && /column .*semana.* does not exist|semana/i.test(error.message || '')) {
+      // La tabla aún no tiene la columna 'semana' (falta correr el ALTER TABLE en Supabase).
+      // Reintenta sin ese campo para no bloquear la carga del catálogo.
+      console.warn('Columna semana no existe en catalogo_cxp, reintentando sin ella:', error);
+      ({ error } = await sb.from('catalogo_cxp').upsert(payloadBase, { onConflict: 'clave' }));
+    }
     if (error) {
       // Fallback: la tabla puede no tener aún la columna 'clave' como única.
       // Reintenta sin especificar onConflict (inserta tal cual; puede duplicar
       // si se repite el Excel, pero no rompe la carga del catálogo).
       console.warn('Upsert con onConflict=clave falló, reintentando sin onConflict:', error);
-      const payloadSinClave = payload.map(({clave, ...rest}) => rest);
+      const payloadSinClave = payloadBase.map(({clave, ...rest}) => rest);
       const { error: error2 } = await sb.from('catalogo_cxp').insert(payloadSinClave);
       if (error2) { console.error('Sync catalogo_cxp (fallback):', error2); return false; }
       return true;
@@ -2193,6 +2225,7 @@ async function cxpFetchSupabaseData() {
       recomendado:   parseFloat(r.recomendado ?? 0),
       urgente:       parseFloat(r.urgente ?? 0),
       supervivencia: parseFloat(r.supervivencia ?? r.sobrevivencia ?? 0),
+      _semana:       r.semana || null,
     })).filter(r => r.concepto.trim() !== '');
     cxpData.forEach(r => r._key = r.clave || cxpRowKey(r));
     // Deduplica por _key: si hubo inserciones dobles en Supabase (fallback sin onConflict),
