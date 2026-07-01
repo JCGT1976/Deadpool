@@ -2193,8 +2193,9 @@ async function cxpSyncToSupabase(rows) {
       const n = parseInt((v || '').toString().replace(/\D/g, ''), 10);
       return isNaN(n) ? null : n;
     };
-    const payloadBase = rows.map(r => ({
+    const payloadBase = rows.map((r, idx) => ({
       clave:         r._key,
+      orden:         idx + 1,
       tipo:          r.tipo || '',
       nivel:         nivelToInt(r.nivel),
       categoria:     r.categoria || 'General',
