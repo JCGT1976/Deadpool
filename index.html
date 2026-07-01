@@ -666,7 +666,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="planPagoBtnAgregarGasto" onclick="openAgregarGastoPlanModal()" style="display:none;background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
         <button onclick="openDiagnosticoModal()" style="background:rgba(255,193,7,.12);color:var(--yellow);border:1px solid rgba(255,193,7,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔍 Diagnóstico</button>
-        <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
+        <button id="planPagoBtnCambiarPlan" onclick="cambiarPlanPago()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;" title="Solo administrador puede cambiar el plan activo">🔄 Cambiar plan</button>
         <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;" title="Cerrar">✕</button>
       </div>
     </div>
@@ -915,50 +915,83 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
 <!-- ── MODAL AGREGAR GASTO AL PLAN ── -->
 <div id="agregarGastoPlanModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;">
-  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(460px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(500px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">➕ Agregar Gasto al Plan</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Este concepto se agrega al catálogo y afecta a TODOS los planes (Total, Recomendado, Urgente, Supervivencia), aunque no estés viendo ese plan ahora.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Se agregará al catálogo con nivel automático según categoría y monto en <b>todos los planes</b> (Total, Recomendado, Urgente, Supervivencia).</div>
+
+    <!-- Categoría → Auto Nivel -->
+    <div class="budget-field" style="margin-bottom:6px;">
+      <label>Categoría</label>
+      <select id="nuevoGastoCategoria" onchange="nuevoGastoActualizarNivel()">
+        <option value="">— Selecciona categoría —</option>
+        <option value="Salarios">💼 Salarios / Nómina</option>
+        <option value="Impuestos">🏛️ Impuestos (SAT/IMSS/INFONAVIT)</option>
+        <option value="Operativos-Logistica">🚚 Operativos — Logística</option>
+        <option value="Servicios">💡 Servicios (Agua/Luz/Etc.)</option>
+        <option value="Operativos">⚙️ Operativos generales</option>
+        <option value="Convenios proveedores">🤝 Convenios proveedores</option>
+        <option value="Rentas">🏢 Rentas / Bodegas</option>
+        <option value="Proveedores">📦 Proveedores</option>
+        <option value="General">📋 Otra (sin categoría específica)</option>
+      </select>
+    </div>
+    <div id="nuevoGastoNivelPreview" style="margin-bottom:14px;font-size:12px;color:var(--muted);">
+      <span>Nivel automático: <span id="nuevoGastoNivelBadge" style="display:inline-block;background:var(--surface2);color:var(--muted);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;">—</span></span>
+    </div>
+
+    <div class="budget-field" style="margin-bottom:14px;">
+      <label>Concepto <span style="color:var(--red);">*</span></label>
+      <input id="nuevoGastoConcepto" type="text" placeholder="Descripción del gasto">
+    </div>
 
     <div class="budget-row">
       <div class="budget-field">
-        <label>Categoría</label>
-        <input id="nuevoGastoCategoria" type="text" placeholder="Ej. Nómina, Renta, Proveedores…">
+        <label>Tipo</label>
+        <select id="nuevoGastoTipo">
+          <option value="Maquila">Maquila</option>
+          <option value="Logistica 1">Logística 1</option>
+          <option value="Otro">Otro</option>
+        </select>
       </div>
-      <div class="budget-field">
-        <label>Tipo (opcional)</label>
-        <input id="nuevoGastoTipo" type="text" placeholder="Ej. Fijo, Variable…">
-      </div>
-    </div>
-    <div class="budget-row" style="grid-template-columns:1fr;">
-      <div class="budget-field">
-        <label>Concepto</label>
-        <input id="nuevoGastoConcepto" type="text" placeholder="Descripción del gasto">
-      </div>
-    </div>
-    <div class="budget-row">
-      <div class="budget-field">
-        <label>Monto Total</label>
-        <input id="nuevoGastoTotal" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
-      </div>
-      <div class="budget-field">
-        <label>Recomendado</label>
-        <input id="nuevoGastoRecomendado" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
-      </div>
-    </div>
-    <div class="budget-row">
-      <div class="budget-field">
-        <label>Urgente</label>
-        <input id="nuevoGastoUrgente" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
-      </div>
-      <div class="budget-field">
-        <label>Supervivencia</label>
-        <input id="nuevoGastoSupervivencia" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
-      </div>
-    </div>
-    <div class="budget-row" style="grid-template-columns:1fr;">
       <div class="budget-field">
         <label>Nota (opcional)</label>
-        <input id="nuevoGastoNota" type="text" placeholder="Descripción adicional…">
+        <input id="nuevoGastoNota" type="text" placeholder="Descripción adicional">
+      </div>
+    </div>
+
+    <!-- Monto -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:14px 0;">
+      <div class="budget-field" style="margin-bottom:10px;">
+        <label>Monto <span style="color:var(--red);">*</span></label>
+        <input id="nuevoGastoMonto" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this);nuevoGastoPropagar()">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer;user-select:none;">
+        <input type="checkbox" id="nuevoGastoMismo" checked onchange="nuevoGastoToggleMismo()">
+        <span>Aplicar el mismo monto a los 4 planes (Total = Recomendado = Urgente = Supervivencia)</span>
+      </label>
+    </div>
+
+    <!-- Inputs individuales (ocultos por default) -->
+    <div id="nuevoGastoDetallado" style="display:none;">
+      <div class="budget-row">
+        <div class="budget-field">
+          <label>Total</label>
+          <input id="nuevoGastoTotal" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+        </div>
+        <div class="budget-field">
+          <label>Recomendado</label>
+          <input id="nuevoGastoRecomendado" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+        </div>
+      </div>
+      <div class="budget-row">
+        <div class="budget-field">
+          <label>Urgente</label>
+          <input id="nuevoGastoUrgente" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+        </div>
+        <div class="budget-field">
+          <label>Supervivencia</label>
+          <input id="nuevoGastoSupervivencia" type="text" inputmode="decimal" placeholder="0.00" oninput="fmtInputMoneyGeneric(this)">
+        </div>
       </div>
     </div>
 
@@ -2701,6 +2734,13 @@ function planPagoClear() {
 
 /* Abre el modal de selección de plan */
 async function openPlanPagoModal() {
+  // Si ya hay plan activo, solo admin (Juan Carlos) puede cambiarlo
+  const yaActivo = planPagoGetActivo();
+  const esAdmin = currentUser?.rol === 'admin' || currentUser?.rol === 'admin_master';
+  if (yaActivo && !esAdmin) {
+    toast('🔒 El plan activo solo puede ser cambiado por Juan Carlos (admin)', 'err');
+    return;
+  }
   const ok = await cxpEnsureData();
   if (!ok) { toast('No hay datos de CxP disponibles. Carga un Excel en el tab CxP primero.', 'err'); return; }
   document.getElementById('planPagoModal').classList.add('open');
@@ -2718,8 +2758,13 @@ async function confirmPlanPago(plan) {
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
 
-/* Permite cambiar de plan desde el modal de detalle */
+/* Permite cambiar de plan desde el modal de detalle — restringido a admin */
 function cambiarPlanPago() {
+  const esAdmin = currentUser?.rol === 'admin' || currentUser?.rol === 'admin_master';
+  if (!esAdmin) {
+    toast('🔒 Solo Juan Carlos (admin) puede cambiar el plan activo', 'err');
+    return;
+  }
   closePlanPagoDetalleModal();
   openPlanPagoModal();
 }
@@ -2776,6 +2821,10 @@ async function openPlanPagoDetalleModal() {
   // Mostrar/ocultar botón "Agregar gasto" según permisos
   const btnAgregar = document.getElementById('planPagoBtnAgregarGasto');
   if (btnAgregar) btnAgregar.style.display = canAccess('cxp') ? 'inline-block' : 'none';
+  // Botón "Cambiar plan": solo admin (Juan Carlos) puede cambiarlo una vez activado
+  const btnCambiar = document.getElementById('planPagoBtnCambiarPlan');
+  const esAdmin = currentUser?.rol === 'admin' || currentUser?.rol === 'admin_master';
+  if (btnCambiar) btnCambiar.style.display = esAdmin ? 'inline-block' : 'none';
 
   document.getElementById('planPagoDetalleModal').classList.add('open');
 }
@@ -3828,10 +3877,29 @@ function closePlanPagoDetalleModal() {
    TODOS los planes (all/recomendado/urgente/supervivencia) de inmediato,
    sin importar qué plan esté seleccionado/activo en el dashboard.
 ══════════════════════════════════════════ */
+/* Mapa categoría → nivel L1-L7 (para auto-asignación al agregar gasto) */
+const CATEGORIA_A_NIVEL = {
+  'Salarios':               1,
+  'Impuestos':              2,
+  'Operativos-Logistica':   3,
+  'Servicios':              4,
+  'Operativos':             4,
+  'Convenios proveedores':  5,
+  'Rentas':                 6,
+  'Proveedores':            7,
+  'General':                999,
+};
+
 function openAgregarGastoPlanModal() {
-  ['nuevoGastoCategoria','nuevoGastoTipo','nuevoGastoConcepto','nuevoGastoTotal',
-   'nuevoGastoRecomendado','nuevoGastoUrgente','nuevoGastoSupervivencia','nuevoGastoNota']
-    .forEach(id => document.getElementById(id).value = '');
+  // Reset todos los campos
+  ['nuevoGastoConcepto','nuevoGastoNota','nuevoGastoTotal','nuevoGastoRecomendado',
+   'nuevoGastoUrgente','nuevoGastoSupervivencia','nuevoGastoMonto']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('nuevoGastoCategoria').value = '';
+  document.getElementById('nuevoGastoTipo').value = 'Maquila';
+  document.getElementById('nuevoGastoMismo').checked = true;
+  document.getElementById('nuevoGastoDetallado').style.display = 'none';
+  nuevoGastoActualizarNivel();
   document.getElementById('agregarGastoPlanModal').classList.add('open');
 }
 
@@ -3839,20 +3907,80 @@ function closeAgregarGastoPlanModal() {
   document.getElementById('agregarGastoPlanModal').classList.remove('open');
 }
 
+/* Muestra el nivel L1-L7 correspondiente a la categoría elegida */
+function nuevoGastoActualizarNivel() {
+  const cat = document.getElementById('nuevoGastoCategoria').value;
+  const badge = document.getElementById('nuevoGastoNivelBadge');
+  if (!badge) return;
+  const nivKey = CATEGORIA_A_NIVEL[cat];
+  if (!cat || nivKey === undefined) {
+    badge.textContent = '—';
+    badge.style.background = 'var(--surface2)';
+    badge.style.color = 'var(--muted)';
+    return;
+  }
+  if (nivKey === 999) {
+    badge.textContent = 'Sin nivel';
+    badge.style.background = 'var(--surface2)';
+    badge.style.color = 'var(--muted)';
+    return;
+  }
+  const color = nivelColor(nivKey);
+  const label = nivelLabel(nivKey);
+  badge.textContent = label;
+  badge.style.background = color;
+  badge.style.color = '#fff';
+}
+
+/* Toggle entre monto único (replicado a los 4 planes) y montos individuales */
+function nuevoGastoToggleMismo() {
+  const mismo = document.getElementById('nuevoGastoMismo').checked;
+  document.getElementById('nuevoGastoDetallado').style.display = mismo ? 'none' : 'block';
+  if (mismo) nuevoGastoPropagar();
+}
+
+/* Si "mismo monto" está activo, propaga el monto único a los 4 campos */
+function nuevoGastoPropagar() {
+  const mismo = document.getElementById('nuevoGastoMismo').checked;
+  if (!mismo) return;
+  const monto = document.getElementById('nuevoGastoMonto').value;
+  ['nuevoGastoTotal','nuevoGastoRecomendado','nuevoGastoUrgente','nuevoGastoSupervivencia']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = monto; });
+}
+
 async function confirmarAgregarGastoPlan() {
-  const categoria = document.getElementById('nuevoGastoCategoria').value.trim() || 'General';
+  const categoria = document.getElementById('nuevoGastoCategoria').value.trim();
   const concepto  = document.getElementById('nuevoGastoConcepto').value.trim();
   const tipo      = document.getElementById('nuevoGastoTipo').value.trim();
   const nota      = document.getElementById('nuevoGastoNota').value.trim();
-  const total         = parseMoney(document.getElementById('nuevoGastoTotal').value) || 0;
-  const recomendado   = parseMoney(document.getElementById('nuevoGastoRecomendado').value) || 0;
-  const urgente       = parseMoney(document.getElementById('nuevoGastoUrgente').value) || 0;
-  const supervivencia = parseMoney(document.getElementById('nuevoGastoSupervivencia').value) || 0;
+  const mismo     = document.getElementById('nuevoGastoMismo').checked;
 
+  if (!categoria) { toast('Selecciona una categoría', 'err'); return; }
   if (!concepto) { toast('Captura el concepto del gasto', 'err'); return; }
-  if (total <= 0) { toast('Captura un monto total mayor a 0', 'err'); return; }
 
-  const nuevaFila = { categoria, concepto, tipo, nota, total, recomendado, urgente, supervivencia };
+  let total, recomendado, urgente, supervivencia;
+  if (mismo) {
+    const monto = parseMoney(document.getElementById('nuevoGastoMonto').value) || 0;
+    if (monto <= 0) { toast('Captura un monto mayor a 0', 'err'); return; }
+    total = recomendado = urgente = supervivencia = monto;
+  } else {
+    total         = parseMoney(document.getElementById('nuevoGastoTotal').value) || 0;
+    recomendado   = parseMoney(document.getElementById('nuevoGastoRecomendado').value) || 0;
+    urgente       = parseMoney(document.getElementById('nuevoGastoUrgente').value) || 0;
+    supervivencia = parseMoney(document.getElementById('nuevoGastoSupervivencia').value) || 0;
+    if (total <= 0) { toast('Captura un monto total mayor a 0', 'err'); return; }
+  }
+
+  // Nivel automático según categoría
+  const nivKey = CATEGORIA_A_NIVEL[categoria] ?? 999;
+  const nivel = nivKey === 999 ? '' : ('L' + nivKey);
+
+  // "Operativos-Logistica" es una categoría del select, pero en Supabase
+  // guardamos "Operativos" con tipo=Logística para que la inferencia siga funcionando
+  const catFinal = categoria === 'Operativos-Logistica' ? 'Operativos' : categoria;
+  const tipoFinal = categoria === 'Operativos-Logistica' ? 'Logistica 1' : tipo;
+
+  const nuevaFila = { categoria: catFinal, concepto, tipo: tipoFinal, nota, nivel, total, recomendado, urgente, supervivencia };
   nuevaFila._key = cxpRowKey(nuevaFila);
 
   if (cxpConceptoExiste(nuevaFila._key)) {
@@ -3864,7 +3992,7 @@ async function confirmarAgregarGastoPlan() {
   if (!syncResult.ok) { toast('Error al guardar el gasto en Supabase: ' + syncResult.message, 'err'); return; }
 
   await cxpFetchSupabaseData(); // recarga cxpData completo desde Supabase → afecta a todos los planes
-  toast('Gasto agregado al Plan de Pagos ✓ (afecta a todos los planes)');
+  toast('✅ Gasto agregado' + (nivel ? ' con nivel ' + nivel : '') + ' — afecta a los 4 planes');
   closeAgregarGastoPlanModal();
 
   // Refresca la vista de detalle si está abierta
