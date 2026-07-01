@@ -1553,6 +1553,11 @@ async function renderDashboard(c) {
   const planActivo = planPagoGetActivo();
   const planCfg = planActivo ? (PLAN_PAGO_CFG[planActivo] || PLAN_PAGO_CFG.all) : null;
   const planMonto = planActivo ? planPagoGetMonto(planActivo) : 0;
+  // Deuda Total: SIEMPRE la suma completa de la columna TOTAL del catálogo,
+  // independiente de qué plan esté activo. Es el monto total de deuda registrada.
+  const deudaTotal = cxpData.length > 0 ? planPagoGetMonto('all') : 0;
+  const deudaPagada = cxpData.length > 0 ? (deudaTotal - planPagoGetPendiente('all')) : 0;
+  const deudaPendiente = cxpData.length > 0 ? planPagoGetPendiente('all') : 0;
   const planPendiente = planActivo ? planPagoGetPendiente(planActivo) : 0;
 
   // KPI Brecha: Entradas (caja disponible) vs. lo que aún falta cubrir del
@@ -1619,24 +1624,29 @@ async function renderDashboard(c) {
         </div>
       </div>
 
-      <!-- KPI Plan Total → abre reporte semanal -->
-      <div class="kpi-card kpi-clickable" onclick="openReporteSemanaModal()" style="margin:0;border-color:var(--accent);opacity:${cxpData.length>0?1:.5};">
-        <div class="kpi-label">📊 Plan Total</div>
-        <div class="kpi-value" style="font-size:22px;color:${planActivo ? 'var(--accent)' : 'var(--muted)'};margin-bottom:4px;">
-          ${planActivo ? fmt(planMonto) : '— Sin plan activo —'}
+      <!-- KPI Deuda Total → siempre muestra el TOTAL general del catálogo -->
+      <div class="kpi-card kpi-clickable" onclick="openReporteSemanaModal()" style="margin:0;border-color:${cxpData.length>0?'#ff6b6b':'var(--border)'};opacity:${cxpData.length>0?1:.5};">
+        <div class="kpi-label">💳 Deuda Total</div>
+        <div class="kpi-value" style="font-size:22px;color:${cxpData.length>0?'#ff6b6b':'var(--muted)'};margin-bottom:4px;">
+          ${cxpData.length>0 ? fmt(deudaTotal) : '— Sin catálogo cargado —'}
         </div>
-        ${planActivo ? `
-        <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:8px;border-top:1px solid var(--border);">
+        <div class="kpi-sub" style="margin-top:2px;font-size:11px;">${cxpData.length>0 ? cxpData.length + ' conceptos · columna TOTAL' : 'Carga el Excel del plan en CxP'}</div>
+        ${cxpData.length>0 ? `
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:8px;border-top:1px solid var(--border);margin-top:8px;">
           <span style="color:var(--muted);">Pagado</span>
-          <span style="color:var(--green);font-weight:700;">${fmt(planMonto - planPendiente)}</span>
+          <span style="color:var(--green);font-weight:700;">${fmt(deudaPagada)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px;">
           <span style="color:var(--muted);">Pendiente</span>
-          <span style="color:${planPendiente>0?'var(--red)':'var(--muted)'};font-weight:700;">${fmt(planPendiente)}</span>
+          <span style="color:${deudaPendiente>0?'var(--red)':'var(--muted)'};font-weight:700;">${fmt(deudaPendiente)}</span>
         </div>
         <div style="margin-top:8px;background:var(--surface2);border-radius:4px;height:5px;overflow:hidden;">
-          <div style="width:${planMonto>0?Math.min(((planMonto-planPendiente)/planMonto*100),100).toFixed(1):0}%;height:100%;background:var(--green);border-radius:4px;"></div>
-        </div>` : ''}
+          <div style="width:${deudaTotal>0?Math.min(((deudaTotal-deudaPendiente)/deudaTotal*100),100).toFixed(1):0}%;height:100%;background:var(--green);border-radius:4px;"></div>
+        </div>
+        ${planActivo ? `
+        <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-size:10px;color:var(--muted);">
+          Plan activo: <span style="color:${planCfg.color};font-weight:700;">${planCfg.label}</span> → ${fmt(planMonto)}
+        </div>` : ''}` : ''}
         <div class="kpi-click-hint" style="margin-top:8px;font-size:10px;color:var(--muted);">📋 Clic para ver reporte semanal</div>
       </div>
       </div><!-- /izquierda flex -->
