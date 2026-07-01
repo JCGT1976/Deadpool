@@ -95,6 +95,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 .role-badge{
   font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.06em;
 }
+.role-admin_master{background:rgba(255,215,0,.18);color:#ffd700;border:1px solid rgba(255,215,0,.5)}
 .role-admin{background:rgba(255,77,109,.15);color:var(--red)}
 .role-cohost{background:rgba(0,194,255,.15);color:var(--accent)}
 .role-view{background:rgba(0,229,160,.15);color:var(--green)}
@@ -248,6 +249,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   #sessionBar{padding:2px 12px;font-size:10px}
   .topbar{padding:6px 12px!important}
   .nav-tabs{padding:0 8px!important}
+
+  /* ── PARIDAD MÓVIL: mismas funciones que escritorio ── */
+  .usuarios-layout{grid-template-columns:1fr!important}
+  .usu-form-grid{grid-template-columns:1fr!important}
+  .usu-perms-grid{grid-template-columns:1fr!important}
 }
 
 /* ── KPI PRESUPUESTO CLICKEABLE ─────────────────────── */
@@ -1011,11 +1017,12 @@ async function loginSuccess(userData) {
   document.getElementById('app').style.flexDirection = 'column';
   document.getElementById('topName').textContent = userData.nombre;
   const rb = document.getElementById('topRole');
-  rb.textContent = userData.rol;
+  const ROLE_LABELS_TOP = { admin_master:'Admon Master', admin:'Admin', cohost:'Cohost', view:'View', income:'Income' };
+  rb.textContent = ROLE_LABELS_TOP[userData.rol] || userData.rol;
   rb.className = 'role-badge role-' + userData.rol;
 
   // mostrar tabs según rol
-  if (userData.rol === 'admin' || userData.rol === 'cohost') {
+  if (userData.rol === 'admin' || userData.rol === 'cohost' || userData.rol === 'admin_master') {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display='');
   // Permisos por rol: solo lectura para view/income (sin tabs de admin)
   if (userData.rol === 'view' || userData.rol === 'income') {
@@ -1051,8 +1058,8 @@ function doLogout() {
 ══════════════════════════════════════════ */
 async function loadAllData() {
   try {
-    // Usuarios (solo admin / cohost)
-    if (currentUser.rol === 'admin' || currentUser.rol === 'cohost') {
+    // Usuarios (solo admin / cohost / admin_master)
+    if (currentUser.rol === 'admin' || currentUser.rol === 'cohost' || currentUser.rol === 'admin_master') {
       const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
       if (data) allData.usuarios = data;
     }
@@ -1648,7 +1655,7 @@ async function renderDashboard(c) {
    TAB: USUARIOS (admin)
 ══════════════════════════════════════════ */
 function renderUsuarios(c) {
-  if (currentUser.rol !== 'admin') {
+  if (currentUser.rol !== 'admin' && currentUser.rol !== 'admin_master') {
     c.innerHTML = '<div class="loading-wrap">Solo administradores.</div>'; return;
   }
   const users = allData.usuarios || [];
@@ -1659,11 +1666,13 @@ function renderUsuarios(c) {
   const selUser = users.find(u => u.id === st.selId);
 
   const ROLE_COLORS = {
+    admin_master: { bg:'rgba(255,215,0,.18)', border:'rgba(255,215,0,.5)', text:'#ffd700' },
     admin:  { bg:'rgba(255,77,109,.15)', border:'rgba(255,77,109,.4)', text:'#ff4d6d' },
     cohost: { bg:'rgba(139,92,246,.15)', border:'rgba(139,92,246,.4)', text:'#8b5cf6' },
     view:   { bg:'rgba(0,194,255,.15)',  border:'rgba(0,194,255,.4)',  text:'#00c2ff' },
     income: { bg:'rgba(63,185,80,.15)', border:'rgba(63,185,80,.4)',  text:'#3fb950' },
   };
+  const ROLE_LABELS = { admin_master:'Admon Master', admin:'Admin', cohost:'Cohost', view:'View', income:'Income' };
 
   function userCard(u) {
     const rc = ROLE_COLORS[u.rol] || ROLE_COLORS.view;
@@ -1674,7 +1683,7 @@ function renderUsuarios(c) {
           <div style="font-size:13px;font-weight:700;color:var(--text);">${u.nombre}</div>
           <div style="font-size:11px;color:var(--muted);">@${u.username}</div>
         </div>
-        <span style="background:${rc.bg};border:1px solid ${rc.border};color:${rc.text};border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">${u.rol}</span>
+        <span style="background:${rc.bg};border:1px solid ${rc.border};color:${rc.text};border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">${ROLE_LABELS[u.rol] || u.rol}</span>
       </div>
       ${!u.activo ? '<div style="font-size:10px;color:var(--red);margin-top:3px;">● Inactivo</div>' : ''}
     </div>`;
@@ -1682,11 +1691,11 @@ function renderUsuarios(c) {
 
   function permsGrid(u) {
     const perms = permisosGet(u.id, u.rol);
-    const isAdmin = u.rol === 'admin';
+    const isFullAccess = u.rol === 'admin' || u.rol === 'admin_master';
     return PERMS_MODULOS.map(m => {
-      const on = isAdmin || !!perms[m.id];
-      return `<div onclick="${isAdmin ? '' : `usuTogglePerm('${u.id}','${m.id}')`}"
-        style="background:${on?'rgba(63,185,80,.07)':'var(--surface)'};border:1px solid ${on?'rgba(63,185,80,.3)':'var(--border)'};border-radius:8px;padding:9px 12px;cursor:${isAdmin?'not-allowed':'pointer'};display:flex;align-items:center;gap:10px;transition:all .15s;">
+      const on = isFullAccess || !!perms[m.id];
+      return `<div onclick="${isFullAccess ? '' : `usuTogglePerm('${u.id}','${m.id}')`}"
+        style="background:${on?'rgba(63,185,80,.07)':'var(--surface)'};border:1px solid ${on?'rgba(63,185,80,.3)':'var(--border)'};border-radius:8px;padding:9px 12px;cursor:${isFullAccess?'not-allowed':'pointer'};display:flex;align-items:center;gap:10px;transition:all .15s;">
         <div style="width:32px;height:18px;border-radius:9px;background:${on?'var(--green)':'var(--border)'};position:relative;flex-shrink:0;">
           <div style="width:12px;height:12px;border-radius:50%;background:#fff;position:absolute;top:3px;left:${on?'17px':'3px'};transition:left .2s;"></div>
         </div>
@@ -1699,17 +1708,20 @@ function renderUsuarios(c) {
   }
 
   function rolSelector(u) {
-    const isAdmin = u.rol === 'admin';
-    return ['admin','cohost','view','income'].map(r => {
+    // Un admin_master es intocable desde la UI (solo vía base de datos).
+    // Un admin normal SÍ puede reasignarse por un admin_master, pero no por otro admin.
+    const bloqueado = u.rol === 'admin_master' || (u.rol === 'admin' && currentUser.rol !== 'admin_master');
+    const rolesDisponibles = ['admin','cohost','view','income']; // admin_master no se ofrece desde la UI (protección)
+    return rolesDisponibles.map(r => {
       const rc = ROLE_COLORS[r];
       const sel = u.rol === r;
-      return `<div onclick="${isAdmin?'':`usuChangeRol('${u.id}','${r}')`}"
-        style="background:${sel?rc.bg:'transparent'};border:1px solid ${sel?rc.border:'var(--border)'};color:${sel?rc.text:'var(--muted)'};border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:${isAdmin?'not-allowed':'pointer'};">${r}</div>`;
+      return `<div onclick="${bloqueado?'':`usuChangeRol('${u.id}','${r}')`}"
+        style="background:${sel?rc.bg:'transparent'};border:1px solid ${sel?rc.border:'var(--border)'};color:${sel?rc.text:'var(--muted)'};border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:${bloqueado?'not-allowed':'pointer'};">${r}</div>`;
     }).join('');
   }
 
   c.innerHTML = `
-  <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
+  <div class="usuarios-layout" style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
 
     <!-- Columna izquierda: lista de usuarios -->
     <div>
@@ -1732,12 +1744,12 @@ function renderUsuarios(c) {
             <div style="font-size:12px;color:var(--muted);margin-top:2px;">@${selUser.username}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
-            ${selUser.id !== currentUser.id ? `
+            ${selUser.id !== currentUser.id && !(selUser.rol === 'admin_master' && currentUser.rol !== 'admin_master') ? `
             <div onclick="toggleUser('${selUser.id}',${selUser.activo})" style="background:${selUser.activo?'rgba(63,185,80,.12)':'rgba(255,77,109,.12)'};border:1px solid ${selUser.activo?'rgba(63,185,80,.4)':'rgba(255,77,109,.4)'};color:${selUser.activo?'var(--green)':'var(--red)'};border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;">
               ${selUser.activo ? '● Activo' : '○ Inactivo'}
             </div>
             <div onclick="resetPwd('${selUser.id}')" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;">🔑 Reset pwd</div>
-            ` : '<span style="font-size:11px;color:var(--muted);">(tú)</span>'}
+            ` : selUser.id === currentUser.id ? '<span style="font-size:11px;color:var(--muted);">(tú)</span>' : '<span style="font-size:11px;color:var(--muted);">🔒 Protegido</span>'}
           </div>
         </div>
 
@@ -1755,12 +1767,12 @@ function renderUsuarios(c) {
           <div style="margin-bottom:16px;">
             <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;">ROL BASE</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">${rolSelector(selUser)}</div>
-            ${selUser.rol === 'admin' ? '<div style="font-size:10px;color:var(--muted);margin-top:6px;">⚠️ El admin tiene acceso completo. No se puede restringir.</div>' : `
+            ${selUser.rol === 'admin_master' ? '<div style="font-size:10px;color:#ffd700;margin-top:6px;">👑 Admon Master: acceso total permanente. Solo se puede modificar desde la base de datos.</div>' : selUser.rol === 'admin' ? '<div style="font-size:10px;color:var(--muted);margin-top:6px;">⚠️ El admin tiene acceso completo. No se puede restringir.</div>' : `
             <div onclick="usuResetPerms('${selUser.id}')" style="margin-top:8px;font-size:11px;color:var(--accent);cursor:pointer;">↺ Restablecer permisos por defecto del rol</div>`}
           </div>
           <!-- Grid de permisos -->
           <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">ACCESO POR MÓDULO</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="permsGrid_${selUser.id}">
+          <div class="usu-perms-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="permsGrid_${selUser.id}">
             ${permsGrid(selUser)}
           </div>
           <div style="margin-top:16px;display:flex;gap:8px;">
@@ -1768,7 +1780,7 @@ function renderUsuarios(c) {
           </div>
         ` : st.tab === 'perfil' ? `
           <div style="display:flex;flex-direction:column;gap:12px;">
-            ${[['Nombre completo',selUser.nombre],['Usuario (login)',selUser.username],['Rol',selUser.rol]].map(([l,v])=>`
+            ${[['Nombre completo',selUser.nombre],['Usuario (login)',selUser.username],['Rol',ROLE_LABELS[selUser.rol] || selUser.rol]].map(([l,v])=>`
             <div>
               <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;">${l}</div>
               <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;">${v}</div>
@@ -1777,7 +1789,7 @@ function renderUsuarios(c) {
           </div>
         ` : `
           <div id="usuCrearForm">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+            <div class="usu-form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
               <div class="budget-field"><label>Usuario (login)</label><input id="nuUsuario" type="text" placeholder="juan.perez"></div>
               <div class="budget-field"><label>Nombre completo</label><input id="nuNombre" type="text" placeholder="Juan Pérez"></div>
               <div class="budget-field"><label>Rol</label>
@@ -1810,6 +1822,12 @@ function usuChangeRol(userId, newRol) {
   const users = allData.usuarios || [];
   const u = users.find(x => String(x.id) === String(userId));
   if (!u) return;
+  // Protección: nadie cambia el rol de un admin_master desde la UI (solo vía base de datos)
+  if (u.rol === 'admin_master') { toast('El Admon Master no se puede modificar desde aquí', 'err'); return; }
+  // Protección: un admin normal no puede cambiar el rol de otro admin (solo el Admon Master puede)
+  if (u.rol === 'admin' && currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede reasignar a un admin', 'err'); return; }
+  // Nunca se asigna admin_master desde la UI
+  if (newRol === 'admin_master') { toast('El rol Admon Master solo se asigna desde la base de datos', 'err'); return; }
   // Actualizar rol en Supabase
   sb.from('usuarios').update({ rol: newRol }).eq('id', userId).then(({ error }) => {
     if (error) { toast('Error al cambiar rol', 'err'); return; }
@@ -1823,7 +1841,7 @@ function usuChangeRol(userId, newRol) {
 function usuTogglePerm(userId, modId) {
   const users = allData.usuarios || [];
   const u = users.find(x => String(x.id) === String(userId));
-  if (!u || u.rol === 'admin') return;
+  if (!u || u.rol === 'admin' || u.rol === 'admin_master') return;
   const perms = permisosGet(userId, u.rol);
   perms[modId] = !perms[modId];
   permisosSet(userId, perms);
@@ -3033,7 +3051,7 @@ async function confirmarCierreSemana() {
 
 function openResetTotalModal() {
   const user = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
-  if (user.rol !== 'admin') { toast('Solo administradores pueden ejecutar el reset', 'err'); return; }
+  if (user.rol !== 'admin' && user.rol !== 'admin_master') { toast('Solo administradores pueden ejecutar el reset', 'err'); return; }
   document.getElementById('resetTotalConfirmInput').value = '';
   document.getElementById('resetTotalBtn').disabled = true;
   document.getElementById('resetTotalBtn').style.opacity = '.4';
@@ -3056,7 +3074,7 @@ function resetTotalCheckConfirm() {
 
 async function confirmarResetTotal() {
   const user = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
-  if (user.rol !== 'admin') { toast('Sin permisos', 'err'); return; }
+  if (user.rol !== 'admin' && user.rol !== 'admin_master') { toast('Sin permisos', 'err'); return; }
   if (document.getElementById('resetTotalConfirmInput').value.trim() !== 'RESET') return;
 
   // Eliminar gastos_efectuados
@@ -3245,15 +3263,33 @@ const PERMS_MODULOS = [
 ];
 
 const PERMS_DEFAULT = {
+  admin_master: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, true])),
   admin:  Object.fromEntries(PERMS_MODULOS.map(m => [m.id, true])),
   cohost: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['reset','usuarios','catalogo'].includes(m.id)])),
   view:   Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','reporte','gastos_det'].includes(m.id)])),
   income: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','entradas'].includes(m.id)])),
 };
 
+/* Marca de reset único de permisos: al subir esta versión, todo usuario
+   NO admin/admin_master vuelve una sola vez a los permisos default de su
+   rol (view solo-lectura) en cada dispositivo, sin importar toggles previos
+   guardados localmente. Solicitado: "reestablece a todos como View, una vez". */
+const PERMS_FORCE_RESET_STAMP = '2026-07-01-admonmaster-v1';
+
 /* Obtiene permisos del usuario: custom si existen, sino defaults del rol */
 function permisosGet(userId, rol) {
   const all = JSON.parse(localStorage.getItem('mitech_permisos_v1') || '{}');
+  if (rol !== 'admin' && rol !== 'admin_master') {
+    const resets = JSON.parse(localStorage.getItem('mitech_permisos_reset_log') || '{}');
+    if (resets[userId] !== PERMS_FORCE_RESET_STAMP) {
+      const defaults = { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
+      all[userId] = defaults;
+      localStorage.setItem('mitech_permisos_v1', JSON.stringify(all));
+      resets[userId] = PERMS_FORCE_RESET_STAMP;
+      localStorage.setItem('mitech_permisos_reset_log', JSON.stringify(resets));
+      return defaults;
+    }
+  }
   return all[userId] || { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
 }
 
@@ -3267,7 +3303,7 @@ function permisosSet(userId, permisos) {
 /* Verifica si el usuario actual puede acceder a un módulo */
 function canAccess(modId) {
   if (!currentUser) return false;
-  if (currentUser.rol === 'admin') return true;
+  if (currentUser.rol === 'admin' || currentUser.rol === 'admin_master') return true;
   const perms = currentUser.permisos || PERMS_DEFAULT[currentUser.rol] || {};
   return !!perms[modId];
 }
