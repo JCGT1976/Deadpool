@@ -2491,13 +2491,23 @@ function cxpRenderTabla(rows) {
   let html = '';
   let grandTotal = 0, grandPlan = 0;
 
-  Object.entries(grupos).forEach(([grupo, gRows]) => {
+  gruposOrdenados.forEach(grupo => {
+    const gRows = grupos[grupo];
+    const nivKey = grupo === 'Sin nivel' ? 999 : parseInt(grupo.replace('L',''),10);
+    const colorNiv = nivelColor(nivKey);
+    const labelNiv = nivelLabel(nivKey);
+
     const subtot  = gRows.reduce((s,r) => s + (r.total||0), 0);
     const subplan = colPlan ? gRows.reduce((s,r) => s + (r[colPlan]||0), 0) : null;
     grandTotal += subtot;
     if (subplan !== null) grandPlan += subplan;
 
-    html += `<tr class="cxp-group"><th colspan="99">${grupo} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span></th></tr>`;
+    html += `<tr class="cxp-group" style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);">
+      <th colspan="99" style="border-left:3px solid ${colorNiv};padding-left:8px;">
+        <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
+        ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>
+      </th>
+    </tr>`;
     gRows.forEach(r => {
       html += `<tr>
         <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
@@ -2811,9 +2821,15 @@ function planPagoRenderTabla() {
 
   const grupos = {};
   filtradas.forEach(r => {
-    const g = r.categoria || 'General';
+    const nivKey = nivelNumeric(r.nivel);
+    const g = nivKey === 999 ? 'Sin nivel' : ('L' + nivKey);
     if (!grupos[g]) grupos[g] = [];
     grupos[g].push(r);
+  });
+  const gruposOrdenados = Object.keys(grupos).sort((a,b) => {
+    const na = a === 'Sin nivel' ? 999 : parseInt(a.replace('L',''),10);
+    const nb = b === 'Sin nivel' ? 999 : parseInt(b.replace('L',''),10);
+    return na - nb;
   });
 
   // Totales calculados sobre TODAS las filas (incl. liquidadas) para el pie
