@@ -2467,16 +2467,16 @@ function cxpRenderTabla(rows) {
     .filter(r => (parseFloat(r[colMonto]) || 0) > 0);
 
   // Agrupar por categoría
-  // Ordenar por nivel (L1 primero → L7), luego por categoría
+  // Ordenar por nivel efectivo (L1 primero → L7), luego por categoría
   filtradas.sort((a,b) => {
-    const na = nivelNumeric(a.nivel), nb = nivelNumeric(b.nivel);
+    const na = nivelEfectivo(a), nb = nivelEfectivo(b);
     if (na !== nb) return na - nb;
     return (a.categoria || '').localeCompare(b.categoria || '');
   });
-  // Agrupar por NIVEL (no por categoría) para permitir mover niveles completos
+  // Agrupar por NIVEL EFECTIVO (explícito o inferido) para consistencia con Plan de Pagos
   const grupos = {};
   filtradas.forEach(r => {
-    const nivKey = nivelNumeric(r.nivel);
+    const nivKey = nivelEfectivo(r);
     const g = nivKey === 999 ? 'Sin nivel' : ('L' + nivKey);
     if (!grupos[g]) grupos[g] = [];
     grupos[g].push(r);
@@ -2609,6 +2609,41 @@ function nivelLabel(nivel) {
     7: 'L7 · Proveedores',
   };
   return labels[n] || (n === 999 ? 'Sin nivel' : ('L' + n));
+}
+
+/* ── INFERENCIA DE NIVEL (fallback) ─────────────
+   Cuando un concepto no tiene nivel explícito en el catálogo
+   (típicamente porque el Excel se cargó antes de que se preservara
+   la columna NIVEL), inferimos un nivel razonable a partir de la
+   categoría y el tipo. Es una sugerencia — se marca visualmente
+   como "sugerido" y se puede persistir a Supabase con el botón
+   correspondiente en el modal. */
+function inferirNivelDeConcepto(row) {
+  const cat = (row.categoria || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const tipo = (row.tipo || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  if (cat.includes('salario') || cat.includes('nomina') || cat.includes('nómina')) return 1;
+  if (cat.includes('impuest') || cat.includes('sat') || cat.includes('imss') || cat.includes('infonavit')) return 2;
+  if (cat.includes('operativ') && (tipo.includes('logistic') || tipo.includes('logística'))) return 3;
+  if (cat.includes('servicio')) return 4;
+  if (cat.includes('operativ')) return 4;
+  if (cat.includes('convenio')) return 5;
+  if (cat.includes('renta')) return 6;
+  if (cat.includes('proveedor')) return 7;
+  return 999;
+}
+
+/* Devuelve el nivel EFECTIVO de una fila: el explícito si existe,
+   o el inferido como fallback. Se usa para agrupar/ordenar. */
+function nivelEfectivo(row) {
+  const n = nivelNumeric(row.nivel);
+  if (n !== 999) return n;
+  return inferirNivelDeConcepto(row);
+}
+
+/* Indica si el nivel de una fila fue inferido (no explícito). Se usa
+   para mostrarlo con un badge visual distinto (dashed, "sug.") */
+function nivelEsInferido(row) {
+  return nivelNumeric(row.nivel) === 999 && inferirNivelDeConcepto(row) !== 999;
 }
 
 /* ══════════════════════════════════════════
@@ -2827,8 +2862,10 @@ function planPagoRenderTabla() {
   const nLiquidados = todas.length - filtradas.length;
 
   const grupos = {};
+  let nSugeridos = 0;
   filtradas.forEach(r => {
-    const nivKey = nivelNumeric(r.nivel);
+    const nivKey = nivelEfectivo(r);
+    if (nivelEsInferido(r)) nSugeridos++;
     const g = nivKey === 999 ? 'Sin nivel' : ('L' + nivKey);
     if (!grupos[g]) grupos[g] = [];
     grupos[g].push(r);
@@ -2876,14 +2913,21 @@ function planPagoRenderTabla() {
       const liquidado = pendiente <= 0 && montoPlan > 0;
       const checked = seleccion.has(r._key);
       const rowKeyIdx = planPagoRegistrarClaveSegura(r._key);
-      const nivDisp = nivelDisplay(r.nivel);
-      const nivColor = nivelColor(r.nivel);
+      const esInferido = nivelEsInferido(r);
+      const nivKeyRow = nivelEfectivo(r);
+      const nivDisp = nivKeyRow === 999 ? '' : ('L' + nivKeyRow);
+      const nivColor = nivelColor(nivKeyRow);
+      // Estilo del badge: sólido si explícito, dashed + opacidad si inferido
+      const badgeStyle = esInferido
+        ? `background:${nivColor}12;color:${nivColor};border:1px dashed ${nivColor}88;`
+        : `background:${nivColor}22;color:${nivColor};border:1px solid ${nivColor}55;`;
+      const badgeTitle = esInferido ? 'Nivel sugerido por categoría (no explícito en el catálogo)' : 'Nivel explícito';
       html += `<tr>
         <td>
           <input type="checkbox" data-plan-row-group="${grupoIdSafe}" ${liquidado ? 'disabled' : ''} ${checked ? 'checked' : ''}
             onchange="planPagoToggleSeleccionIdx(${rowKeyIdx}, this.checked)">
         </td>
-        <td><span style="display:inline-block;background:${nivColor}22;color:${nivColor};border:1px solid ${nivColor}55;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;">${nivDisp || '—'}</span></td>
+        <td><span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
         <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
         <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
@@ -2897,6 +2941,18 @@ function planPagoRenderTabla() {
       </tr>`;
     });
   });
+
+  // Banner de niveles inferidos + botón para persistirlos
+  if (nSugeridos > 0) {
+    html = `<tr><td colspan="10" style="padding:10px 14px;background:rgba(255,193,7,.10);border-bottom:1px solid rgba(255,193,7,.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;">
+        <span style="color:var(--yellow);">
+          ✨ <b>${nSugeridos} concepto${nSugeridos>1?'s':''}</b> sin nivel explícito — se muestra${nSugeridos>1?'n':''} nivel sugerido por categoría (badge dashed).
+        </span>
+        ${canAccess('cxp') ? `<button onclick="planPagoPersistirNivelesInferidos()" style="background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:700;">🎯 Aplicar niveles sugeridos a Supabase</button>` : ''}
+      </div>
+    </td></tr>` + html;
+  }
 
   // Banner de liquidados ocultos
   if (nLiquidados > 0) {
@@ -2951,7 +3007,7 @@ function openCambiarNivelGrupoModal(grupoKeyIdx) {
   if (!st) return;
   // grupo es "L1", "L2", ..., o "Sin nivel"
   const nivKey = grupo === 'Sin nivel' ? 999 : parseInt(grupo.replace('L',''),10);
-  const gRows = st.rows.filter(r => nivelNumeric(r.nivel) === nivKey);
+  const gRows = st.rows.filter(r => nivelEfectivo(r) === nivKey);
   if (gRows.length === 0) return;
   window._cambiarNivelState = {
     modo: 'grupo',
@@ -3110,6 +3166,63 @@ async function confirmarCambioNivel() {
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
 
+/* Persiste a Supabase los niveles inferidos (sug.) para todos los conceptos
+   que actualmente no tienen nivel explícito, usando la lógica de inferencia
+   basada en categoría+tipo. */
+async function planPagoPersistirNivelesInferidos() {
+  const st = window._planPagoState;
+  if (!st) { toast('Abre primero el detalle del plan', 'err'); return; }
+
+  // Filtrar solo filas con nivel inferido (sin nivel explícito)
+  const rowsInferidas = cxpData.filter(r => nivelEsInferido(r));
+  if (rowsInferidas.length === 0) {
+    toast('No hay conceptos sin nivel explícito', 'ok'); return;
+  }
+
+  if (!confirm(`Se aplicará el nivel sugerido a ${rowsInferidas.length} concepto${rowsInferidas.length>1?'s':''} en Supabase. ¿Continuar?`)) return;
+
+  // Agrupar por nivel para minimizar llamadas a Supabase
+  const porNivel = {};
+  rowsInferidas.forEach(r => {
+    const niv = inferirNivelDeConcepto(r);
+    if (niv === 999) return;
+    if (!porNivel[niv]) porNivel[niv] = [];
+    porNivel[niv].push(r._key);
+  });
+
+  let okCount = 0, errCount = 0;
+  for (const [nivStr, claves] of Object.entries(porNivel)) {
+    const niv = parseInt(nivStr, 10);
+    try {
+      const { error } = await sb.from('catalogo_cxp').update({ nivel: niv }).in('clave', claves);
+      if (error) {
+        console.error('Error persistiendo nivel', niv, error);
+        errCount += claves.length;
+      } else {
+        // Actualizar cxpData en memoria
+        cxpData.forEach(r => { if (claves.includes(r._key)) r.nivel = 'L' + niv; });
+        okCount += claves.length;
+      }
+    } catch(err) {
+      console.error(err);
+      errCount += claves.length;
+    }
+  }
+
+  if (errCount === 0) {
+    toast(`✅ ${okCount} nivel${okCount>1?'es':''} persistido${okCount>1?'s':''} en Supabase`);
+  } else {
+    toast(`⚠️ ${okCount} OK, ${errCount} fallo${errCount>1?'s':''}`, 'err');
+  }
+
+  // Re-renderizar detalle del plan
+  if (window._planPagoState) {
+    window._planPagoState.rows = cxpData.filter(r => r.concepto && r.total !== undefined);
+    planPagoRenderTabla();
+  }
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
 
 /* ══════════════════════════════════════════
    FLUJO DE EFECTIVO (KPI Brecha clickeable)
@@ -3177,7 +3290,7 @@ function flujoRenderTabla() {
     .filter(r => r._pendiente > 0);
 
   filtradas.sort((a,b) => {
-    const na = nivelNumeric(a.nivel), nb = nivelNumeric(b.nivel);
+    const na = nivelEfectivo(a), nb = nivelEfectivo(b);
     if (na !== nb) return na - nb;
     // dentro del nivel, mayor pendiente primero (para ver qué se corta antes)
     return b._pendiente - a._pendiente;
@@ -3191,8 +3304,8 @@ function flujoRenderTabla() {
   let ultimoNivel = null;
 
   filtradas.forEach((r, i) => {
-    const nivKey = nivelNumeric(r.nivel);
-    const nivDisp = nivelDisplay(r.nivel);
+    const nivKey = nivelEfectivo(r);
+    const nivDisp = nivKey === 999 ? '' : ('L' + nivKey);
     const nivCol = nivelColor(nivKey);
 
     // Insertar separador de nivel cuando cambia
