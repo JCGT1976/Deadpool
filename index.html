@@ -661,7 +661,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
       <div>
         <div id="planPagoDetalleTitulo" style="font-size:18px;font-weight:800;color:var(--text);">📑 Plan de Pagos</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo · <span style="color:var(--accent);">🖐️ Arrastra filas o grupos para cambiar de nivel</span></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="planPagoBtnAgregarGasto" onclick="openAgregarGastoPlanModal()" style="display:none;background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
@@ -2111,6 +2111,12 @@ let cxpSemanaSeleccionada = localStorage.getItem('cxpSemanaSeleccionada') || nul
 .cxp-table .col-urg{font-weight:700;color:var(--yellow);}
 .cxp-table .col-surv{font-weight:700;color:var(--red);}
 
+/* ── DRAG & DROP para cambio de nivel ─────────── */
+.plan-row-draggable[draggable="true"]:active{cursor:grabbing;}
+.plan-row-draggable.dragging{opacity:.45;background:rgba(0,194,255,.05)!important;}
+.cxp-group.dragging{opacity:.45;}
+.cxp-group.drag-over{outline:2px dashed var(--accent);outline-offset:-4px;background:rgba(0,194,255,.15)!important;}
+
 /* Resumen panel */
 .cxp-resumen{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:16px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
@@ -2914,16 +2920,27 @@ function planPagoRenderTabla() {
 
     const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
     const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
-    html += `<tr class="cxp-group" style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);">
+    // Grupo/nivel — es dropzone Y draggable (para mover el nivel completo)
+    const dragAttrs = canAccess('cxp')
+      ? `draggable="true"
+         ondragstart="dragStartGrupo(event, ${nivKey})"
+         ondragend="dragEndClear(event)"
+         ondragover="dragOverNivel(event)"
+         ondragleave="dragLeaveNivel(event)"
+         ondrop="dropEnNivel(event, ${nivKey})"
+         data-drop-nivel="${nivKey}"`
+      : '';
+    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:${canAccess('cxp')?'move':'default'};">
       <th style="text-align:left;">
         <input type="checkbox" data-plan-group-checkbox="${grupoIdSafe}" onchange="planPagoToggleSeccionIdx(${grupoKeyIdx}, this.checked)" title="Seleccionar todo el nivel">
       </th>
       <th colspan="98" style="border-left:3px solid ${colorNiv};padding-left:8px;">
+        ${canAccess('cxp') ? `<span style="cursor:grab;color:var(--muted);margin-right:6px;user-select:none;" title="Arrastra para mover todo el nivel">⋮⋮</span>` : ''}
         <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
         ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>
       </th>
       <th style="text-align:right;">
-        ${canAccess('cxp') ? `<button onclick="openCambiarNivelGrupoModal(${grupoKeyIdx})" title="Mover todo este nivel a otro" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🔄 Nivel</button>` : ''}
+        ${canAccess('cxp') ? `<button onclick="openCambiarNivelGrupoModal(${grupoKeyIdx})" title="Mover todo este nivel a otro (o arrástralo)" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🔄</button>` : ''}
       </th>
     </tr>`;
     gRows.forEach(r => {
@@ -2943,13 +2960,19 @@ function planPagoRenderTabla() {
         ? `background:${nivColor}12;color:${nivColor};border:1px dashed ${nivColor}88;`
         : `background:${nivColor}22;color:${nivColor};border:1px solid ${nivColor}55;`;
       const badgeTitle = esInferido ? 'Nivel sugerido por categoría (no explícito en el catálogo)' : 'Nivel explícito';
-      html += `<tr>
+      // Fila draggable — se puede arrastrar hacia otro grupo/nivel
+      const rowDragAttrs = canAccess('cxp')
+        ? `draggable="true"
+           ondragstart="dragStartItem(event, ${rowKeyIdx})"
+           ondragend="dragEndClear(event)"`
+        : '';
+      html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:${canAccess('cxp')?'grab':'default'};">
         <td>
           <input type="checkbox" data-plan-row-group="${grupoIdSafe}" ${liquidado ? 'disabled' : ''} ${checked ? 'checked' : ''}
             onchange="planPagoToggleSeleccionIdx(${rowKeyIdx}, this.checked)">
         </td>
         <td><span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
-        <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
+        <td>${canAccess('cxp') ? `<span style="cursor:grab;color:var(--muted);margin-right:4px;user-select:none;font-size:10px;" title="Arrastra para cambiar nivel">⋮⋮</span>` : ''}${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
         <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
         ${mostrarPlanCol ? `<td class="col-active">${fmt(montoPlan)}</td>` : ''}
@@ -2957,7 +2980,7 @@ function planPagoRenderTabla() {
         <td style="color:${pendiente>0?'var(--red)':'var(--muted)'};">${pendiente>0?fmt(pendiente):'—'}</td>
         <td style="text-align:center;">${liquidado ? '✅' : (pagado>0 ? '🟡' : '⏳')}</td>
         <td style="text-align:center;">
-          ${canAccess('cxp') ? `<button onclick="openCambiarNivelItemModal(${rowKeyIdx})" title="Mover este concepto a otro nivel" style="background:transparent;color:var(--accent);border:none;font-size:14px;cursor:pointer;padding:2px 4px;">🔄</button>` : ''}
+          ${canAccess('cxp') ? `<button onclick="openCambiarNivelItemModal(${rowKeyIdx})" title="Mover este concepto a otro nivel (o arrástralo)" style="background:transparent;color:var(--accent);border:none;font-size:14px;cursor:pointer;padding:2px 4px;">🔄</button>` : ''}
         </td>
       </tr>`;
     });
@@ -3186,6 +3209,111 @@ async function confirmarCambioNivel() {
   // Refrescar dashboard también
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
+
+
+/* ══════════════════════════════════════════
+   DRAG & DROP — cambio de nivel por arrastrar
+   Alternativa ágil al modal de cambiar nivel:
+   - Arrastra una fila de concepto → cambia SU nivel
+   - Arrastra un header de grupo → cambia TODO el nivel
+   Al soltar en otro grupo de nivel, aplica el cambio
+   directo con toast (sin modal de confirmación). */
+window._dragState = null;
+
+function dragStartItem(ev, rowKeyIdx) {
+  const clave = window._planPagoClaves[rowKeyIdx];
+  const st = window._planPagoState;
+  if (!st) return;
+  const row = st.rows.find(r => r._key === clave);
+  if (!row) return;
+  window._dragState = {
+    modo: 'item',
+    keys: [clave],
+    nivelOrigen: nivelEfectivo(row),
+    titulo: row.concepto,
+  };
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', 'item:' + clave);
+  ev.currentTarget.classList.add('dragging');
+}
+
+function dragStartGrupo(ev, nivKey) {
+  const st = window._planPagoState;
+  if (!st) return;
+  const gRows = st.rows.filter(r => nivelEfectivo(r) === nivKey);
+  if (gRows.length === 0) { ev.preventDefault(); return; }
+  window._dragState = {
+    modo: 'grupo',
+    keys: gRows.map(r => r._key),
+    nivelOrigen: nivKey,
+    titulo: `${gRows.length} concepto${gRows.length>1?'s':''} de ${nivKey === 999 ? 'sin nivel' : ('L'+nivKey)}`,
+  };
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', 'grupo:' + nivKey);
+  ev.currentTarget.classList.add('dragging');
+  // No propagar al header de la tabla
+  ev.stopPropagation();
+}
+
+function dragEndClear(ev) {
+  ev.currentTarget.classList.remove('dragging');
+  // Limpiar cualquier drag-over
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
+function dragOverNivel(ev) {
+  if (!window._dragState) return;
+  const nivDestino = parseInt(ev.currentTarget.dataset.dropNivel, 10);
+  if (nivDestino === window._dragState.nivelOrigen) return; // mismo nivel — no hacer nada
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('drag-over');
+}
+
+function dragLeaveNivel(ev) {
+  ev.currentTarget.classList.remove('drag-over');
+}
+
+async function dropEnNivel(ev, nivelDestino) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.currentTarget.classList.remove('drag-over');
+
+  const state = window._dragState;
+  window._dragState = null;
+  if (!state) return;
+  if (nivelDestino === state.nivelOrigen) return; // mismo nivel, sin cambio
+  if (isNaN(nivelDestino) || nivelDestino < 1 || nivelDestino > 7) return;
+
+  // Aplicar cambio en cxpData
+  const nuevoNivelTxt = 'L' + nivelDestino;
+  cxpData.forEach(r => {
+    if (state.keys.includes(r._key)) r.nivel = nuevoNivelTxt;
+  });
+
+  // Persistir en Supabase
+  try {
+    const { error } = await sb.from('catalogo_cxp').update({ nivel: nivelDestino }).in('clave', state.keys);
+    if (error) {
+      console.error('Error persistiendo nivel:', error);
+      toast('Cambio local ok, falló Supabase: ' + (error.message||''), 'err');
+    } else {
+      const nOrigen = state.nivelOrigen === 999 ? 'sin nivel' : ('L'+state.nivelOrigen);
+      toast(`✅ ${state.titulo} → ${nuevoNivelTxt} (desde ${nOrigen})`);
+    }
+  } catch(err) {
+    console.error(err);
+    toast('Cambio local ok, error sincronizando: ' + (err.message||''), 'err');
+  }
+
+  // Re-render
+  if (window._planPagoState) {
+    window._planPagoState.rows = cxpData.filter(r => r.concepto && r.total !== undefined);
+    planPagoRenderTabla();
+  }
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
 
 /* Persiste a Supabase los niveles inferidos (sug.) para todos los conceptos
    que actualmente no tienen nivel explícito, usando la lógica de inferencia
