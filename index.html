@@ -306,6 +306,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #cambiarNivelModal.open{display:flex;opacity:1;pointer-events:all;}
 #flujoEfectivoModal{display:none;}
 #flujoEfectivoModal.open{display:flex;opacity:1;pointer-events:all;}
+#diagnosticoModal{display:none;}
+#diagnosticoModal.open{display:flex;opacity:1;pointer-events:all;}
 .btn-danger{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.4);}
 .btn-danger:hover{background:rgba(255,77,109,.3);}
 .entrada-row{
@@ -663,6 +665,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="planPagoBtnAgregarGasto" onclick="openAgregarGastoPlanModal()" style="display:none;background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
+        <button onclick="openDiagnosticoModal()" style="background:rgba(255,193,7,.12);color:var(--yellow);border:1px solid rgba(255,193,7,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔍 Diagnóstico</button>
         <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
         <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;" title="Cerrar">✕</button>
       </div>
@@ -680,6 +683,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <thead id="planPagoHead"></thead>
         <tbody id="planPagoBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL DIAGNÓSTICO DEL CATÁLOGO ── -->
+<div id="diagnosticoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1100;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(720px,97vw);max-height:92vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+      <div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);">🔍 Diagnóstico del Catálogo</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Compara lo que está en Supabase contra tu Excel original</div>
+      </div>
+      <button onclick="closeDiagnosticoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <div id="diagnosticoContent"></div>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+      <button onclick="diagnosticoPurgarYRecargar()" id="btnPurgarYRecargar" style="display:none;background:rgba(255,77,109,.10);color:var(--red);border:1px solid rgba(255,77,109,.4);border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;font-weight:700;">🗑️ Purgar catálogo Supabase (recarga limpia)</button>
+      <button onclick="closeDiagnosticoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:12px;cursor:pointer;">Cerrar</button>
     </div>
   </div>
 </div>
@@ -3221,6 +3242,185 @@ async function planPagoPersistirNivelesInferidos() {
     planPagoRenderTabla();
   }
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+
+/* ══════════════════════════════════════════
+   DIAGNÓSTICO DEL CATÁLOGO
+   Compara el estado real de cxpData vs lo esperado.
+   Detecta duplicados, montos anómalos, y suma cada
+   columna para comparar contra el Excel original.
+══════════════════════════════════════════ */
+async function openDiagnosticoModal() {
+  await cxpEnsureData();
+  const content = document.getElementById('diagnosticoContent');
+  if (!content) return;
+
+  const rows = cxpData.filter(r => r.concepto);
+  const n = rows.length;
+
+  // Sumas por columna
+  const sumaTotal = rows.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
+  const sumaRecom = rows.reduce((s,r) => s + (parseFloat(r.recomendado)||0), 0);
+  const sumaUrg   = rows.reduce((s,r) => s + (parseFloat(r.urgente)||0), 0);
+  const sumaSurv  = rows.reduce((s,r) => s + (parseFloat(r.supervivencia)||0), 0);
+
+  // Conteos por columna con valor > 0
+  const nTotal = rows.filter(r => (parseFloat(r.total)||0) > 0).length;
+  const nRecom = rows.filter(r => (parseFloat(r.recomendado)||0) > 0).length;
+  const nUrg   = rows.filter(r => (parseFloat(r.urgente)||0) > 0).length;
+  const nSurv  = rows.filter(r => (parseFloat(r.supervivencia)||0) > 0).length;
+
+  // Detectar duplicados por concepto+categoría (normalizado)
+  const conceptCount = new Map();
+  rows.forEach(r => {
+    const key = ((r.categoria||'') + '::' + (r.concepto||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+    conceptCount.set(key, (conceptCount.get(key) || 0) + 1);
+  });
+  const duplicados = [...conceptCount.entries()].filter(([k,v]) => v > 1);
+
+  // Detectar duplicados por clave (_key)
+  const keyCount = new Map();
+  rows.forEach(r => keyCount.set(r._key, (keyCount.get(r._key) || 0) + 1));
+  const duplicadosClave = [...keyCount.entries()].filter(([k,v]) => v > 1);
+
+  // Detectar conceptos con datos anómalos
+  const anomalos = rows.filter(r => {
+    const t = parseFloat(r.total)||0;
+    const s = parseFloat(r.supervivencia)||0;
+    const u = parseFloat(r.urgente)||0;
+    const rec = parseFloat(r.recomendado)||0;
+    // Anómalo si supervivencia > urgente, o urgente > recomendado, o recomendado > total
+    return (t > 0) && (s > u || u > rec || rec > t);
+  });
+
+  // Referencias del Excel del usuario para comparar
+  const EXCEL_REF = {
+    total: 100190592,
+    recomendado: 30361159,
+    urgente: 20518941,
+    supervivencia: 11167224,
+    conceptos: 45, // aprox del Excel
+  };
+
+  const dif = (a,b) => a - b;
+  const pct = (a,b) => b !== 0 ? ((a-b)/b*100).toFixed(1) : '—';
+  const colorDiff = d => Math.abs(d) < 1 ? 'var(--green)' : (Math.abs(d) < 1000 ? 'var(--yellow)' : 'var(--red)');
+
+  let html = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:10px;">📊 Comparativa vs Excel de referencia</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 4px;color:var(--muted);">Columna</th>
+            <th style="text-align:right;padding:6px 4px;color:var(--muted);">Excel (esperado)</th>
+            <th style="text-align:right;padding:6px 4px;color:var(--muted);">App (Supabase)</th>
+            <th style="text-align:right;padding:6px 4px;color:var(--muted);">Diferencia</th>
+            <th style="text-align:right;padding:6px 4px;color:var(--muted);">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:5px 4px;">Total</td><td style="text-align:right;color:var(--muted);">${fmt(EXCEL_REF.total)}</td><td style="text-align:right;font-weight:700;">${fmt(sumaTotal)}</td><td style="text-align:right;color:${colorDiff(dif(sumaTotal,EXCEL_REF.total))};font-weight:700;">${fmt(dif(sumaTotal,EXCEL_REF.total))}</td><td style="text-align:right;color:${colorDiff(dif(sumaTotal,EXCEL_REF.total))};">${pct(sumaTotal,EXCEL_REF.total)}%</td></tr>
+          <tr><td style="padding:5px 4px;">Recomendado</td><td style="text-align:right;color:var(--muted);">${fmt(EXCEL_REF.recomendado)}</td><td style="text-align:right;font-weight:700;">${fmt(sumaRecom)}</td><td style="text-align:right;color:${colorDiff(dif(sumaRecom,EXCEL_REF.recomendado))};font-weight:700;">${fmt(dif(sumaRecom,EXCEL_REF.recomendado))}</td><td style="text-align:right;color:${colorDiff(dif(sumaRecom,EXCEL_REF.recomendado))};">${pct(sumaRecom,EXCEL_REF.recomendado)}%</td></tr>
+          <tr><td style="padding:5px 4px;">Urgente</td><td style="text-align:right;color:var(--muted);">${fmt(EXCEL_REF.urgente)}</td><td style="text-align:right;font-weight:700;">${fmt(sumaUrg)}</td><td style="text-align:right;color:${colorDiff(dif(sumaUrg,EXCEL_REF.urgente))};font-weight:700;">${fmt(dif(sumaUrg,EXCEL_REF.urgente))}</td><td style="text-align:right;color:${colorDiff(dif(sumaUrg,EXCEL_REF.urgente))};">${pct(sumaUrg,EXCEL_REF.urgente)}%</td></tr>
+          <tr><td style="padding:5px 4px;">Supervivencia</td><td style="text-align:right;color:var(--muted);">${fmt(EXCEL_REF.supervivencia)}</td><td style="text-align:right;font-weight:700;">${fmt(sumaSurv)}</td><td style="text-align:right;color:${colorDiff(dif(sumaSurv,EXCEL_REF.supervivencia))};font-weight:700;">${fmt(dif(sumaSurv,EXCEL_REF.supervivencia))}</td><td style="text-align:right;color:${colorDiff(dif(sumaSurv,EXCEL_REF.supervivencia))};">${pct(sumaSurv,EXCEL_REF.supervivencia)}%</td></tr>
+        </tbody>
+      </table>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;">Referencia Excel: 45 conceptos. Actualmente cargados: <b>${n}</b></div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px;">📈 Conteos por columna (valor &gt; 0)</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px;">
+        <div><div style="color:var(--muted);font-size:10px;">Total</div><div style="font-weight:700;color:var(--accent);">${nTotal} conceptos</div></div>
+        <div><div style="color:var(--muted);font-size:10px;">Recomendado</div><div style="font-weight:700;color:var(--green);">${nRecom} conceptos</div></div>
+        <div><div style="color:var(--muted);font-size:10px;">Urgente</div><div style="font-weight:700;color:#f0883e;">${nUrg} conceptos</div></div>
+        <div><div style="color:var(--muted);font-size:10px;">Supervivencia</div><div style="font-weight:700;color:var(--red);">${nSurv} conceptos</div></div>
+      </div>
+    </div>
+  `;
+
+  // Duplicados
+  if (duplicados.length > 0 || duplicadosClave.length > 0) {
+    html += `
+      <div style="background:rgba(255,77,109,.06);border:1px solid rgba(255,77,109,.35);border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:8px;">⚠️ Duplicados detectados</div>
+    `;
+    if (duplicadosClave.length > 0) {
+      html += `<div style="font-size:11px;color:var(--text);margin-bottom:6px;"><b>Por clave (_key):</b> ${duplicadosClave.length}</div>`;
+      html += `<div style="font-size:10px;color:var(--muted);max-height:100px;overflow-y:auto;">`;
+      duplicadosClave.slice(0,10).forEach(([k,v]) => { html += `<div>• ${k.slice(0,80)} → <b style="color:var(--red);">${v} copias</b></div>`; });
+      if (duplicadosClave.length > 10) html += `<div>… y ${duplicadosClave.length - 10} más</div>`;
+      html += `</div>`;
+    }
+    if (duplicados.length > 0) {
+      html += `<div style="font-size:11px;color:var(--text);margin-top:8px;margin-bottom:6px;"><b>Por concepto+categoría:</b> ${duplicados.length}</div>`;
+      html += `<div style="font-size:10px;color:var(--muted);max-height:100px;overflow-y:auto;">`;
+      duplicados.slice(0,10).forEach(([k,v]) => { html += `<div>• ${k.slice(0,80)} → <b style="color:var(--red);">${v} copias</b></div>`; });
+      if (duplicados.length > 10) html += `<div>… y ${duplicados.length - 10} más</div>`;
+      html += `</div>`;
+    }
+    html += `<div style="margin-top:10px;font-size:11px;color:var(--text);">💡 <b>Recomendación:</b> Purga el catálogo en Supabase y recarga el Excel limpio para eliminar duplicados.</div>`;
+    html += `</div>`;
+  } else {
+    html += `<div style="background:rgba(63,185,80,.06);border:1px solid rgba(63,185,80,.35);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--green);">✅ Sin duplicados detectados</div>`;
+  }
+
+  // Anómalos
+  if (anomalos.length > 0) {
+    html += `
+      <div style="background:rgba(255,193,7,.06);border:1px solid rgba(255,193,7,.35);border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:800;color:var(--yellow);margin-bottom:8px;">⚠️ Datos anómalos (${anomalos.length})</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Conceptos donde la jerarquía Total ≥ Recomendado ≥ Urgente ≥ Supervivencia no se cumple.</div>
+        <div style="font-size:10px;color:var(--text);max-height:120px;overflow-y:auto;">
+    `;
+    anomalos.slice(0,8).forEach(r => {
+      html += `<div style="border-top:1px solid var(--border);padding:4px 0;">• <b>${r.concepto}</b>: Total=${fmt(r.total||0)} · Rec=${fmt(r.recomendado||0)} · Urg=${fmt(r.urgente||0)} · Surv=${fmt(r.supervivencia||0)}</div>`;
+    });
+    if (anomalos.length > 8) html += `<div>… y ${anomalos.length - 8} más</div>`;
+    html += `</div></div>`;
+  }
+
+  content.innerHTML = html;
+
+  // Mostrar botón de purga solo si hay duplicados o admin
+  const btnPurgar = document.getElementById('btnPurgarYRecargar');
+  if (btnPurgar) {
+    btnPurgar.style.display = (duplicados.length > 0 || duplicadosClave.length > 0 || currentUser?.rol === 'admin' || currentUser?.rol === 'admin_master') ? 'inline-block' : 'none';
+  }
+
+  document.getElementById('diagnosticoModal').classList.add('open');
+}
+
+function closeDiagnosticoModal() {
+  document.getElementById('diagnosticoModal').classList.remove('open');
+}
+
+async function diagnosticoPurgarYRecargar() {
+  if (currentUser?.rol !== 'admin' && currentUser?.rol !== 'admin_master') {
+    toast('Solo admin puede purgar el catálogo', 'err'); return;
+  }
+  const confirmacion = prompt('⚠️ Vas a BORRAR todos los conceptos de catalogo_cxp en Supabase. Después deberás cargar el Excel de nuevo en el tab CxP.\n\nEscribe "PURGAR" para confirmar:');
+  if (confirmacion !== 'PURGAR') { toast('Cancelado', 'err'); return; }
+
+  try {
+    // Delete all rows (using a filter that matches all)
+    const { error } = await sb.from('catalogo_cxp').delete().gte('created_at', '1900-01-01');
+    if (error) {
+      // Fallback: try without created_at filter
+      const { error: e2 } = await sb.from('catalogo_cxp').delete().neq('clave', '__nunca_existira__');
+      if (e2) { toast('Falló la purga: ' + (e2.message || 'error'), 'err'); return; }
+    }
+    cxpData = [];
+    toast('✅ Catálogo purgado. Ahora carga el Excel en el tab CxP.', 'ok');
+    closeDiagnosticoModal();
+    closePlanPagoDetalleModal();
+    showTab('cxp');
+  } catch(err) {
+    console.error(err);
+    toast('Error al purgar: ' + (err.message||''), 'err');
+  }
 }
 
 
