@@ -1662,8 +1662,8 @@ function renderUsuarios(c) {
   // Estado del panel de usuarios
   if (!window._usuPanelState) window._usuPanelState = { selId: users[0]?.id || null, tab: 'permisos' };
   const st = window._usuPanelState;
-  if (!users.find(u => u.id === st.selId)) st.selId = users[0]?.id || null;
-  const selUser = users.find(u => u.id === st.selId);
+  if (!users.find(u => String(u.id) === String(st.selId))) st.selId = users[0]?.id || null;
+  const selUser = users.find(u => String(u.id) === String(st.selId));
 
   const ROLE_COLORS = {
     admin_master: { bg:'rgba(255,215,0,.18)', border:'rgba(255,215,0,.5)', text:'#ffd700' },
@@ -1676,7 +1676,7 @@ function renderUsuarios(c) {
 
   function userCard(u) {
     const rc = ROLE_COLORS[u.rol] || ROLE_COLORS.view;
-    const isSel = u.id === st.selId;
+    const isSel = String(u.id) === String(st.selId);
     return `<div onclick="usuSelectUser('${u.id}')" style="background:${isSel?'var(--surface)':'transparent'};border:1px solid ${isSel?rc.border:'var(--border)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;opacity:${u.activo?1:.5};">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
