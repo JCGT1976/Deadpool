@@ -2187,10 +2187,16 @@ async function cxpHandleFile(e) {
    Excel a futuro. */
 async function cxpSyncToSupabase(rows) {
   try {
+    // La columna 'nivel' en Supabase es tipo integer, pero el Excel trae valores
+    // como "L1", "L4" (texto). Extraemos solo el número para no romper el insert.
+    const nivelToInt = (v) => {
+      const n = parseInt((v || '').toString().replace(/\D/g, ''), 10);
+      return isNaN(n) ? null : n;
+    };
     const payloadBase = rows.map(r => ({
       clave:         r._key,
       tipo:          r.tipo || '',
-      nivel:         r.nivel || '',
+      nivel:         nivelToInt(r.nivel),
       categoria:     r.categoria || 'General',
       concepto:      r.concepto || '',
       nota:          r.nota || '',
