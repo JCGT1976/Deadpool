@@ -308,6 +308,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #flujoEfectivoModal.open{display:flex;opacity:1;pointer-events:all;}
 #diagnosticoModal{display:none;}
 #diagnosticoModal.open{display:flex;opacity:1;pointer-events:all;}
+#cargarExcelModal{display:none;}
+#cargarExcelModal.open{display:flex;opacity:1;pointer-events:all;}
 .btn-danger{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.4);}
 .btn-danger:hover{background:rgba(255,77,109,.3);}
 .entrada-row{
@@ -471,7 +473,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   <!-- nav tabs -->
   <div class="nav" id="navTabs">
     <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard">📊 Dashboard</button>
-    <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp">💳 CxP</button>
     <button class="nav-tab admin-only" onclick="showTab('usuarios')" data-tab="usuarios" style="display:none">👥 Usuarios</button>
   </div>
 
@@ -665,6 +666,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="planPagoBtnAgregarGasto" onclick="openAgregarGastoPlanModal()" style="display:none;background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
+        <button id="planPagoBtnCargarExcel" onclick="openCargarExcelModal()" style="display:none;background:rgba(88,166,255,.12);color:#58a6ff;border:1px solid rgba(88,166,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">📤 Cargar Excel</button>
         <button onclick="openDiagnosticoModal()" style="background:rgba(255,193,7,.12);color:var(--yellow);border:1px solid rgba(255,193,7,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔍 Diagnóstico</button>
         <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
         <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;" title="Cerrar">✕</button>
@@ -683,6 +685,44 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <thead id="planPagoHead"></thead>
         <tbody id="planPagoBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL CARGAR EXCEL DEL PLAN ── -->
+<div id="cargarExcelModal" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1150;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(560px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+      <div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);">📤 Cargar Excel del Plan</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Sube el catálogo de conceptos + montos de los 4 planes</div>
+      </div>
+      <button onclick="closeCargarExcelModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+
+    <!-- Semana -->
+    <div class="budget-field" style="margin-bottom:14px;">
+      <label>📅 Semana que vas a cargar</label>
+      <input type="week" id="cxpSemanaInput" value="" onchange="cxpCambiarSemana(this.value)">
+    </div>
+
+    <!-- Upload zone -->
+    <div class="cxp-upload" id="cxpUploadZone" onclick="document.getElementById('cxpFileInput').click()" style="cursor:pointer;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="1.8" style="opacity:.6;">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p><strong>📂 Arrastra o haz clic para subir</strong></p>
+      <p style="font-size:11px;margin-top:4px;color:var(--muted);">Formato .xlsx · columnas: TIPO, NIVEL, CATEGORIA, CONCEPTO, TOTAL, RECOMENDADO, URGENTE, SUPERVIVENCIA</p>
+      <div class="cxp-upload-status" id="cxpUploadStatus" style="font-size:11px;color:var(--muted);margin-top:8px;">Sin archivo cargado</div>
+    </div>
+    <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)" style="display:none;">
+
+    <!-- Estado catálogo actual -->
+    <div id="cargarExcelEstado" style="margin-top:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);"></div>
+
+    <div style="margin-top:14px;display:flex;justify-content:flex-end;">
+      <button onclick="closeCargarExcelModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:12px;cursor:pointer;">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1197,7 +1237,7 @@ function showTab(tab) {
   const c = document.getElementById('mainContent');
   switch(tab) {
     case 'dashboard': renderDashboard(c); break;
-    case 'cxp':       renderCxP(c); break;
+    case 'cxp':       renderDashboard(c); setTimeout(openCargarExcelModal, 150); break;
     case 'usuarios':  renderUsuarios(c); break;
   }
 }
@@ -2126,87 +2166,13 @@ let cxpSemanaSeleccionada = localStorage.getItem('cxpSemanaSeleccionada') || nul
   document.head.appendChild(s);
 })();
 
-/* ── RENDER PRINCIPAL ────────────────────── */
+/* ── RENDER PRINCIPAL ──────────────────────
+   Stub — el tab CxP fue eliminado. La carga
+   del Excel se hace ahora vía openCargarExcelModal(). */
 function renderCxP(c) {
-  c.innerHTML = `
-    <!-- Accordion Upload CxP -->
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">📂</span>
-        <span class="accordion-title">Cargar Archivo de CxP</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body"><div class="accordion-inner">
-    <!-- Semana que se va a cargar -->
-    <div class="budget-field" style="max-width:240px;margin-bottom:14px;">
-      <label>📅 Semana que vas a cargar</label>
-      <input type="week" id="cxpSemanaInput" value="${cxpSemanaSeleccionada || getWeekKey()}" onchange="cxpCambiarSemana(this.value)">
-    </div>
-    <!-- Upload -->
-    <div class="cxp-upload" id="cxpUploadZone" onclick="document.getElementById('cxpFileInput').click()">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="1.8">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-      </svg>
-      <p><strong>📂 Cargar Excel de CxP</strong> · Arrastra o haz clic</p>
-      <p style="font-size:11px;margin-top:4px;">Formato .xlsx · columnas: TIPO, CATEGORIA, CONCEPTO, TOTAL, RECOMENDADO, URGENTE, SUPERVIVENCIA</p>
-      <div class="cxp-upload-status" id="cxpUploadStatus">${cxpData.length > 0 ? '✔ '+cxpData.length+' conceptos cargados' + (cxpSemanaSeleccionada ? ' · semana '+getWeekLabel(cxpSemanaSeleccionada) : '') : '📊 Sin archivo cargado · usando Supabase como fallback'}</div>
-    </div>
-    <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
-      </div></div>
-    </div><!-- /.accordion upload -->
-
-    <!-- Accordion KPIs CxP -->
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">💳</span>
-        <span class="accordion-title">Indicadores de CxP</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body"><div class="accordion-inner">
-        <!-- KPIs -->
-        <div class="cxp-kpi-grid" id="cxpKpiGrid"></div>
-        <!-- Banner plan activo -->
-        <div id="cxpBanner" style="display:none"></div>
-      </div></div>
-    </div><!-- /.accordion KPIs -->
-
-    <!-- Accordion Detalle CxP -->
-    <div class="accordion open">
-      <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span class="accordion-icon">📋</span>
-        <span class="accordion-title">Cuentas por Pagar — Detalle</span>
-        <svg class="accordion-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-      </div>
-      <div class="accordion-body"><div class="accordion-inner">
-        <!-- Chips categoría -->
-        <div class="cxp-chips" id="cxpChips"></div>
-        <!-- Tabla -->
-        <div class="cxp-table-wrap">
-          <table class="cxp-table" id="cxpTabla">
-            <thead id="cxpHead"></thead>
-            <tbody id="cxpBody"></tbody>
-          </table>
-        </div>
-      </div></div>
-    </div><!-- /.accordion detalle -->
-  `;
-
-  /* Drag & drop */
-  const zone = document.getElementById('cxpUploadZone');
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault(); zone.classList.remove('drag');
-    const f = e.dataTransfer.files[0];
-    if (f) cxpHandleFile({ target: { files: [f] } });
-  });
-
-  if (cxpData.length > 0) {
-    cxpRenderAll();
-  } else {
-    cxpLoadSupabase();
-  }
+  if (c) c.innerHTML = '';
+  showTab('dashboard');
+  setTimeout(openCargarExcelModal, 150);
 }
 
 /* ── CARGA EXCEL ─────────────────────────── */
@@ -2300,6 +2266,62 @@ async function cxpHandleFile(e) {
     if (statusEl) statusEl.textContent = '❌ Error: ' + msg;
     else alert('❌ Error al cargar Excel: ' + msg); // fallback por si el DOM no tiene el status (no debería pasar)
     toast('Error al cargar Excel: ' + msg, 'err');
+  }
+  // Refrescar el estado del modal Cargar Excel si está abierto
+  cxpActualizarEstadoModal();
+  // Refrescar dashboard también
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+/* ── MODAL CARGAR EXCEL DEL PLAN ────────────
+   Reemplaza el tab CxP eliminado. Se abre desde
+   el modal Plan de Pagos (botón "📤 Cargar Excel")
+   o desde el flujo de purga en el diagnóstico. */
+async function openCargarExcelModal() {
+  // Inicializar semana
+  const semanaInput = document.getElementById('cxpSemanaInput');
+  if (semanaInput && !semanaInput.value) {
+    semanaInput.value = cxpSemanaSeleccionada || getWeekKey();
+  }
+  cxpActualizarEstadoModal();
+
+  // Set up drag & drop en cada apertura (los elementos siempre existen porque son estáticos ahora)
+  const zone = document.getElementById('cxpUploadZone');
+  if (zone && !zone._dropInit) {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag');
+      const f = e.dataTransfer.files[0];
+      if (f) cxpHandleFile({ target: { files: [f] } });
+    });
+    zone._dropInit = true;
+  }
+
+  document.getElementById('cargarExcelModal').classList.add('open');
+}
+
+function closeCargarExcelModal() {
+  document.getElementById('cargarExcelModal').classList.remove('open');
+}
+
+/* Muestra estado actual del catálogo en el modal (para saber si hay datos ya cargados) */
+function cxpActualizarEstadoModal() {
+  const est = document.getElementById('cargarExcelEstado');
+  if (!est) return;
+  if (cxpData && cxpData.length > 0) {
+    const sumaTotal = cxpData.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
+    est.innerHTML = `✅ <b>${cxpData.length}</b> conceptos cargados · Total: <b>${fmt(sumaTotal)}</b>`;
+    est.style.color = 'var(--green)';
+  } else {
+    est.innerHTML = '📊 Sin catálogo cargado — sube un Excel para empezar';
+    est.style.color = 'var(--muted)';
+  }
+  // También refrescar el status del uploader
+  const status = document.getElementById('cxpUploadStatus');
+  if (status && cxpData && cxpData.length > 0) {
+    status.textContent = '✔ ' + cxpData.length + ' conceptos cargados' + (cxpSemanaSeleccionada ? ' · semana ' + getWeekLabel(cxpSemanaSeleccionada) : '');
+    status.style.color = 'var(--green)';
   }
 }
 
@@ -2421,6 +2443,8 @@ async function cxpLoadSupabase() {
 
 /* ── RENDER KPIs ─────────────────────────── */
 function cxpRenderKPIs(rows) {
+  const container = document.getElementById('cxpKpiGrid');
+  if (!container) return; // tab CxP fue eliminado
   const sumCol = col => rows.reduce((s, r) => s + (parseFloat(r[col]) || 0), 0);
   const tot = sumCol('total');
   const rec = sumCol('recomendado');
@@ -2448,8 +2472,10 @@ function cxpRenderKPIs(rows) {
 
 /* ── RENDER CHIPS ────────────────────────── */
 function cxpRenderChips(rows) {
+  const container = document.getElementById('cxpChips');
+  if (!container) return; // tab CxP fue eliminado
   const cats = [...new Set(rows.map(r => r.categoria).filter(Boolean))].sort();
-  document.getElementById('cxpChips').innerHTML =
+  container.innerHTML =
     ['Todos', ...cats].map(cat => `
       <span class="cxp-chip ${(cat==='Todos'&&!cxpCategoria)||(cat===cxpCategoria)?'chip-active':''}"
         onclick="cxpSetCategoria('${cat}')">${cat}</span>
@@ -2458,6 +2484,8 @@ function cxpRenderChips(rows) {
 
 /* ── RENDER TABLA ────────────────────────── */
 function cxpRenderTabla(rows) {
+  const body = document.getElementById('cxpBody');
+  if (!body) return; // tab CxP fue eliminado
   const col = cxpFiltro;
   const banner = document.getElementById('cxpBanner');
 
@@ -2561,6 +2589,8 @@ function cxpRenderTabla(rows) {
 /* ── RENDER ALL ──────────────────────────── */
 function cxpRenderAll() {
   if (!cxpData.length) return;
+  // Tolerar ausencia del tab CxP (fue eliminado): si no hay contenedores en el DOM, no hacer nada.
+  if (!document.getElementById('cxpKpiGrid') || !document.getElementById('cxpBody')) return;
   const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
   cxpRenderKPIs(rows);
   cxpRenderChips(rows);
@@ -2770,6 +2800,8 @@ async function openPlanPagoDetalleModal() {
   // Mostrar/ocultar botón "Agregar gasto" según permisos
   const btnAgregar = document.getElementById('planPagoBtnAgregarGasto');
   if (btnAgregar) btnAgregar.style.display = canAccess('cxp') ? 'inline-block' : 'none';
+  const btnCargarXls = document.getElementById('planPagoBtnCargarExcel');
+  if (btnCargarXls) btnCargarXls.style.display = canAccess('cxp') ? 'inline-block' : 'none';
 
   document.getElementById('planPagoDetalleModal').classList.add('open');
 }
@@ -3413,10 +3445,10 @@ async function diagnosticoPurgarYRecargar() {
       if (e2) { toast('Falló la purga: ' + (e2.message || 'error'), 'err'); return; }
     }
     cxpData = [];
-    toast('✅ Catálogo purgado. Ahora carga el Excel en el tab CxP.', 'ok');
+    toast('✅ Catálogo purgado. Ahora sube el Excel actualizado.', 'ok');
     closeDiagnosticoModal();
     closePlanPagoDetalleModal();
-    showTab('cxp');
+    openCargarExcelModal();
   } catch(err) {
     console.error(err);
     toast('Error al purgar: ' + (err.message||''), 'err');
@@ -4203,7 +4235,7 @@ function renderReporteSemanaModal() {
 const PERMS_MODULOS = [
   { id:'dashboard',  label:'📊 Dashboard',        desc:'KPIs y vista general' },
   { id:'entradas',   label:'💵 Entradas',          desc:'Registrar ingresos' },
-  { id:'cxp',        label:'📂 CxP',              desc:'Cuentas por pagar / catálogo' },
+  { id:'cxp',        label:'📤 Cargar Excel del Plan', desc:'Subir catálogo desde archivo Excel' },
   { id:'plan_pagos', label:'📑 Plan de Pagos',     desc:'Ver y seleccionar plan activo' },
   { id:'reg_pago',   label:'💳 Registrar Pago',    desc:'Marcar conceptos como pagados' },
   { id:'gastos_det', label:'💸 Detalle Gastos',    desc:'Ver historial de pagos' },
