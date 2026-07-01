@@ -2103,11 +2103,26 @@ async function cxpHandleFile(e) {
     const wb = XLSX.read(buf, { type: 'array' });
     const sheetName = wb.SheetNames.find(n => /rep|cxp|cuentas|pagar/i.test(n)) || wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
 
     // Normalizar columnas (acepta mayúsculas/minúsculas/tildes)
     const norm = s => (s||'').toString().toUpperCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+
+    // Detectar automáticamente en qué fila están los encabezados reales (CONCEPTO, TOTAL, etc.),
+    // por si el Excel trae filas de título/logo arriba (ej. "MI TECHNOLOGIES - CUENTAS POR PAGAR").
+    // Nota: se usa el índice ABSOLUTO de fila (relativo a toda la hoja), no relativo a la primera
+    // fila con datos, porque algunas hojas no empiezan en la fila 1 (ej. dimension "A2:Y81").
+    const range0 = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+    let headerRowIdx = range0.s.r; // fallback: primera fila real de la hoja
+    for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
+      const rowVals = rawRows[i] || [];
+      if (rowVals.some(v => norm(v).includes('CONCEPTO') || norm(v).includes('CONCEPT'))) {
+        headerRowIdx = range0.s.r + i;
+        break;
+      }
+    }
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: null, range: headerRowIdx });
 
     const parsedRows = rows
       .filter(r => {
