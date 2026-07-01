@@ -662,7 +662,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        ${canAccess('cxp') ? `<button onclick="openAgregarGastoPlanModal()" style="background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>` : ''}
+        <button id="planPagoBtnAgregarGasto" onclick="openAgregarGastoPlanModal()" style="display:none;background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
         <button onclick="cambiarPlanPago()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🔄 Cambiar plan</button>
         <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;" title="Cerrar">✕</button>
       </div>
@@ -672,7 +672,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
     <div id="planPagoBarraAccion" style="display:none;align-items:center;justify-content:space-between;background:rgba(0,194,255,.08);border:1px solid var(--accent);border-radius:8px;padding:8px 14px;margin-top:10px;">
       <span id="planPagoSeleccionCount" style="font-size:12px;font-weight:700;color:var(--text);"></span>
-      ${canAccess('reg_pago') ? `<button class="btn-sm btn-accent" onclick="abrirRegistroPagoSeleccion()">💳 Registrar pago</button>` : ''}
+      <button id="planPagoBtnRegistrarPago" class="btn-sm btn-accent" onclick="abrirRegistroPagoSeleccion()" style="display:none;">💳 Registrar pago</button>
     </div>
 
     <div class="cxp-table-wrap" style="margin-top:8px;">
@@ -2711,6 +2711,10 @@ async function openPlanPagoDetalleModal() {
   renderChips();
   planPagoRenderTabla();
 
+  // Mostrar/ocultar botón "Agregar gasto" según permisos
+  const btnAgregar = document.getElementById('planPagoBtnAgregarGasto');
+  if (btnAgregar) btnAgregar.style.display = canAccess('cxp') ? 'inline-block' : 'none';
+
   document.getElementById('planPagoDetalleModal').classList.add('open');
 }
 
@@ -2787,6 +2791,9 @@ function planPagoRenderBarraAccion() {
   if (n === 0) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
   document.getElementById('planPagoSeleccionCount').textContent = n + ' concepto' + (n>1?'s':'') + ' seleccionado' + (n>1?'s':'');
+  // Mostrar botón "Registrar pago" solo si el usuario tiene permiso
+  const btn = document.getElementById('planPagoBtnRegistrarPago');
+  if (btn) btn.style.display = canAccess('reg_pago') ? 'inline-block' : 'none';
 }
 
 function planPagoRenderTabla() {
