@@ -755,7 +755,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       • Todos los gastos efectuados (Supabase)<br>
       • Todas las entradas (localStorage)<br>
       • Arrastre acumulado<br>
-      • Plan activo seleccionado
+      • Plan activo seleccionado<br>
+      • Presupuesto Semanal configurado
     </div>
     <div class="budget-field" style="margin-bottom:18px;">
       <label>Escribe <strong>RESET</strong> para confirmar</label>
@@ -3090,12 +3091,14 @@ async function confirmarResetTotal() {
   gastosEfectuadosData = [];
   gastosEfectuadosLoaded = false;
 
-  // Limpiar entradas, plan, arrastre, historial
+  // Limpiar entradas, plan, arrastre, historial, presupuesto semanal
   entradasData = [];
   localStorage.setItem('mitech_entradas', '[]');
   localStorage.removeItem('mitech_arrastre');
   localStorage.removeItem('mitech_cierres_hist');
   planPagoClear();
+  budgetData = [];
+  localStorage.removeItem('mitech_budgets');
 
   closeResetTotalModal();
   toast('♻️ Reset total ejecutado — todo limpio');
