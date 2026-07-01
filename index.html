@@ -2159,12 +2159,15 @@ async function cxpHandleFile(e) {
     cxpData.forEach(r => { r._key = cxpRowKey(r); r._semana = cxpSemanaSeleccionada; });
 
     if (statusEl) statusEl.textContent = '⏳ Sincronizando con Supabase…';
-    const syncOk = await cxpSyncToSupabase(cxpData);
+    const syncResult = await cxpSyncToSupabase(cxpData);
 
     const semanaLbl = getWeekLabel(cxpSemanaSeleccionada);
     if (statusEl) statusEl.textContent =
-      '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos · semana ' + semanaLbl + (syncOk ? ' · Supabase ✓' : ' · ⚠️ no se sincronizó a Supabase');
-    toast(syncOk ? 'Excel cargado y sincronizado a Supabase ✓ (semana ' + semanaLbl + ')' : 'Excel cargado, pero falló la sincronización a Supabase', syncOk ? 'ok' : 'err');
+      '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos · semana ' + semanaLbl +
+      (syncResult.ok ? ' · Supabase ✓' : ' · ⚠️ no se sincronizó: ' + syncResult.message);
+    toast(syncResult.ok
+      ? 'Excel cargado y sincronizado a Supabase ✓ (semana ' + semanaLbl + ')'
+      : 'Falló la sincronización a Supabase: ' + syncResult.message, syncResult.ok ? 'ok' : 'err');
     cxpFiltro = 'all';
     cxpCategoria = null;
     cxpRenderAll();
@@ -2199,7 +2202,7 @@ async function cxpSyncToSupabase(rows) {
     // Intento 1: con columna 'semana' incluida (requiere que exista en catalogo_cxp)
     const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rows[i]._semana || null }));
     let { error } = await sb.from('catalogo_cxp').upsert(payloadConSemana, { onConflict: 'clave' });
-    if (error && /column .*semana.* does not exist|semana/i.test(error.message || '')) {
+    if (error && /semana/i.test(error.message || '')) {
       // La tabla aún no tiene la columna 'semana' (falta correr el ALTER TABLE en Supabase).
       // Reintenta sin ese campo para no bloquear la carga del catálogo.
       console.warn('Columna semana no existe en catalogo_cxp, reintentando sin ella:', error);
@@ -2210,15 +2213,19 @@ async function cxpSyncToSupabase(rows) {
       // Reintenta sin especificar onConflict (inserta tal cual; puede duplicar
       // si se repite el Excel, pero no rompe la carga del catálogo).
       console.warn('Upsert con onConflict=clave falló, reintentando sin onConflict:', error);
+      const errorPrimario = error;
       const payloadSinClave = payloadBase.map(({clave, ...rest}) => rest);
       const { error: error2 } = await sb.from('catalogo_cxp').insert(payloadSinClave);
-      if (error2) { console.error('Sync catalogo_cxp (fallback):', error2); return false; }
-      return true;
+      if (error2) {
+        console.error('Sync catalogo_cxp (fallback):', error2);
+        return { ok:false, message: (error2.message || 'error desconocido') + ' [upsert previo: ' + (errorPrimario.message||'') + ']' };
+      }
+      return { ok:true };
     }
-    return true;
+    return { ok:true };
   } catch(err) {
     console.error(err);
-    return false;
+    return { ok:false, message: (err && err.message) ? err.message : 'error desconocido al sincronizar' };
   }
 }
 
@@ -2836,8 +2843,8 @@ async function confirmarAgregarGastoPlan() {
     return;
   }
 
-  const ok = await cxpSyncToSupabase([nuevaFila]);
-  if (!ok) { toast('Error al guardar el gasto en Supabase', 'err'); return; }
+  const syncResult = await cxpSyncToSupabase([nuevaFila]);
+  if (!syncResult.ok) { toast('Error al guardar el gasto en Supabase: ' + syncResult.message, 'err'); return; }
 
   await cxpFetchSupabaseData(); // recarga cxpData completo desde Supabase → afecta a todos los planes
   toast('Gasto agregado al Plan de Pagos ✓ (afecta a todos los planes)');
