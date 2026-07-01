@@ -302,6 +302,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #resetTotalModal.open{display:flex;opacity:1;pointer-events:all;}
 #reporteSemanaModal{display:none;}
 #reporteSemanaModal.open{display:flex;opacity:1;pointer-events:all;}
+#cambiarNivelModal{display:none;}
+#cambiarNivelModal.open{display:flex;opacity:1;pointer-events:all;}
+#flujoEfectivoModal{display:none;}
+#flujoEfectivoModal.open{display:flex;opacity:1;pointer-events:all;}
 .btn-danger{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.4);}
 .btn-danger:hover{background:rgba(255,77,109,.3);}
 .entrada-row{
@@ -651,7 +655,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
 <!-- ── MODAL PLAN DE PAGOS (detalle) ── -->
 <div id="planPagoDetalleModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(720px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(980px,97vw);max-height:92vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
       <div>
         <div id="planPagoDetalleTitulo" style="font-size:18px;font-weight:800;color:var(--text);">📑 Plan de Pagos</div>
@@ -676,6 +680,38 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <thead id="planPagoHead"></thead>
         <tbody id="planPagoBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL CAMBIAR NIVEL (individual o grupo) ── -->
+<div id="cambiarNivelModal" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1100;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(520px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">🔄 Cambiar Nivel de Prioridad</div>
+    <div id="cambiarNivelSub" style="font-size:12px;color:var(--muted);margin-bottom:16px;">—</div>
+
+    <div id="cambiarNivelInfo" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;line-height:1.5;"></div>
+
+    <div class="budget-field" style="margin-bottom:14px;">
+      <label>Nuevo nivel de prioridad</label>
+      <select id="cambiarNivelSelect" onchange="cambiarNivelPreview()">
+        <option value="1">L1 · Salarios (máxima prioridad)</option>
+        <option value="2">L2 · Impuestos</option>
+        <option value="3">L3 · Operativos</option>
+        <option value="4">L4 · Servicios</option>
+        <option value="5">L5 · Convenios proveedores</option>
+        <option value="6">L6 · Rentas</option>
+        <option value="7">L7 · Proveedores (menor prioridad)</option>
+      </select>
+    </div>
+
+    <div id="cambiarNivelPreview" style="background:rgba(0,194,255,.06);border:1px solid rgba(0,194,255,.25);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;line-height:1.7;"></div>
+
+    <div id="cambiarNivelWarning" style="display:none;background:rgba(255,77,109,.10);border:1px solid rgba(255,77,109,.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--red);line-height:1.5;"></div>
+
+    <div style="display:flex;gap:10px;">
+      <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarCambioNivel()">✅ Confirmar cambio</button>
+      <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeCambiarNivelModal()">Cancelar</button>
     </div>
   </div>
 </div>
@@ -721,6 +757,61 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div style="display:flex;gap:10px;">
       <button class="btn-sm btn-accent" style="flex:1;" onclick="confirmarRegistroPago()">💾 Confirmar pago</button>
       <button class="btn-sm" style="flex:1;background:var(--surface2);color:var(--text);" onclick="closeRegistroPagoModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL FLUJO DE EFECTIVO (Brecha clickeable) ── -->
+<div id="flujoEfectivoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(880px,97vw);max-height:92vh;overflow-y:auto;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+
+    <!-- Header azul tipo Excel -->
+    <div style="background:linear-gradient(90deg,#1f6feb,#2088e6);color:#fff;padding:14px 20px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:15px;font-weight:800;letter-spacing:.3px;">💰 Flujo de efectivo MXN</div>
+      <button onclick="closeFlujoEfectivoModal()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+
+    <div style="padding:18px 22px 22px;">
+      <!-- Bloque saldo + depósitos por enviar -->
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px 20px;margin-bottom:12px;align-items:center;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">Saldo disponible</div>
+        <div id="flujoSaldoDisp" style="font-size:15px;font-weight:800;color:var(--green);text-align:right;">$0</div>
+
+        <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;">
+          Depósitos por enviar
+          <input id="flujoDepositosInput" type="text" inputmode="decimal" placeholder="0" oninput="fmtInputMoneyGeneric(this);flujoActualizarDepositos()" style="width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;text-align:right;">
+        </div>
+        <div id="flujoDepositosMonto" style="font-size:13px;font-weight:700;color:var(--muted);text-align:right;">—</div>
+      </div>
+
+      <!-- Header azul con total flujo -->
+      <div style="background:linear-gradient(90deg,#1f6feb,#2088e6);color:#fff;padding:10px 16px;border-radius:8px 8px 0 0;display:grid;grid-template-columns:1fr auto;align-items:center;font-weight:800;font-size:14px;">
+        <div>💰 Flujo de efectivo MXN</div>
+        <div id="flujoTotalDisponible" style="text-align:right;font-size:15px;">$0</div>
+      </div>
+
+      <!-- Header amarillo "Gastos urgentes por cubrir" -->
+      <div style="background:#f0b429;color:#111;padding:8px 16px;display:grid;grid-template-columns:1fr auto;font-weight:800;font-size:13px;">
+        <div>⚠️ Gastos urgentes por cubrir</div>
+        <div>$ To cover MXN</div>
+      </div>
+
+      <!-- Tabla de expenses -->
+      <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;overflow:hidden;">
+        <table id="flujoTabla" style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tbody id="flujoTablaBody"></tbody>
+          <tfoot id="flujoTablaFoot"></tfoot>
+        </table>
+      </div>
+
+      <!-- Botones -->
+      <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <div id="flujoResumen" style="font-size:11px;color:var(--muted);"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="flujoImprimir()" style="background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">🖨️ Imprimir</button>
+          <button onclick="closeFlujoEfectivoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;">Cerrar</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1619,7 +1710,7 @@ async function renderDashboard(c) {
             </div>
 
             <!-- KPI Brecha Entradas vs Plan de Pagos -->
-            <div class="kpi-card" style="margin:0;border-color:${brechaColor};">
+            <div class="kpi-card ${planActivo ? 'kpi-clickable' : ''}" onclick="${planActivo ? 'openFlujoEfectivoModal()' : 'openPlanPagoModal()'}" style="margin:0;border-color:${brechaColor};">
               <div class="kpi-label">📐 Brecha Entradas vs. Plan</div>
               <div class="kpi-value" style="font-size:22px;color:${brechaTxtColor};">
                 ${brecha === null ? '— Sin plan activo —' : fmt(brecha)}
@@ -1629,7 +1720,8 @@ async function renderDashboard(c) {
                 <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
                   <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Entradas</span><span style="color:var(--green);font-weight:700;">${fmt(totalEntradasMXN)}</span></div>
                   <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Pendiente del plan</span><span style="color:var(--red);font-weight:700;">${fmt(planPendiente)}</span></div>
-                </div>` : ''}
+                </div>
+                <div class="kpi-click-hint" style="margin-top:6px;">💰 Clic para ver Flujo de Efectivo</div>` : ''}
             </div>
 
 
@@ -2017,7 +2109,7 @@ function renderCxP(c) {
     <!-- Semana que se va a cargar -->
     <div class="budget-field" style="max-width:240px;margin-bottom:14px;">
       <label>📅 Semana que vas a cargar</label>
-      <input type="week" id="cxpSemanaInput" value="${cxpSemanaSeleccionada || getWeekKey()}" onchange="cxpSemanaSeleccionada = this.value; localStorage.setItem('cxpSemanaSeleccionada', this.value);">
+      <input type="week" id="cxpSemanaInput" value="${cxpSemanaSeleccionada || getWeekKey()}" onchange="cxpCambiarSemana(this.value)">
     </div>
     <!-- Upload -->
     <div class="cxp-upload" id="cxpUploadZone" onclick="document.getElementById('cxpFileInput').click()">
@@ -2136,7 +2228,7 @@ async function cxpHandleFile(e) {
         };
         return {
           tipo:         find(['TIPO','TYPE']) || '',
-          nivel:        find(['NIVEL','LEVEL']) || '',
+          nivel:        nivelDisplay(find(['NIVEL','LEVEL']) || ''),
           categoria:    find(['CATEG','GRUPO','GROUP']) || 'General',
           concepto:     find(['CONCEPTO','CONCEPT','NOMBRE','NAME','DESCRIPCION']) || '',
           nota:         find(['NOTA','NOTE','OBS']) || '',
@@ -2246,7 +2338,7 @@ async function cxpFetchSupabaseData() {
     cxpData = data.map(r => ({
       clave:         r.clave || null,
       tipo:          r.tipo || '',
-      nivel:         r.nivel || '',
+      nivel:         nivelDisplay(r.nivel),
       categoria:     r.categoria || r.grupo || 'General',
       concepto:      r.concepto || r.nombre || r.descripcion || '',
       nota:          r.nota || '',
@@ -2365,11 +2457,25 @@ function cxpRenderTabla(rows) {
     .filter(r => (parseFloat(r[colMonto]) || 0) > 0);
 
   // Agrupar por categoría
+  // Ordenar por nivel (L1 primero → L7), luego por categoría
+  filtradas.sort((a,b) => {
+    const na = nivelNumeric(a.nivel), nb = nivelNumeric(b.nivel);
+    if (na !== nb) return na - nb;
+    return (a.categoria || '').localeCompare(b.categoria || '');
+  });
+  // Agrupar por NIVEL (no por categoría) para permitir mover niveles completos
   const grupos = {};
   filtradas.forEach(r => {
-    const g = r.categoria || 'General';
+    const nivKey = nivelNumeric(r.nivel);
+    const g = nivKey === 999 ? 'Sin nivel' : ('L' + nivKey);
     if (!grupos[g]) grupos[g] = [];
     grupos[g].push(r);
+  });
+  // Ordenar las claves de grupo por nivel numérico
+  const gruposOrdenados = Object.keys(grupos).sort((a,b) => {
+    const na = a === 'Sin nivel' ? 999 : parseInt(a.replace('L',''),10);
+    const nb = b === 'Sin nivel' ? 999 : parseInt(b.replace('L',''),10);
+    return na - nb;
   });
 
   let html = '';
@@ -2425,9 +2531,64 @@ function cxpSetFiltro(f) {
   cxpFiltro = f;
   cxpRenderAll();
 }
+function cxpCambiarSemana(valor) {
+  cxpSemanaSeleccionada = valor;
+  localStorage.setItem('cxpSemanaSeleccionada', valor);
+}
 function cxpSetCategoria(cat) {
   cxpCategoria = (cat === 'Todos') ? null : cat;
   cxpRenderAll();
+}
+
+/* ── HELPERS DE NIVEL (L1–L7) ────────────────
+   Los niveles indican prioridad de pago:
+   L1 = Salarios (más crítico) → L7 = Proveedores (menos crítico).
+   En Excel vienen como texto "L1"..."L7"; en Supabase se guardan
+   como entero. Estas funciones normalizan el formato para display
+   y para ordenamiento.                                              */
+function nivelDisplay(nivel) {
+  if (nivel === null || nivel === undefined) return '';
+  if (typeof nivel === 'number') return nivel > 0 ? 'L' + nivel : '';
+  const s = nivel.toString().toUpperCase().trim();
+  if (!s) return '';
+  if (s.startsWith('L')) {
+    const n = parseInt(s.replace(/\D/g,''), 10);
+    return isNaN(n) || n <= 0 ? '' : 'L' + n;
+  }
+  const n = parseInt(s.replace(/\D/g,''), 10);
+  return isNaN(n) || n <= 0 ? '' : 'L' + n;
+}
+function nivelNumeric(nivel) {
+  if (nivel === null || nivel === undefined || nivel === '') return 999;
+  if (typeof nivel === 'number') return nivel > 0 ? nivel : 999;
+  const n = parseInt(nivel.toString().replace(/\D/g,''), 10);
+  return isNaN(n) || n <= 0 ? 999 : n;
+}
+const NIVEL_COLORS = {
+  1: '#ff4d6d',  // L1 rojo — Salarios (máx prioridad)
+  2: '#f0883e',  // L2 naranja — Impuestos
+  3: '#ffc107',  // L3 amarillo — Operativos
+  4: '#3fb950',  // L4 verde — Servicios
+  5: '#58a6ff',  // L5 azul — Convenios proveedores
+  6: '#a78bfa',  // L6 morado — Rentas
+  7: '#94a3b8',  // L7 gris — Proveedores
+};
+function nivelColor(nivel) {
+  const n = nivelNumeric(nivel);
+  return NIVEL_COLORS[n] || 'var(--muted)';
+}
+function nivelLabel(nivel) {
+  const n = nivelNumeric(nivel);
+  const labels = {
+    1: 'L1 · Salarios',
+    2: 'L2 · Impuestos',
+    3: 'L3 · Operativos',
+    4: 'L4 · Servicios',
+    5: 'L5 · Convenios prov.',
+    6: 'L6 · Rentas',
+    7: 'L7 · Proveedores',
+  };
+  return labels[n] || (n === 999 ? 'Sin nivel' : ('L' + n));
 }
 
 /* ══════════════════════════════════════════
@@ -2615,14 +2776,18 @@ function planPagoRenderTabla() {
   const { plan, rows, categoria, seleccion } = st;
   const colPlan = plan === 'all' ? 'total' : plan;
 
+  const mostrarPlanCol = (plan !== 'all');
   document.getElementById('planPagoHead').innerHTML = `<tr>
     <th style="text-align:left;width:30px;"></th>
+    <th style="text-align:left;width:56px;">Nivel</th>
     <th style="text-align:left">Concepto</th>
-    <th>Categoría</th>
-    <th class="${plan==='all'?'col-active':''}">${plan==='all'?'Total':colPlan.charAt(0).toUpperCase()+colPlan.slice(1)}</th>
+    <th>Tipo</th>
+    <th class="${plan==='all'?'col-active':''}">Total</th>
+    ${mostrarPlanCol ? `<th class="col-active">${colPlan.charAt(0).toUpperCase()+colPlan.slice(1)}</th>` : ''}
     <th>Pagado</th>
     <th>Pendiente</th>
     <th>Estado</th>
+    <th style="width:36px;"></th>
   </tr>`;
 
   // Todos los conceptos con monto en este plan (base para totales)
@@ -2650,39 +2815,52 @@ function planPagoRenderTabla() {
   });
 
   let html = '';
-  let _unused = 0; // grandPlan/Pagado/Pendiente ya calculados arriba
-  Object.entries(grupos).forEach(([grupo, gRows]) => {
-    const subplan   = gRows.reduce((s,r) => s + (parseFloat(r[colPlan])||0), 0);
-    const subpagado = gRows.reduce((s,r) => s + Math.min(gastosEfectuadosTotalPorClave(r._key), parseFloat(r[colPlan])||0), 0);
-    _unused += subplan + subpagado; // evitar unused-var warning
+  gruposOrdenados.forEach(grupo => {
+    const gRows = grupos[grupo];
+    const nivKey = grupo === 'Sin nivel' ? 999 : parseInt(grupo.replace('L',''),10);
+    const colorNiv = nivelColor(nivKey);
+    const labelNiv = nivelLabel(nivKey);
 
     const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
     const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
-    html += `<tr class="cxp-group">
+    html += `<tr class="cxp-group" style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);">
       <th style="text-align:left;">
-        <input type="checkbox" data-plan-group-checkbox="${grupoIdSafe}" onchange="planPagoToggleSeccionIdx(${grupoKeyIdx}, this.checked)" title="Seleccionar toda la sección">
+        <input type="checkbox" data-plan-group-checkbox="${grupoIdSafe}" onchange="planPagoToggleSeccionIdx(${grupoKeyIdx}, this.checked)" title="Seleccionar todo el nivel">
       </th>
-      <th colspan="99">${grupo} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span></th>
+      <th colspan="98" style="border-left:3px solid ${colorNiv};padding-left:8px;">
+        <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
+        ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>
+      </th>
+      <th style="text-align:right;">
+        ${canAccess('cxp') ? `<button onclick="openCambiarNivelGrupoModal(${grupoKeyIdx})" title="Mover todo este nivel a otro" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🔄 Nivel</button>` : ''}
+      </th>
     </tr>`;
     gRows.forEach(r => {
+      const montoTotal = parseFloat(r.total) || 0;
       const montoPlan = parseFloat(r[colPlan]) || 0;
       const pagado = Math.min(gastosEfectuadosTotalPorClave(r._key), montoPlan);
       const pendiente = Math.max(montoPlan - pagado, 0);
-      grandPendiente += pendiente;
       const liquidado = pendiente <= 0 && montoPlan > 0;
       const checked = seleccion.has(r._key);
       const rowKeyIdx = planPagoRegistrarClaveSegura(r._key);
+      const nivDisp = nivelDisplay(r.nivel);
+      const nivColor = nivelColor(r.nivel);
       html += `<tr>
         <td>
           <input type="checkbox" data-plan-row-group="${grupoIdSafe}" ${liquidado ? 'disabled' : ''} ${checked ? 'checked' : ''}
             onchange="planPagoToggleSeleccionIdx(${rowKeyIdx}, this.checked)">
         </td>
+        <td><span style="display:inline-block;background:${nivColor}22;color:${nivColor};border:1px solid ${nivColor}55;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;">${nivDisp || '—'}</span></td>
         <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
-        <td class="${plan==='all'?'col-active':''}">${fmt(montoPlan)}</td>
+        <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
+        ${mostrarPlanCol ? `<td class="col-active">${fmt(montoPlan)}</td>` : ''}
         <td style="color:var(--green);">${pagado>0?fmt(pagado):'—'}</td>
         <td style="color:${pendiente>0?'var(--red)':'var(--muted)'};">${pendiente>0?fmt(pendiente):'—'}</td>
         <td style="text-align:center;">${liquidado ? '✅' : (pagado>0 ? '🟡' : '⏳')}</td>
+        <td style="text-align:center;">
+          ${canAccess('cxp') ? `<button onclick="openCambiarNivelItemModal(${rowKeyIdx})" title="Mover este concepto a otro nivel" style="background:transparent;color:var(--accent);border:none;font-size:14px;cursor:pointer;padding:2px 4px;">🔄</button>` : ''}
+        </td>
       </tr>`;
     });
   });
@@ -2693,18 +2871,376 @@ function planPagoRenderTabla() {
       ✅ ${nLiquidados} concepto${nLiquidados>1?'s':''} liquidado${nLiquidados>1?'s':''} ocult${nLiquidados>1?'os':'o'} del plan
     </td></tr>`;
   }
+  // Total general considerando montoTotal (columna Total) y montoPlan (columna Plan activo)
+  const grandTotalCol = todas.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
   html += `<tr class="cxp-total">
-    <td></td><td>TOTAL GENERAL</td><td></td>
-    <td class="${plan==='all'?'col-active':''}">${fmt(grandPlan)}</td>
+    <td></td><td></td><td>TOTAL GENERAL</td><td></td>
+    <td class="${plan==='all'?'col-active':''}">${fmt(grandTotalCol)}</td>
+    ${mostrarPlanCol ? `<td class="col-active">${fmt(grandPlan)}</td>` : ''}
     <td style="color:var(--green);">${fmt(grandPagado)}</td>
     <td style="color:var(--red);">${fmt(grandPendiente)}</td>
-    <td></td>
+    <td></td><td></td>
   </tr>`;
 
   document.getElementById('planPagoBody').innerHTML = html;
   planPagoRenderBarraAccion();
   planPagoSyncCheckboxesGrupo();
 }
+
+/* ══════════════════════════════════════════
+   CAMBIAR NIVEL (individual o por grupo)
+   Permite reasignar la prioridad L1-L7 de un
+   concepto o de todo un nivel completo. Muestra
+   preview del impacto sobre el saldo/brecha
+   antes de confirmar.
+══════════════════════════════════════════ */
+window._cambiarNivelState = null;
+
+function openCambiarNivelItemModal(rowKeyIdx) {
+  const clave = window._planPagoClaves[rowKeyIdx];
+  const st = window._planPagoState;
+  if (!st) return;
+  const row = st.rows.find(r => r._key === clave);
+  if (!row) return;
+  const nivelActual = nivelNumeric(row.nivel);
+  window._cambiarNivelState = {
+    modo: 'item',
+    keys: [clave],
+    nivelActual: nivelActual,
+    titulo: row.concepto,
+  };
+  openCambiarNivelModal();
+}
+
+function openCambiarNivelGrupoModal(grupoKeyIdx) {
+  const grupo = window._planPagoClaves[grupoKeyIdx];
+  const st = window._planPagoState;
+  if (!st) return;
+  // grupo es "L1", "L2", ..., o "Sin nivel"
+  const nivKey = grupo === 'Sin nivel' ? 999 : parseInt(grupo.replace('L',''),10);
+  const gRows = st.rows.filter(r => nivelNumeric(r.nivel) === nivKey);
+  if (gRows.length === 0) return;
+  window._cambiarNivelState = {
+    modo: 'grupo',
+    keys: gRows.map(r => r._key),
+    nivelActual: nivKey,
+    titulo: gRows.length + ' concepto' + (gRows.length>1?'s':'') + ' del nivel ' + (grupo === 'Sin nivel' ? 'sin asignar' : grupo),
+  };
+  openCambiarNivelModal();
+}
+
+function openCambiarNivelModal() {
+  const state = window._cambiarNivelState;
+  if (!state) return;
+  document.getElementById('cambiarNivelSub').textContent = state.titulo;
+
+  // Info del nivel actual
+  const nivelActualTxt = state.nivelActual === 999 ? 'Sin nivel asignado' : ('L' + state.nivelActual + ' · ' + nivelLabel(state.nivelActual).split('·')[1].trim());
+  document.getElementById('cambiarNivelInfo').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--muted);">Nivel actual:</span>
+      <span style="background:${nivelColor(state.nivelActual)};color:#fff;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:800;">${nivelActualTxt}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px;">
+      <span style="color:var(--muted);">Modo:</span>
+      <span style="color:var(--text);font-weight:700;">${state.modo === 'grupo' ? '🎯 Cambio masivo (nivel completo)' : '📌 Cambio individual (1 concepto)'}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px;">
+      <span style="color:var(--muted);">Conceptos afectados:</span>
+      <span style="color:var(--text);font-weight:700;">${state.keys.length}</span>
+    </div>
+  `;
+
+  // Ajustar el selector para excluir el nivel actual (o marcarlo)
+  const sel = document.getElementById('cambiarNivelSelect');
+  Array.from(sel.options).forEach(opt => {
+    if (parseInt(opt.value,10) === state.nivelActual) {
+      opt.textContent = opt.textContent.replace(' (nivel actual)', '') + ' (nivel actual)';
+    } else {
+      opt.textContent = opt.textContent.replace(' (nivel actual)', '');
+    }
+  });
+  // Seleccionar un valor diferente al actual como sugerencia (o L3 si es 999)
+  const sugerido = state.nivelActual === 999 ? 3 : (state.nivelActual === 7 ? 6 : state.nivelActual + 1);
+  sel.value = String(sugerido);
+  cambiarNivelPreview();
+
+  document.getElementById('cambiarNivelModal').classList.add('open');
+}
+
+function closeCambiarNivelModal() {
+  document.getElementById('cambiarNivelModal').classList.remove('open');
+  window._cambiarNivelState = null;
+}
+
+/* Calcula el impacto del cambio sobre la brecha del plan activo */
+function cambiarNivelPreview() {
+  const state = window._cambiarNivelState;
+  if (!state) return;
+  const nivelNuevo = parseInt(document.getElementById('cambiarNivelSelect').value, 10);
+  const st = window._planPagoState;
+  if (!st) return;
+  const colPlan = st.plan === 'all' ? 'total' : st.plan;
+
+  // Suma de pendientes de los conceptos afectados
+  const rowsAfectadas = st.rows.filter(r => state.keys.includes(r._key));
+  const sumPlan = rowsAfectadas.reduce((s,r) => s + (parseFloat(r[colPlan])||0), 0);
+  const sumPendiente = rowsAfectadas.reduce((s,r) => {
+    const mp = parseFloat(r[colPlan]) || 0;
+    return s + Math.max(mp - gastosEfectuadosTotalPorClave(r._key), 0);
+  }, 0);
+
+  const previewDiv = document.getElementById('cambiarNivelPreview');
+  const warningDiv = document.getElementById('cambiarNivelWarning');
+  const colorNuevo = nivelColor(nivelNuevo);
+
+  previewDiv.innerHTML = `
+    <div style="font-weight:800;color:var(--text);margin-bottom:6px;">📊 Impacto del cambio</div>
+    <div style="display:flex;justify-content:space-between;">
+      <span style="color:var(--muted);">Nivel destino:</span>
+      <span style="background:${colorNuevo};color:#fff;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:800;">${nivelLabel(nivelNuevo)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;">
+      <span style="color:var(--muted);">Monto del plan afectado:</span>
+      <span style="color:var(--text);font-weight:700;">${fmt(sumPlan)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;">
+      <span style="color:var(--muted);">Pendiente por cubrir:</span>
+      <span style="color:${sumPendiente>0?'var(--red)':'var(--muted)'};font-weight:700;">${fmt(sumPendiente)}</span>
+    </div>
+  `;
+
+  // Advertencia: si estás bajando la prioridad de conceptos con pendiente > 0
+  // y el saldo bancario no alcanza para cubrir los niveles anteriores.
+  const saldoBanc = getEntradasTotal() - gastosEfectuadosTotalGeneral();
+  const totalPlanPendiente = planPagoGetPendiente(st.plan);
+  const brecha = saldoBanc - totalPlanPendiente;
+
+  const bajandoPrioridad = nivelNuevo > state.nivelActual;
+  const subiendoPrioridad = nivelNuevo < state.nivelActual;
+  let msg = '';
+  if (brecha < 0 && sumPendiente > 0) {
+    if (subiendoPrioridad) {
+      msg = `⚠️ La brecha actual es negativa (${fmt(brecha)}). Subir la prioridad de este monto (${fmt(sumPendiente)}) empujará otros gastos hacia atrás en el orden de pago.`;
+    } else if (bajandoPrioridad) {
+      msg = `ℹ️ La brecha actual es negativa (${fmt(brecha)}). Bajar la prioridad ayuda a liberar cupo para pagos más urgentes.`;
+    }
+  }
+  if (msg) {
+    warningDiv.style.display = 'block';
+    warningDiv.innerHTML = msg;
+  } else {
+    warningDiv.style.display = 'none';
+  }
+}
+
+async function confirmarCambioNivel() {
+  const state = window._cambiarNivelState;
+  if (!state) return;
+  const nivelNuevo = parseInt(document.getElementById('cambiarNivelSelect').value, 10);
+  if (isNaN(nivelNuevo) || nivelNuevo < 1 || nivelNuevo > 7) {
+    toast('Nivel inválido', 'err'); return;
+  }
+  if (nivelNuevo === state.nivelActual) {
+    toast('El nivel destino es el mismo que el actual', 'err'); return;
+  }
+
+  // 1) Actualizar cxpData en memoria
+  const nuevoNivelTxt = 'L' + nivelNuevo;
+  cxpData.forEach(r => {
+    if (state.keys.includes(r._key)) {
+      r.nivel = nuevoNivelTxt;
+    }
+  });
+
+  // 2) Persistir en Supabase (columna nivel es integer)
+  try {
+    const { error } = await sb.from('catalogo_cxp').update({ nivel: nivelNuevo }).in('clave', state.keys);
+    if (error) {
+      console.error('Error actualizando nivel en Supabase:', error);
+      toast('Cambio local aplicado, pero falló Supabase: ' + (error.message || 'error'), 'err');
+    } else {
+      toast(`Nivel actualizado a ${nuevoNivelTxt} (${state.keys.length} concepto${state.keys.length>1?'s':''}) ✓`);
+    }
+  } catch(err) {
+    console.error(err);
+    toast('Cambio local aplicado, error al sincronizar: ' + (err.message||''), 'err');
+  }
+
+  closeCambiarNivelModal();
+  // Re-renderizar detalle del plan
+  if (window._planPagoState) {
+    window._planPagoState.rows = cxpData.filter(r => r.concepto && r.total !== undefined);
+    planPagoRenderTabla();
+  }
+  // Refrescar dashboard también
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+}
+
+
+/* ══════════════════════════════════════════
+   FLUJO DE EFECTIVO (KPI Brecha clickeable)
+   Vista tipo Excel: Saldo disponible + Depósitos
+   por enviar - lista de gastos por cubrir con
+   running balance ("$ To cover"). Cuando el
+   balance se vuelve negativo, las filas se
+   pintan de rojo.
+══════════════════════════════════════════ */
+function flujoGetDepositosPorEnviar() {
+  return parseFloat(localStorage.getItem('mitech_depositos_por_enviar') || '0') || 0;
+}
+function flujoSetDepositosPorEnviar(monto) {
+  localStorage.setItem('mitech_depositos_por_enviar', String(monto || 0));
+}
+
+async function openFlujoEfectivoModal() {
+  const plan = planPagoGetActivo();
+  if (!plan) { openPlanPagoModal(); return; }
+  const ok = await cxpEnsureData();
+  if (!ok) { toast('No hay datos de CxP disponibles', 'err'); return; }
+  await gastosEfectuadosFetch(true);
+
+  // Inicializar input de depósitos con último valor guardado
+  const dep = flujoGetDepositosPorEnviar();
+  const depInput = document.getElementById('flujoDepositosInput');
+  if (depInput) depInput.value = dep > 0 ? Math.round(dep).toLocaleString('es-MX') : '';
+
+  flujoRenderTabla();
+  document.getElementById('flujoEfectivoModal').classList.add('open');
+}
+
+function closeFlujoEfectivoModal() {
+  document.getElementById('flujoEfectivoModal').classList.remove('open');
+}
+
+function flujoActualizarDepositos() {
+  const raw = parseMoney(document.getElementById('flujoDepositosInput').value);
+  flujoSetDepositosPorEnviar(raw);
+  flujoRenderTabla();
+}
+
+function flujoRenderTabla() {
+  const plan = planPagoGetActivo();
+  if (!plan) return;
+  const colPlan = plan === 'all' ? 'total' : plan;
+
+  const saldoDisp = getEntradasTotal() - gastosEfectuadosTotalGeneral();
+  const depositos = flujoGetDepositosPorEnviar();
+  const totalDisponible = saldoDisp + depositos;
+
+  document.getElementById('flujoSaldoDisp').textContent = fmt(saldoDisp);
+  document.getElementById('flujoDepositosMonto').textContent = depositos > 0 ? fmt(depositos) : '—';
+  document.getElementById('flujoTotalDisponible').textContent = fmt(totalDisponible);
+
+  // Solo conceptos pendientes en el plan activo, ordenados por nivel
+  const filtradas = cxpData
+    .filter(r => r.concepto && r.total !== undefined)
+    .map(r => {
+      const mp = parseFloat(r[colPlan]) || 0;
+      const pagado = gastosEfectuadosTotalPorClave(r._key);
+      const pendiente = Math.max(mp - pagado, 0);
+      return { ...r, _pendiente: pendiente };
+    })
+    .filter(r => r._pendiente > 0);
+
+  filtradas.sort((a,b) => {
+    const na = nivelNumeric(a.nivel), nb = nivelNumeric(b.nivel);
+    if (na !== nb) return na - nb;
+    // dentro del nivel, mayor pendiente primero (para ver qué se corta antes)
+    return b._pendiente - a._pendiente;
+  });
+
+  // Render con running balance
+  let running = totalDisponible;
+  let cruceCubierto = null; // índice donde el balance cruza a negativo
+  let bodyHtml = '';
+  let totalGastos = 0;
+  let ultimoNivel = null;
+
+  filtradas.forEach((r, i) => {
+    const nivKey = nivelNumeric(r.nivel);
+    const nivDisp = nivelDisplay(r.nivel);
+    const nivCol = nivelColor(nivKey);
+
+    // Insertar separador de nivel cuando cambia
+    if (nivKey !== ultimoNivel) {
+      bodyHtml += `<tr style="background:${nivCol}12;">
+        <td colspan="3" style="padding:5px 14px;font-size:11px;font-weight:800;color:${nivCol};border-top:1px solid ${nivCol}55;">
+          <span style="background:${nivCol};color:#fff;padding:1px 8px;border-radius:5px;margin-right:8px;">${nivDisp || '—'}</span>
+          ${nivelLabel(nivKey)}
+        </td>
+      </tr>`;
+      ultimoNivel = nivKey;
+    }
+
+    const prevRunning = running;
+    running = running - r._pendiente;
+    totalGastos += r._pendiente;
+    const seCruza = prevRunning >= 0 && running < 0;
+    if (seCruza && cruceCubierto === null) cruceCubierto = i;
+
+    // Colores del running balance
+    const runningColor = running >= 0 ? 'var(--green)' : 'var(--red)';
+    const runningTxt = running >= 0 ? fmt(running) : '(' + fmt(Math.abs(running)) + ')';
+
+    // Estilo de fila: si running ya negativo, fondo rojo suave
+    const rowStyle = running < 0
+      ? 'background:rgba(255,77,109,.08);'
+      : (i % 2 === 0 ? 'background:var(--surface);' : '');
+
+    // Indicador visual de la línea de corte
+    const cutoffMark = seCruza
+      ? `<tr><td colspan="3" style="border-top:2px dashed var(--red);padding:0;height:0;line-height:0;font-size:0;"></td></tr>`
+      : '';
+
+    bodyHtml += `<tr style="${rowStyle}">
+      <td style="padding:6px 14px;color:var(--text);border-top:1px solid var(--border);">${r.concepto}${r.nota?` <span style="color:var(--muted);font-size:10px;">(${r.nota})</span>`:''}</td>
+      <td style="padding:6px 14px;text-align:right;font-weight:600;color:var(--text);border-top:1px solid var(--border);white-space:nowrap;">${fmt(r._pendiente)}</td>
+      <td style="padding:6px 14px;text-align:right;font-weight:700;color:${runningColor};border-top:1px solid var(--border);white-space:nowrap;">${runningTxt}</td>
+    </tr>${cutoffMark}`;
+  });
+
+  if (filtradas.length === 0) {
+    bodyHtml = `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">🎉 No hay gastos pendientes en este plan.</td></tr>`;
+  }
+
+  document.getElementById('flujoTablaBody').innerHTML = bodyHtml;
+  document.getElementById('flujoTablaFoot').innerHTML = `
+    <tr style="background:#f0b429;color:#111;">
+      <td style="padding:8px 14px;font-weight:800;">Total</td>
+      <td style="padding:8px 14px;text-align:right;font-weight:800;">${fmt(totalGastos)}</td>
+      <td style="padding:8px 14px;text-align:right;font-weight:800;">${totalGastos > totalDisponible ? '(' + fmt(totalGastos - totalDisponible) + ')' : fmt(totalDisponible - totalGastos)}</td>
+    </tr>
+  `;
+
+  const brechaFinal = totalDisponible - totalGastos;
+  const nCubiertos = cruceCubierto === null ? filtradas.length : cruceCubierto;
+  const nNoCubiertos = filtradas.length - nCubiertos;
+  document.getElementById('flujoResumen').innerHTML = `
+    <span style="color:var(--green);font-weight:700;">✅ Cubiertos: ${nCubiertos}</span>
+    ${nNoCubiertos > 0 ? ` · <span style="color:var(--red);font-weight:700;">⚠️ Sin cubrir: ${nNoCubiertos}</span>` : ''}
+    ${brechaFinal < 0 ? ` · <span style="color:var(--red);font-weight:700;">Falta: ${fmt(Math.abs(brechaFinal))}</span>` : ` · <span style="color:var(--green);font-weight:700;">Sobrante: ${fmt(brechaFinal)}</span>`}
+  `;
+}
+
+function flujoImprimir() {
+  const modal = document.getElementById('flujoEfectivoModal');
+  if (!modal) return;
+  const w = window.open('', '_blank', 'width=900,height=800');
+  if (!w) { toast('Habilita popups para imprimir', 'err'); return; }
+  const contenido = modal.querySelector('div > div:nth-child(2)').innerHTML;
+  w.document.write(`<html><head><title>Flujo de Efectivo</title>
+    <style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px}
+    table{width:100%;border-collapse:collapse}
+    td,th{border:1px solid #ccc;padding:6px 10px}
+    </style></head><body>
+    <h2 style="background:#1f6feb;color:#fff;padding:10px 14px;margin:0 0 12px;border-radius:6px;">💰 Flujo de efectivo MXN</h2>
+    ${contenido}
+    </body></html>`);
+  w.document.close();
+  setTimeout(() => { w.print(); }, 200);
+}
+
 
 /* Abre el modal para capturar el monto exacto pagado de los conceptos
    seleccionados (uno o varios, individual o por sección) */
