@@ -960,16 +960,19 @@ async function doLogin() {
   setErr('');
 
   try {
-    const hash = await sha256(pwd);
+    const email = usr.toLowerCase() + '@mitech.local';
+    const { data: authData, error: authError } = await sb.auth.signInWithPassword({ email, password: pwd });
+
+    if (authError || !authData?.user) { setErr('Usuario o contraseña incorrectos'); btn.disabled=false; btn.textContent='Entrar'; return; }
+
     const { data, error } = await sb
       .from('usuarios')
       .select('*')
-      .eq('username', usr)
+      .eq('auth_id', authData.user.id)
       .single();
 
-    if (error || !data) { setErr('Usuario no encontrado'); btn.disabled=false; btn.textContent='Entrar'; return; }
-    if (data.activo === false) { setErr('Cuenta desactivada'); btn.disabled=false; btn.textContent='Entrar'; return; }
-    if (data.pwd_hash !== hash) { setErr('Contraseña incorrecta'); btn.disabled=false; btn.textContent='Entrar'; return; }
+    if (error || !data) { setErr('Tu cuenta no está vinculada. Contacta al administrador.'); await sb.auth.signOut(); btn.disabled=false; btn.textContent='Entrar'; return; }
+    if (data.activo === false) { setErr('Cuenta desactivada'); await sb.auth.signOut(); btn.disabled=false; btn.textContent='Entrar'; return; }
 
     // primer acceso
     if (data.debe_cambiar) {
@@ -995,13 +998,14 @@ async function doFirstChange(userData) {
   if (p2.length < 8) { setErr('Mínimo 8 caracteres'); return; }
   if (p2 !== p3) { setErr('Las contraseñas no coinciden'); return; }
 
-  const newHash = await sha256(p2);
+  const { error: authErr } = await sb.auth.updateUser({ password: p2 });
+  if (authErr) { setErr('Error al guardar. Intenta de nuevo.'); console.error(authErr); return; }
+
   const { error } = await sb.from('usuarios')
-    .update({ pwd_hash: newHash, debe_cambiar: false })
+    .update({ debe_cambiar: false })
     .eq('id', userData.id);
 
   if (error) { setErr('Error al guardar. Intenta de nuevo.'); return; }
-  userData.pwd_hash = newHash;
   userData.debe_cambiar = false;
   toast('Contraseña guardada ✓');
   await loginSuccess(userData);
@@ -1037,6 +1041,7 @@ async function loginSuccess(userData) {
 
 function doLogout() {
   clearInterval(sessionInterval);
+  sb.auth.signOut();
   sessionStorage.removeItem('mitech_user');
   currentUser = null;
   document.getElementById('app').style.display='none';
@@ -3314,13 +3319,17 @@ function reporteImprimir() { window.print(); }
    AUTO-RESTORE SESSION
 ══════════════════════════════════════════ */
 (async function() {
-  const saved = sessionStorage.getItem('mitech_user');
-  if (saved) {
-    try {
-      const u = JSON.parse(saved);
-      await loginSuccess(u);
-    } catch(e) { sessionStorage.removeItem('mitech_user'); }
-  }
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.user) {
+      const { data, error } = await sb.from('usuarios').select('*').eq('auth_id', session.user.id).single();
+      if (!error && data && data.activo !== false) {
+        await loginSuccess(data);
+        return;
+      }
+    }
+  } catch(e) { console.error(e); }
+  sessionStorage.removeItem('mitech_user');
 })();
 </script>
 </body>
