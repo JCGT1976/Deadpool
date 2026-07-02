@@ -2405,7 +2405,13 @@ async function cxpSyncToSupabase(rows) {
    Se puede llamar desde Dashboard o desde CxP indistintamente. */
 async function cxpFetchSupabaseData() {
   try {
-    const { data, error } = await sb.from('catalogo_cxp').select('*').order('categoria').order('orden');
+    // Intento 1: ordenar por categoria y luego por 'orden' (columna persistida)
+    let { data, error } = await sb.from('catalogo_cxp').select('*').order('categoria').order('orden');
+    if (error && /orden/i.test(error.message || '')) {
+      // La columna 'orden' no existe en el schema — reintentar sin ella
+      console.warn('Columna "orden" no disponible, usando solo categoria:', error.message);
+      ({ data, error } = await sb.from('catalogo_cxp').select('*').order('categoria'));
+    }
     if (error || !data || data.length === 0) return false;
     cxpData = data.map(r => ({
       clave:         r.clave || null,
