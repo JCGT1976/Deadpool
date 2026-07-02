@@ -2148,6 +2148,7 @@ let cxpSemanaSeleccionada = localStorage.getItem('cxpSemanaSeleccionada') || nul
 /* ── DRAG & DROP para cambio de nivel ─────────── */
 .plan-row-draggable[draggable="true"]:active{cursor:grabbing;}
 .plan-row-draggable.dragging{opacity:.45;background:rgba(0,194,255,.05)!important;}
+.plan-row-draggable.drag-over-row{outline:2px dashed var(--accent);outline-offset:-3px;background:rgba(0,194,255,.10)!important;}
 .cxp-group.dragging{opacity:.45;}
 .cxp-group.drag-over{outline:2px dashed var(--accent);outline-offset:-4px;background:rgba(0,194,255,.15)!important;}
 
@@ -2404,10 +2405,11 @@ async function cxpSyncToSupabase(rows) {
    Se puede llamar desde Dashboard o desde CxP indistintamente. */
 async function cxpFetchSupabaseData() {
   try {
-    const { data, error } = await sb.from('catalogo_cxp').select('*').order('categoria');
+    const { data, error } = await sb.from('catalogo_cxp').select('*').order('categoria').order('orden');
     if (error || !data || data.length === 0) return false;
     cxpData = data.map(r => ({
       clave:         r.clave || null,
+      orden:         (r.orden == null || isNaN(parseInt(r.orden))) ? 9999 : parseInt(r.orden),
       tipo:          r.tipo || '',
       nivel:         nivelDisplay(r.nivel),
       categoria:     r.categoria || r.grupo || 'General',
@@ -2917,7 +2919,6 @@ function planPagoRenderTabla() {
 
   const mostrarPlanCol = (plan !== 'all');
   document.getElementById('planPagoHead').innerHTML = `<tr>
-    <th style="text-align:left;width:30px;"></th>
     <th style="text-align:left;width:56px;">Nivel</th>
     <th style="text-align:left">Concepto</th>
     <th>Tipo</th>
@@ -2979,21 +2980,20 @@ function planPagoRenderTabla() {
          ondrop="dropEnNivel(event, ${nivKey})"
          data-drop-nivel="${nivKey}"`
       : '';
-    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:${canAccess('cxp')?'move':'default'};">
-      <th style="text-align:left;"></th>
-      <th colspan="98" style="border-left:3px solid ${colorNiv};padding-left:8px;">
-        ${canAccess('cxp') ? `<span style="cursor:grab;color:var(--muted);margin-right:6px;user-select:none;" title="Arrastra para mover todo el nivel">⋮⋮</span>` : ''}
+    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:${canAccess('cxp')?'grab':'default'};">
+      <th colspan="99" style="border-left:3px solid ${colorNiv};padding-left:8px;">
         <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
         ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>
       </th>
     </tr>`;
+    // Ordenar dentro del grupo por 'orden' (persistido en Supabase)
+    gRows.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
     gRows.forEach(r => {
       const montoTotal = parseFloat(r.total) || 0;
       const montoPlan = parseFloat(r[colPlan]) || 0;
       const pagado = Math.min(gastosEfectuadosTotalPorClave(r._key), montoPlan);
       const pendiente = Math.max(montoPlan - pagado, 0);
       const liquidado = pendiente <= 0 && montoPlan > 0;
-      const checked = seleccion.has(r._key);
       const rowKeyIdx = planPagoRegistrarClaveSegura(r._key);
       const esInferido = nivelEsInferido(r);
       const nivKeyRow = nivelEfectivo(r);
@@ -3004,32 +3004,35 @@ function planPagoRenderTabla() {
         ? `background:${nivColor}12;color:${nivColor};border:1px dashed ${nivColor}88;`
         : `background:${nivColor}22;color:${nivColor};border:1px solid ${nivColor}55;`;
       const badgeTitle = esInferido ? 'Nivel sugerido por categoría (no explícito en el catálogo)' : 'Nivel explícito';
-      // Fila draggable — se puede arrastrar hacia otro grupo/nivel
+      // Fila draggable Y dropzone — arrastra sobre otra fila para mover/reordenar
       const rowDragAttrs = canAccess('cxp')
         ? `draggable="true"
            ondragstart="dragStartItem(event, ${rowKeyIdx})"
-           ondragend="dragEndClear(event)"`
+           ondragend="dragEndClear(event)"
+           ondragover="dragOverRow(event)"
+           ondragleave="dragLeaveRow(event)"
+           ondrop="dropEnRow(event, ${rowKeyIdx})"
+           data-row-key-idx="${rowKeyIdx}"`
         : '';
       html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:${canAccess('cxp')?'grab':'default'};">
-        <td>
-          <input type="checkbox" data-plan-row-group="${grupoIdSafe}" ${liquidado ? 'disabled' : ''} ${checked ? 'checked' : ''}
-            onchange="planPagoToggleSeleccionIdx(${rowKeyIdx}, this.checked)">
-        </td>
         <td><span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
-        <td>${canAccess('cxp') ? `<span style="cursor:grab;color:var(--muted);margin-right:4px;user-select:none;font-size:10px;" title="Arrastra para cambiar nivel">⋮⋮</span>` : ''}${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
+        <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
         <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
         ${mostrarPlanCol ? `<td class="col-active">${fmt(montoPlan)}</td>` : ''}
         <td style="color:var(--green);">${pagado>0?fmt(pagado):'—'}</td>
         <td style="color:${pendiente>0?'var(--red)':'var(--muted)'};">${pendiente>0?fmt(pendiente):'—'}</td>
-        <td style="text-align:center;">${liquidado ? '✅' : (pagado>0 ? '🟡' : '⏳')}</td>
+        <td style="text-align:center;white-space:nowrap;">
+          <span style="margin-right:4px;">${liquidado ? '✅' : (pagado>0 ? '🟡' : '⏳')}</span>
+          ${!liquidado && canAccess('reg_pago') ? `<button onclick="abrirRegistroPagoFila(${rowKeyIdx})" title="Registrar pago de este gasto" style="background:transparent;color:var(--accent);border:none;font-size:14px;cursor:pointer;padding:1px 3px;" ondragstart="event.preventDefault();event.stopPropagation();">💳</button>` : ''}
+        </td>
       </tr>`;
     });
   });
 
   // Banner de niveles inferidos + botón para persistirlos
   if (nSugeridos > 0) {
-    html = `<tr><td colspan="10" style="padding:10px 14px;background:rgba(255,193,7,.10);border-bottom:1px solid rgba(255,193,7,.35);">
+    html = `<tr><td colspan="99" style="padding:10px 14px;background:rgba(255,193,7,.10);border-bottom:1px solid rgba(255,193,7,.35);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;">
         <span style="color:var(--yellow);">
           ✨ <b>${nSugeridos} concepto${nSugeridos>1?'s':''}</b> sin nivel explícito — se muestra${nSugeridos>1?'n':''} nivel sugerido por categoría (badge dashed).
@@ -3041,14 +3044,14 @@ function planPagoRenderTabla() {
 
   // Banner de liquidados ocultos
   if (nLiquidados > 0) {
-    html += `<tr><td colspan="7" style="text-align:center;padding:8px;font-size:11px;color:var(--muted);background:rgba(63,185,80,.05);border-top:1px solid var(--border);">
+    html += `<tr><td colspan="99" style="text-align:center;padding:8px;font-size:11px;color:var(--muted);background:rgba(63,185,80,.05);border-top:1px solid var(--border);">
       ✅ ${nLiquidados} concepto${nLiquidados>1?'s':''} liquidado${nLiquidados>1?'s':''} ocult${nLiquidados>1?'os':'o'} del plan
     </td></tr>`;
   }
   // Total general considerando montoTotal (columna Total) y montoPlan (columna Plan activo)
   const grandTotalCol = todas.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
   html += `<tr class="cxp-total">
-    <td></td><td></td><td>TOTAL GENERAL</td><td></td>
+    <td></td><td>TOTAL GENERAL</td><td></td>
     <td class="${plan==='all'?'col-active':''}">${fmt(grandTotalCol)}</td>
     ${mostrarPlanCol ? `<td class="col-active">${fmt(grandPlan)}</td>` : ''}
     <td style="color:var(--green);">${fmt(grandPagado)}</td>
@@ -3298,8 +3301,11 @@ function dragStartGrupo(ev, nivKey) {
 
 function dragEndClear(ev) {
   ev.currentTarget.classList.remove('dragging');
-  // Limpiar cualquier drag-over
-  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  // Limpiar cualquier drag-over (headers y filas)
+  document.querySelectorAll('.drag-over,.drag-over-row').forEach(el => {
+    el.classList.remove('drag-over');
+    el.classList.remove('drag-over-row');
+  });
 }
 
 function dragOverNivel(ev) {
@@ -3325,41 +3331,173 @@ async function dropEnNivel(ev, nivelDestino) {
   const state = window._dragState;
   window._dragState = null;
   if (!state) return;
+  if (isNaN(nivelDestino) || nivelDestino < 1 || nivelDestino > 7) return;
   if (nivelDestino === state.nivelOrigen) {
-    // Mismo nivel — dar feedback en lugar de silencio
-    const nActual = state.nivelOrigen === 999 ? 'Sin nivel' : ('L' + state.nivelOrigen);
-    toast(`ℹ️ ${state.titulo} ya está en ${nActual}`, 'info');
+    // Drop en el header del mismo nivel — mueve las filas al FINAL del nivel
+    await planPagoMoverYReordenar(state.keys, nivelDestino, null);
     return;
   }
-  if (isNaN(nivelDestino) || nivelDestino < 1 || nivelDestino > 7) return;
 
-  // Aplicar cambio en cxpData
-  const nuevoNivelTxt = 'L' + nivelDestino;
-  cxpData.forEach(r => {
-    if (state.keys.includes(r._key)) r.nivel = nuevoNivelTxt;
+  // Drop en header de nivel distinto — cambia nivel y coloca al final
+  await planPagoMoverYReordenar(state.keys, nivelDestino, null);
+}
+
+/* Drop sobre otra FILA individual (para reordenar dentro del mismo nivel
+   o cambiar de nivel colocando cerca de la fila destino) */
+function dragOverRow(ev) {
+  if (!window._dragState) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('drag-over-row');
+}
+
+function dragLeaveRow(ev) {
+  ev.currentTarget.classList.remove('drag-over-row');
+}
+
+async function dropEnRow(ev, targetRowKeyIdx) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.currentTarget.classList.remove('drag-over-row');
+
+  const state = window._dragState;
+  window._dragState = null;
+  if (!state) return;
+
+  const targetKey = window._planPagoClaves[targetRowKeyIdx];
+  if (!targetKey) return;
+  if (state.keys.includes(targetKey)) return; // drop en sí mismo — no-op
+
+  const targetRow = cxpData.find(r => r._key === targetKey);
+  if (!targetRow) return;
+  const nivelDestino = nivelEfectivo(targetRow);
+
+  await planPagoMoverYReordenar(state.keys, nivelDestino, targetKey);
+}
+
+/* Core: mueve filas a un nivel destino y las coloca en una posición específica.
+   - keys: claves de las filas a mover
+   - nivelDestino: 1..7 (o 999 sin nivel)
+   - targetKey: si se especifica, insertar DESPUÉS de esta fila; si null, al final del nivel */
+async function planPagoMoverYReordenar(keys, nivelDestino, targetKey) {
+  const movedRows = keys.map(k => cxpData.find(r => r._key === k)).filter(Boolean);
+  if (movedRows.length === 0) return;
+
+  const nivelOrigen = nivelEfectivo(movedRows[0]);
+  const cambioNivel = nivelDestino !== nivelOrigen;
+  const nuevoNivelTxt = nivelDestino === 999 ? '' : ('L' + nivelDestino);
+  const nivelDestInt = nivelDestino === 999 ? 0 : nivelDestino;
+
+  // 1. Aplicar cambio de nivel en memoria si aplica
+  if (cambioNivel) {
+    movedRows.forEach(r => r.nivel = nuevoNivelTxt);
+  }
+
+  // 2. Reordenar cxpData
+  // Guardar orden previo por _key para saber qué filas cambiaron
+  const ordenPrev = new Map(cxpData.map(r => [r._key, r.orden ?? 9999]));
+
+  // Sacar las filas movidas de cxpData
+  cxpData = cxpData.filter(r => !keys.includes(r._key));
+
+  // Insertar en la posición correcta
+  if (targetKey) {
+    const targetIdx = cxpData.findIndex(r => r._key === targetKey);
+    if (targetIdx >= 0) {
+      cxpData.splice(targetIdx + 1, 0, ...movedRows);
+    } else {
+      cxpData.push(...movedRows);
+    }
+  } else {
+    // Sin target: insertar al final del nivel destino
+    // Encontrar el último índice donde nivel === nivelDestino
+    let lastIdx = -1;
+    cxpData.forEach((r, i) => {
+      if (nivelEfectivo(r) === nivelDestino) lastIdx = i;
+    });
+    if (lastIdx >= 0) {
+      cxpData.splice(lastIdx + 1, 0, ...movedRows);
+    } else {
+      // No hay filas del nivel destino aún — al final absoluto
+      cxpData.push(...movedRows);
+    }
+  }
+
+  // 3. Reasignar 'orden' incrementalmente (1..N)
+  cxpData.forEach((r, i) => { r.orden = i + 1; });
+
+  // 4. Detectar cuáles filas cambiaron de orden o de nivel para persistir solo esas
+  const cambios = cxpData.filter(r => {
+    const prev = ordenPrev.get(r._key);
+    const cambioOrden = prev !== r.orden;
+    const esFilaMovida = keys.includes(r._key);
+    return cambioOrden || esFilaMovida;
   });
 
-  // Persistir en Supabase
+  // 5. Persistir en Supabase (batch upsert por clave)
   try {
-    const { error } = await sb.from('catalogo_cxp').update({ nivel: nivelDestino }).in('clave', state.keys);
-    if (error) {
-      console.error('Error persistiendo nivel:', error);
-      toast('Cambio local ok, falló Supabase: ' + (error.message||''), 'err');
-    } else {
-      const nOrigen = state.nivelOrigen === 999 ? 'sin nivel' : ('L'+state.nivelOrigen);
-      toast(`✅ ${state.titulo} → ${nuevoNivelTxt} (desde ${nOrigen})`);
+    const payload = cambios.map(r => {
+      const nivelInt = r.nivel ? parseInt(r.nivel.toString().replace(/\D/g, ''), 10) || 0 : 0;
+      return { clave: r._key, orden: r.orden, nivel: nivelInt };
+    });
+    if (payload.length > 0) {
+      const { error } = await sb.from('catalogo_cxp').upsert(payload, { onConflict: 'clave' });
+      if (error) {
+        console.error('Error persistiendo orden/nivel:', error);
+        toast('Cambio local ok, falló Supabase: ' + (error.message||''), 'err');
+      } else {
+        const nOrigen = nivelOrigen === 999 ? 'sin nivel' : ('L'+nivelOrigen);
+        const titulo = movedRows.length === 1
+          ? movedRows[0].concepto
+          : `${movedRows.length} conceptos de ${nOrigen}`;
+        if (cambioNivel) {
+          toast(`✅ ${titulo} → ${nuevoNivelTxt} (desde ${nOrigen})`);
+        } else {
+          toast(`↕️ ${titulo} reordenado en ${nOrigen}`);
+        }
+      }
     }
   } catch(err) {
     console.error(err);
     toast('Cambio local ok, error sincronizando: ' + (err.message||''), 'err');
   }
 
-  // Re-render
+  // 6. Re-render tabla del plan + refrescar KPIs de brecha en donde aparezcan
   if (window._planPagoState) {
     window._planPagoState.rows = cxpData.filter(r => r.concepto && r.total !== undefined);
     planPagoRenderTabla();
   }
-  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+  refrescarKPIsPostMove();
+}
+
+/* Refresca los lugares donde aparece el KPI de Brecha después de un cambio */
+function refrescarKPIsPostMove() {
+  // Dashboard KPI (si está visible)
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') {
+    const c = document.getElementById('mainContent');
+    if (c) renderDashboard(c);
+  }
+  // Modal Flujo de Efectivo abierto
+  const flujo = document.getElementById('flujoEfectivoModal');
+  if (flujo && flujo.classList.contains('open') && typeof flujoRenderTabla === 'function') {
+    try { flujoRenderTabla(); } catch(e) { console.warn('refresh flujo:', e); }
+  }
+  // Modal Reporte de Semana abierto
+  const rep = document.getElementById('reporteSemanaModal');
+  if (rep && rep.classList.contains('open') && typeof renderReporteSemanaModal === 'function') {
+    try { renderReporteSemanaModal(); } catch(e) { console.warn('refresh reporte:', e); }
+  }
+}
+
+/* Abre modal de registro de pago para UNA fila específica (reemplaza el flujo
+   por selección múltiple con checkboxes) */
+function abrirRegistroPagoFila(rowKeyIdx) {
+  const clave = window._planPagoClaves[rowKeyIdx];
+  const st = window._planPagoState;
+  if (!st || !clave) return;
+  st.seleccion = new Set([clave]);
+  abrirRegistroPagoSeleccion();
 }
 
 
@@ -3668,8 +3806,8 @@ function flujoRenderTabla() {
   filtradas.sort((a,b) => {
     const na = nivelEfectivo(a), nb = nivelEfectivo(b);
     if (na !== nb) return na - nb;
-    // dentro del nivel, mayor pendiente primero (para ver qué se corta antes)
-    return b._pendiente - a._pendiente;
+    // Dentro del mismo nivel, seguir el orden custom del usuario (persistido en Supabase)
+    return (a.orden ?? 9999) - (b.orden ?? 9999);
   });
 
   // Render con running balance
@@ -3819,6 +3957,11 @@ function registroPagoToggleMoneda(moneda) {
 function closeRegistroPagoModal() {
   document.getElementById('registroPagoModal').classList.remove('open');
   window._pagoSeleccionItems = null;
+  // Limpiar selección del plan (evita que la barra reaparezca al re-render)
+  if (window._planPagoState) {
+    window._planPagoState.seleccion.clear();
+    planPagoRenderBarraAccion();
+  }
 }
 
 /* Confirma el registro: si es "total", paga exactamente el pendiente de
