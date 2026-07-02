@@ -204,6 +204,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #toast.show{transform:translateY(0);opacity:1}
 #toast.ok{border-left:3px solid var(--green);color:var(--green)}
 #toast.err{border-left:3px solid var(--red);color:var(--red)}
+#toast.info{border-left:3px solid var(--accent);color:var(--accent)}
 
 /* ── SESSION TIMER ──────────────────────────────────── */
 #sessionBar{
@@ -2925,7 +2926,6 @@ function planPagoRenderTabla() {
     <th>Pagado</th>
     <th>Pendiente</th>
     <th>Estado</th>
-    <th style="width:36px;"></th>
   </tr>`;
 
   // Todos los conceptos con monto en este plan (base para totales)
@@ -2980,16 +2980,11 @@ function planPagoRenderTabla() {
          data-drop-nivel="${nivKey}"`
       : '';
     html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:${canAccess('cxp')?'move':'default'};">
-      <th style="text-align:left;">
-        <input type="checkbox" data-plan-group-checkbox="${grupoIdSafe}" onchange="planPagoToggleSeccionIdx(${grupoKeyIdx}, this.checked)" title="Seleccionar todo el nivel">
-      </th>
+      <th style="text-align:left;"></th>
       <th colspan="98" style="border-left:3px solid ${colorNiv};padding-left:8px;">
         ${canAccess('cxp') ? `<span style="cursor:grab;color:var(--muted);margin-right:6px;user-select:none;" title="Arrastra para mover todo el nivel">⋮⋮</span>` : ''}
         <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
         ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>
-      </th>
-      <th style="text-align:right;">
-        ${canAccess('cxp') ? `<button onclick="openCambiarNivelGrupoModal(${grupoKeyIdx})" title="Mover todo este nivel a otro (o arrástralo)" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">🔄</button>` : ''}
       </th>
     </tr>`;
     gRows.forEach(r => {
@@ -3028,9 +3023,6 @@ function planPagoRenderTabla() {
         <td style="color:var(--green);">${pagado>0?fmt(pagado):'—'}</td>
         <td style="color:${pendiente>0?'var(--red)':'var(--muted)'};">${pendiente>0?fmt(pendiente):'—'}</td>
         <td style="text-align:center;">${liquidado ? '✅' : (pagado>0 ? '🟡' : '⏳')}</td>
-        <td style="text-align:center;">
-          ${canAccess('cxp') ? `<button onclick="openCambiarNivelItemModal(${rowKeyIdx})" title="Mover este concepto a otro nivel (o arrástralo)" style="background:transparent;color:var(--accent);border:none;font-size:14px;cursor:pointer;padding:2px 4px;">🔄</button>` : ''}
-        </td>
       </tr>`;
     });
   });
@@ -3061,7 +3053,7 @@ function planPagoRenderTabla() {
     ${mostrarPlanCol ? `<td class="col-active">${fmt(grandPlan)}</td>` : ''}
     <td style="color:var(--green);">${fmt(grandPagado)}</td>
     <td style="color:var(--red);">${fmt(grandPendiente)}</td>
-    <td></td><td></td>
+    <td></td>
   </tr>`;
 
   document.getElementById('planPagoBody').innerHTML = html;
@@ -3312,11 +3304,13 @@ function dragEndClear(ev) {
 
 function dragOverNivel(ev) {
   if (!window._dragState) return;
-  const nivDestino = parseInt(ev.currentTarget.dataset.dropNivel, 10);
-  if (nivDestino === window._dragState.nivelOrigen) return; // mismo nivel — no hacer nada
   ev.preventDefault();
   ev.dataTransfer.dropEffect = 'move';
-  ev.currentTarget.classList.add('drag-over');
+  const nivDestino = parseInt(ev.currentTarget.dataset.dropNivel, 10);
+  // Solo resaltar visualmente si es un nivel distinto
+  if (nivDestino !== window._dragState.nivelOrigen) {
+    ev.currentTarget.classList.add('drag-over');
+  }
 }
 
 function dragLeaveNivel(ev) {
@@ -3331,7 +3325,12 @@ async function dropEnNivel(ev, nivelDestino) {
   const state = window._dragState;
   window._dragState = null;
   if (!state) return;
-  if (nivelDestino === state.nivelOrigen) return; // mismo nivel, sin cambio
+  if (nivelDestino === state.nivelOrigen) {
+    // Mismo nivel — dar feedback en lugar de silencio
+    const nActual = state.nivelOrigen === 999 ? 'Sin nivel' : ('L' + state.nivelOrigen);
+    toast(`ℹ️ ${state.titulo} ya está en ${nActual}`, 'info');
+    return;
+  }
   if (isNaN(nivelDestino) || nivelDestino < 1 || nivelDestino > 7) return;
 
   // Aplicar cambio en cxpData
@@ -4537,6 +4536,7 @@ function reporteImprimir() { window.print(); }
 </script>
 </body>
 </html>
+
 
 
 
