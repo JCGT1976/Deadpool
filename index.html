@@ -2375,12 +2375,38 @@ async function cxpSyncToSupabase(rows) {
     }));
     // Intento 1: con columna 'semana' incluida (requiere que exista en catalogo_cxp)
     const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rows[i]._semana || null }));
-    let { error } = await sb.from('catalogo_cxp').upsert(payloadConSemana, { onConflict: 'clave' });
+
+    // ── PURGA PREVIA ──
+    // Cada carga de Excel es un REEMPLAZO TOTAL del catálogo — no una fusión.
+    // Purgamos primero para eliminar cualquier residuo de planes anteriores
+    // (JC: "una vez cargado el plan no haya errores que hagan que se cargue
+    // algún plan anterior salvo que se sustituya por una carga nueva").
+    // Si la purga falla (RLS o permisos), caemos al comportamiento upsert.
+    let purgaOk = false;
+    let purgeErr = null;
+    ({ error: purgeErr } = await sb.from('catalogo_cxp').delete().gte('created_at', '1900-01-01'));
+    if (purgeErr) {
+      // Fallback: intento sin depender de created_at (por si la columna no existe)
+      ({ error: purgeErr } = await sb.from('catalogo_cxp').delete().neq('clave', '__nunca_existira__'));
+    }
+    if (!purgeErr) {
+      purgaOk = true;
+      console.log('✓ catalogo_cxp purgado — insertando plan nuevo desde cero');
+    } else {
+      console.warn('No se pudo purgar catalogo_cxp; se usará upsert como fallback:', purgeErr);
+    }
+
+    // ── INSERT / UPSERT ──
+    let { error } = purgaOk
+      ? await sb.from('catalogo_cxp').insert(payloadConSemana)
+      : await sb.from('catalogo_cxp').upsert(payloadConSemana, { onConflict: 'clave' });
     if (error && /semana/i.test(error.message || '')) {
       // La tabla aún no tiene la columna 'semana' (falta correr el ALTER TABLE en Supabase).
       // Reintenta sin ese campo para no bloquear la carga del catálogo.
       console.warn('Columna semana no existe en catalogo_cxp, reintentando sin ella:', error);
-      ({ error } = await sb.from('catalogo_cxp').upsert(payloadBase, { onConflict: 'clave' }));
+      ({ error } = purgaOk
+        ? await sb.from('catalogo_cxp').insert(payloadBase)
+        : await sb.from('catalogo_cxp').upsert(payloadBase, { onConflict: 'clave' }));
     }
     if (error) {
       // Fallback: la tabla puede no tener aún la columna 'clave' como única.
