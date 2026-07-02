@@ -4272,7 +4272,34 @@ async function gastosEfectuadosRegistrar(items) {
     usuario:       userObj.nombre || userObj.usuario || userObj.email || 'desconocido',
   }));
   try {
-    const { error } = await sb.from('gastos_efectuados').insert(payload);
+    let { error } = await sb.from('gastos_efectuados').insert(payload);
+
+    // Fallback: si la tabla no tiene columnas 'moneda' o 'tc' (schema antiguo,
+    // pre-USD support), convertimos USD→MXN client-side y reintentamos sin
+    // esas columnas. Así se pueden seguir registrando pagos sin necesidad de
+    // correr ALTER TABLE en Supabase.
+    if (error && /moneda|tc|schema cache|column/i.test(error.message || '')) {
+      console.warn('gastos_efectuados sin columnas moneda/tc; guardando todo como MXN. Error original:', error);
+      const payloadCompat = items.map(it => {
+        // Convertir a MXN si el pago vino en USD
+        const monto = parseFloat(it.montoPagado) || 0;
+        const montoMXN = (it.moneda === 'USD' && it.tc)
+          ? Math.round(monto * parseFloat(it.tc) * 100) / 100
+          : monto;
+        return {
+          concepto_key:   it.clave,
+          concepto:       it.concepto,
+          categoria:      it.categoria,
+          monto_concepto: parseFloat(it.montoConcepto) || 0,
+          monto_pagado:   montoMXN, // siempre MXN en modo compat
+          tipo_pago:      it.tipoPago,
+          fecha:          new Date().toISOString(),
+          usuario:        userObj.nombre || userObj.usuario || userObj.email || 'desconocido',
+        };
+      });
+      ({ error } = await sb.from('gastos_efectuados').insert(payloadCompat));
+    }
+
     if (error) { console.error('Insert gastos_efectuados:', error); toast('Error al guardar el pago: ' + (error.message || 'ver consola'), 'err'); return false; }
     await gastosEfectuadosFetch(true);
     return true;
