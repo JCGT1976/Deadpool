@@ -3448,7 +3448,15 @@ async function planPagoMoverYReordenar(keys, nivelDestino, targetKey) {
   try {
     const payload = cambios.map(r => {
       const nivelInt = r.nivel ? parseInt(r.nivel.toString().replace(/\D/g, ''), 10) || 0 : 0;
-      return { clave: r._key, orden: r.orden, nivel: nivelInt };
+      // Incluimos concepto+categoria porque son NOT NULL en catalogo_cxp
+      // (Postgres valida NOT NULL en la INSERT aun con ON CONFLICT DO UPDATE)
+      return {
+        clave:     r._key,
+        concepto:  r.concepto,
+        categoria: r.categoria || 'General',
+        orden:     r.orden,
+        nivel:     nivelInt
+      };
     });
     if (payload.length > 0) {
       const { error } = await sb.from('catalogo_cxp').upsert(payload, { onConflict: 'clave' });
@@ -4239,7 +4247,7 @@ async function gastosEfectuadosRegistrar(items) {
   }));
   try {
     const { error } = await sb.from('gastos_efectuados').insert(payload);
-    if (error) { console.error('Insert gastos_efectuados:', error); toast('Error al guardar el pago en Supabase', 'err'); return false; }
+    if (error) { console.error('Insert gastos_efectuados:', error); toast('Error al guardar el pago: ' + (error.message || 'ver consola'), 'err'); return false; }
     await gastosEfectuadosFetch(true);
     return true;
   } catch(err) {
