@@ -2528,7 +2528,13 @@ async function cxpHandleFile(e) {
     const syncResult = await cxpSyncToSupabase(cxpData);
 
     // Guardar en cache local para que el plan sobreviva si Supabase falla en futuras sesiones
-    try { localStorage.setItem('mitech_plan_cache', JSON.stringify(cxpData)); } catch(e) { console.warn('Cache plan:', e); }
+    try {
+      localStorage.setItem('mitech_plan_cache', JSON.stringify({
+        semana: cxpSemanaSeleccionada || getWeekKey(),
+        ts: Date.now(),
+        data: cxpData
+      }));
+    } catch(e) { console.warn('Cache plan:', e); }
 
     const semanaLbl = getWeekLabel(cxpSemanaSeleccionada);
     if (statusEl) statusEl.textContent =
@@ -2658,6 +2664,22 @@ async function cxpFetchSupabaseData() {
       supervivencia: parseFloat(r.supervivencia ?? r.sobrevivencia ?? 0),
       _semana:       r.semana || null,
     })).filter(r => r.concepto.trim() !== '');
+
+    // ── FILTRO POR SEMANA ──
+    // catalogo_cxp puede contener conceptos de varias semanas. Si hay una semana
+    // seleccionada, nos quedamos SOLO con los conceptos de esa semana (o los que
+    // no tienen semana asignada, por retrocompatibilidad con datos viejos).
+    // Esto evita que el KPI "Plan de Pagos" cargue el plan de una semana anterior
+    // al abrir el dashboard (JC).
+    const semanaObjetivo = cxpSemanaSeleccionada || getWeekKey();
+    const semanasPresentes = new Set(cxpData.map(r => r._semana).filter(Boolean));
+    // Solo filtramos si la tabla efectivamente tiene datos de la semana objetivo;
+    // si no hay ninguno de esa semana (p.ej. datos todos null o de otra semana),
+    // no filtramos para no dejar el plan vacío.
+    if (semanasPresentes.has(semanaObjetivo)) {
+      cxpData = cxpData.filter(r => r._semana === semanaObjetivo || r._semana == null);
+    }
+
     cxpData.forEach(r => r._key = r.clave || cxpRowKey(r));
     // Deduplica por _key: si hubo inserciones dobles en Supabase (fallback sin onConflict),
     // evita que un concepto con supervivencia>0 aparezca junto a otro del mismo concepto con supervivencia=0
@@ -2666,8 +2688,16 @@ async function cxpFetchSupabaseData() {
     cxpData = Array.from(_dedupMap.values());
     // Persistir en cache local para que el plan sobreviva si Supabase falla o
     // devuelve vacío en la próxima sesión (JC: "no cambies el plan cuando la
-    // sesión se acaba")
-    try { localStorage.setItem('mitech_plan_cache', JSON.stringify(cxpData)); } catch(e) { console.warn('No se pudo guardar plan en cache:', e); }
+    // sesión se acaba"). Guardamos junto con la semana para NO restaurar el plan
+    // de una semana anterior cuando abre el dashboard en una semana nueva.
+    try {
+      const semanaCache = cxpData[0]?._semana || cxpSemanaSeleccionada || getWeekKey();
+      localStorage.setItem('mitech_plan_cache', JSON.stringify({
+        semana: semanaCache,
+        ts: Date.now(),
+        data: cxpData
+      }));
+    } catch(e) { console.warn('No se pudo guardar plan en cache:', e); }
     return cxpData.length > 0;
   } catch(err) {
     console.error(err);
@@ -2683,14 +2713,30 @@ async function cxpEnsureData() {
   // Fallback: Supabase vacío/no disponible → intentar recuperar del cache localStorage
   // Esto garantiza que el plan cargado sobreviva incluso si Supabase tiene un hipo
   // (JC: "siempre deja el plan que ya se cargó, no lo cambies cuando la sesión se acaba")
+  // PERO solo si el cache es de la MISMA semana que la seleccionada — de lo contrario
+  // estaríamos cargando el plan de una semana anterior al abrir el dashboard.
   try {
-    const cached = localStorage.getItem('mitech_plan_cache');
-    if (cached) {
-      const arr = JSON.parse(cached);
-      if (Array.isArray(arr) && arr.length > 0) {
-        cxpData = arr;
-        console.log('✓ Plan restaurado desde cache localStorage (' + arr.length + ' conceptos) — Supabase no disponible o vacío');
-        return true;
+    const raw = localStorage.getItem('mitech_plan_cache');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Retrocompat: formato viejo era un array directo (sin metadata de semana).
+      // Ese formato no sabemos de qué semana es, así que lo descartamos para no
+      // arriesgar cargar una semana equivocada.
+      if (Array.isArray(parsed)) {
+        console.log('Cache en formato antiguo (sin semana) — descartado para evitar mezclar semanas');
+        localStorage.removeItem('mitech_plan_cache');
+        return false;
+      }
+      const semanaActual = cxpSemanaSeleccionada || getWeekKey();
+      if (parsed && Array.isArray(parsed.data) && parsed.data.length > 0) {
+        if (parsed.semana === semanaActual) {
+          cxpData = parsed.data;
+          console.log('✓ Plan restaurado desde cache (' + cxpData.length + ' conceptos, semana ' + parsed.semana + ') — Supabase no disponible');
+          return true;
+        } else {
+          console.log('Cache es de semana ' + parsed.semana + ' pero la actual es ' + semanaActual + ' — no se restaura (evita cargar plan viejo)');
+          return false;
+        }
       }
     }
   } catch(e) { console.warn('Cache localStorage inválido:', e); }
