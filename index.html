@@ -29,17 +29,36 @@
 }
 /* ── Tema claro (light) ── se activa con <html data-theme="light"> ── */
 [data-theme="light"]{
-  --bg:#f2f5f9;
-  --surface:#ffffff;
-  --surface2:#eef2f7;
-  --border:#d5dde6;
-  --accent:#0077b6;
-  --accent2:#005b8a;
-  --green:#00875a;
-  --red:#d22f52;
-  --yellow:#b8860b;
-  --text:#1a2332;
-  --muted:#5c6d80;
+  --bg:#e6ecf3;
+  --surface:#f7fafd;
+  --surface2:#ebf1f8;
+  --border:#c9d3e0;
+  --accent:#0284c7;
+  --accent2:#0369a1;
+  --green:#059669;
+  --red:#e11d48;
+  --yellow:#d97706;
+  --text:#1e293b;
+  --muted:#64748b;
+}
+[data-theme="light"] body{
+  background:linear-gradient(135deg,#dfe7f1 0%,#e8eff7 50%,#eef4fb 100%);
+  background-attachment:fixed;
+}
+[data-theme="light"] #loginScreen{
+  background:radial-gradient(ellipse at 60% 20%, #c8d6e8 0%, #dde7f3 60%);
+}
+[data-theme="light"] .topbar{
+  background:rgba(255,255,255,.85);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid #d5dfec;
+}
+[data-theme="light"] .nav{
+  background:rgba(255,255,255,.7);
+  backdrop-filter:blur(8px);
+}
+[data-theme="light"] .kpi-card{
+  box-shadow:0 2px 8px rgba(30,58,95,.06);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-text-size-adjust:100%}
 body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
@@ -1160,6 +1179,146 @@ const I18N = {
   'week.selector':      { es:'Selecciona semana', en:'Select week' },
   'week.close':         { es:'Cerrar semana',   en:'Close week' },
 
+// ── Dashboard: KPIs prose ──
+  'kpi.no_entradas':    { es:t('kpi.no_entradas'),        en:'— No income —' },
+  'kpi.click_register': { es:t('kpi.click_register'),     en:'Click to add' },
+  'kpi.click_add':      { es:'✏️ Clic para agregar',    en:'✏️ Click to add' },
+  'kpi.record_sing':    { es:'registro',                en:'record' },
+  'kpi.record_plur':    { es:'registros',               en:'records' },
+  'kpi.no_plan_active': { es:t('kpi.no_plan_active'),     en:'— No active plan —' },
+  'kpi.click_choose_plan':{ es:t('kpi.click_choose_plan'), en:'Click to choose plan' },
+  'kpi.pending_pay':    { es:'Pendiente por pagar',     en:'Pending to pay' },
+  'kpi.click_detail':   { es:'🔎 Clic para ver detalle',en:'🔎 Click to view detail' },
+  'kpi.click_activate': { es:'✏️ Clic para activar',    en:'✏️ Click to activate' },
+  'kpi.gastos_sub':     { es:'Total MXN equivalente · Clic para ver detalle', en:'Total MXN equivalent · Click for details' },
+  'kpi.in_mxn':         { es:'🇲🇽 En pesos MXN',         en:'🇲🇽 In MXN pesos' },
+  'kpi.in_usd':         { es:'🇺🇸 En dólares USD',       en:'🇺🇸 In USD dollars' },
+  'kpi.click_history':  { es:'🔎 Clic para ver historial', en:'🔎 Click to view history' },
+  'kpi.income_short':   { es:'Entradas',                en:'Income' },
+  'kpi.plan_pending':   { es:'Pendiente del plan',      en:'Plan pending' },
+  'kpi.click_cashflow': { es:'💰 Clic para ver Flujo de Efectivo', en:'💰 Click to view Cash Flow' },
+  'kpi.click_weekly':   { es:'📋 Clic para ver reporte semanal', en:'📋 Click for weekly report' },
+  'brecha.no_plan':     { es:t('brecha.no_plan'), en:'Activate a plan to calculate the gap' },
+  'brecha.ok':          { es:t('brecha.ok'), en:'✅ Income covers pending' },
+  'brecha.err':         { es:t('brecha.err'), en:'⚠️ Not enough to cover pending' },
+  'saldo.sub':          { es:'Entradas menos gastos efectuados', en:'Income minus expenses paid' },
+  'saldo.usd_equiv':    { es:'🇺🇸 Equiv. USD',           en:'🇺🇸 USD Equiv.' },
+  'saldo.gastos_mxn':   { es:'🇲🇽 Gastos MXN',           en:'🇲🇽 MXN Expenses' },
+  'saldo.gastos_usd':   { es:'🇺🇸 Gastos USD',           en:'🇺🇸 USD Expenses' },
+  'budget.executed':    { es:'Ejecutado (gastos efectuados)', en:'Executed (paid expenses)' },
+  'budget.of':          { es:'de',                      en:'of' },
+  'budget.setup':       { es:'✏️ Clic para configurar',  en:'✏️ Click to configure' },
+  'budget.help':        { es:'Define tu presupuesto semanal para ver el progreso de gasto en tiempo real.', en:'Set your weekly budget to see spending progress in real time.' },
+  'budget.exceeded':    { es:'⚠️ Excedido',              en:'⚠️ Exceeded' },
+  'budget.close':       { es:'⚡ Cerca del límite',      en:'⚡ Close to limit' },
+  'budget.in_range':    { es:t('budget.in_range'),              en:'✅ In range' },
+  'arrastre.none':      { es:'Sin arrastre de semanas anteriores', en:'No rollover from previous weeks' },
+  'arrastre.label':     { es:'⬆️ Arrastre',              en:'⬆️ Rollover' },
+  'week.singular':      { es:'semana',                  en:'week' },
+  'week.plural':        { es:'semanas',                 en:'weeks' },
+  'btn.report':         { es:'📋 Reporte',              en:'📋 Report' },
+  'btn.close_week':     { es:'🔒 Cerrar Semana',        en:'🔒 Close Week' },
+  'btn.reset':          { es:'♻️ Reset',                en:'♻️ Reset' },
+  'btn.diagnostic':     { es:'🔍 Diagnóstico',          en:'🔍 Diagnostics' },
+  'btn.add_expense':    { es:'➕ Agregar gasto',         en:'➕ Add expense' },
+  'btn.change_level':   { es:'⚙️ Cambiar nivel',        en:'⚙️ Change level' },
+  // ── Table headers plan de pagos ──
+  'th.level':           { es:'Nivel',                   en:'Level' },
+  'th.concept':         { es:'Concepto',                en:'Item' },
+  'th.type':            { es:'Tipo',                    en:'Type' },
+  'th.total':           { es:'Total',                   en:'Total' },
+  'th.paid':            { es:'Pagado',                  en:'Paid' },
+  'th.pending':         { es:'Pendiente',               en:'Pending' },
+  'th.status':          { es:'Estado',                  en:'Status' },
+  'th.date':            { es:'Fecha',                   en:'Date' },
+  'th.category':        { es:'Categoría',               en:'Category' },
+  'th.currency':        { es:'Moneda',                  en:'Currency' },
+  'th.amount':          { es:'Monto',                   en:'Amount' },
+  'th.mxn_equiv':       { es:'Equiv. MXN',              en:'MXN Equiv.' },
+  'th.user':            { es:'Usuario',                 en:'User' },
+  'th.note':            { es:'Nota',                    en:'Note' },
+  // ── Plan de pagos strings ──
+  'plan.all':           { es:'Todos',                   en:'All' },
+  'plan.categories':    { es:'Categorías',              en:'Categories' },
+  'plan.all_cat':       { es:'Todas',                   en:'All' },
+  'plan.selected':      { es:'seleccionado',            en:'selected' },
+  'plan.selected_p':    { es:'seleccionados',           en:'selected' },
+  'plan.concept_sing':  { es:'concepto',                en:'item' },
+  'plan.concept_plur':  { es:'conceptos',               en:'items' },
+  'plan.min_critical':  { es:'Mínimo crítico',          en:'Minimum critical' },
+  'plan.sub_recom':     { es:'Recomendado por semana',  en:'Weekly recommended' },
+  'plan.sub_urg':       { es:'Prioridad urgente',       en:'Urgent priority' },
+  'plan.sub_all':       { es:'Deuda total',             en:'Total debt' },
+  'plan.detail':        { es:'Detalle',                 en:'Detail' },
+  'plan.liq':           { es:'liquidado',               en:'settled' },
+  'plan.liq_p':         { es:'liquidados',              en:'settled' },
+  'plan.total_general': { es:'TOTAL GENERAL',           en:'GRAND TOTAL' },
+  'plan.totals':        { es:'TOTALES',                 en:'TOTALS' },
+  'plan.no_pending':    { es:'🎉 No hay gastos pendientes en este plan.', en:'🎉 No pending expenses in this plan.' },
+  'plan.already_paid':  { es:'Los conceptos seleccionados ya están liquidados', en:'Selected items are already settled' },
+  // ── Modal Registrar Pago ──
+  'pay.title':          { es:'💳 Registrar Pago',       en:'💳 Register Payment' },
+  'pay.subtitle':       { es:'Captura el monto exacto pagado para los conceptos seleccionados', en:'Enter the exact amount paid for selected items' },
+  'pay.total_pending':  { es:'Total pendiente',         en:'Total pending' },
+  'pay.currency':       { es:'Moneda del pago',         en:'Payment currency' },
+  'pay.tc':             { es:'Tipo de cambio (MXN por USD)', en:'Exchange rate (MXN per USD)' },
+  'pay.type':           { es:'¿El pago es total o parcial?', en:'Is it a full or partial payment?' },
+  'pay.type_total':     { es:'Pago total (liquida lo pendiente)', en:'Full payment (settles pending)' },
+  'pay.type_partial':   { es:'Pago parcial (capturar monto)', en:'Partial payment (enter amount)' },
+  'pay.amount_mxn':     { es:'Monto pagado (MXN)',      en:'Amount paid (MXN)' },
+  'pay.amount_usd':     { es:'Monto pagado (USD)',      en:'Amount paid (USD)' },
+  'pay.hint_partial':   { es:'Si seleccionaste varios conceptos y el pago es parcial, el monto se reparte proporcionalmente entre ellos según lo pendiente de cada uno.', en:'If you selected multiple items and the payment is partial, the amount is split proportionally by each item\'s pending balance.' },
+  'pay.pending_label':  { es:'pendiente',               en:'pending' },
+  'pay.registered':     { es:'Pago registrado ✓',       en:'Payment registered ✓' },
+  'pay.mixed_warn':     { es:'⚠️ Conceptos con monedas mezcladas — el modal usa MXN por defecto; cambia manualmente si aplica.', en:'⚠️ Items in mixed currencies — modal defaults to MXN; change manually if needed.' },
+  // ── Modal Agregar Gasto ──
+  'add.title':          { es:'➕ Agregar Gasto al Plan', en:'➕ Add Expense to Plan' },
+  'add.subtitle':       { es:'Se agregará al catálogo con nivel automático según categoría y monto en todos los planes (Total, Recomendado, Urgente, Supervivencia).', en:'Added to the catalog with automatic level by category and amount across all plans (Total, Recommended, Urgent, Survival).' },
+  'add.category':       { es:'Categoría',               en:'Category' },
+  'add.level_auto':     { es:'Nivel automático:',       en:'Auto level:' },
+  'add.concept':        { es:'Concepto',                en:'Item' },
+  'add.type':           { es:'Tipo',                    en:'Type' },
+  'add.note_opt':       { es:'Nota (opcional)',         en:'Note (optional)' },
+  'add.currency_concept':{ es:'Moneda del concepto',    en:'Item currency' },
+  'add.tc_ref':         { es:'TC referencia (MXN por USD)', en:'Reference rate (MXN per USD)' },
+  'add.amount':         { es:'Monto',                   en:'Amount' },
+  'add.same_amount':    { es:'Aplicar el mismo monto a los 4 planes (Total = Recomendado = Urgente = Supervivencia)', en:'Apply same amount to all 4 plans (Total = Recommended = Urgent = Survival)' },
+  'add.recommended':    { es:'Recomendado',             en:'Recommended' },
+  'add.urgent':         { es:'Urgente',                 en:'Urgent' },
+  'add.survival':       { es:'Supervivencia',           en:'Survival' },
+  'add.add_btn':        { es:'💾 Agregar al Plan',      en:'💾 Add to Plan' },
+  // ── Cierre semana ──
+  'close.title':        { es:'🔒 Cierre de Semana',     en:'🔒 Week Closing' },
+  'close.income':       { es:'💵 Entradas',             en:'💵 Income' },
+  'close.paid':         { es:'💸 Pagado',               en:'💸 Paid' },
+  'close.plan_active':  { es:'📑 Plan activo',          en:'📑 Active plan' },
+  'close.pending':      { es:'⏳ Pendiente',             en:'⏳ Pending' },
+  'close.prev_rollover':{ es:'⬆️ Arrastre ant.',         en:'⬆️ Prev. rollover' },
+  'close.new_rollover': { es:'⬆️ Nuevo arrastre',        en:'⬆️ New rollover' },
+  // ── Reporte semanal ──
+  'report.title':       { es:'📋 Reporte Semanal',      en:'📋 Weekly Report' },
+  'report.plan_total':  { es:'📊 Plan total',           en:'📊 Total plan' },
+  'report.gap':         { es:'📐 Brecha',               en:'📐 Gap' },
+  'report.exec_pct':    { es:'% Ejecutado',             en:'% Executed' },
+  'report.plan_active': { es:'📑 Plan activo',          en:'📑 Active plan' },
+  'report.income_week': { es:'💵 Entradas de la semana', en:'💵 Weekly income' },
+  'report.no_plan_active':{ es:'Sin plan activo',       en:'No active plan' },
+  // ── Detalle gastos ──
+  'gastos.total_mxn':   { es:'Total MXN equiv.',        en:'Total MXN equiv.' },
+  'gastos.in_mxn':      { es:'🇲🇽 En pesos',             en:'🇲🇽 In pesos' },
+  'gastos.in_usd':      { es:'🇺🇸 En dólares',           en:'🇺🇸 In dollars' },
+  'gastos.registros':   { es:'Registros',               en:'Records' },
+  'gastos.none':        { es:'Sin pagos registrados aún', en:'No payments registered yet' },
+  // ── Flujo efectivo ──
+  'flow.title':         { es:'📊 Flujo de Efectivo',    en:'📊 Cash Flow' },
+  'flow.saldo':         { es:'Saldo disponible',        en:'Available balance' },
+  'flow.deposits':      { es:'Depósitos por enviar',    en:'Pending deposits' },
+  'flow.total_avail':   { es:'Total disponible',        en:'Total available' },
+  'flow.covered':       { es:'✅ Cubiertos:',            en:'✅ Covered:' },
+  'flow.uncovered':     { es:'⚠️ Sin cubrir:',           en:'⚠️ Uncovered:' },
+  'flow.shortage':      { es:'Falta:',                  en:'Short:' },
+  'flow.surplus':       { es:'Sobrante:',               en:'Surplus:' },
+
   // ── CxP / Plan de Pagos ──
   'plan.total':         { es:'Total',           en:'Total' },
   'plan.recomendado':   { es:'Recomendado',     en:'Recommended' },
@@ -1812,8 +1971,8 @@ async function renderDashboard(c) {
   const budgetPct   = budgetMonto > 0 ? Math.min((budgetEjec / budgetMonto)*100, 100) : 0;
   const budgetColor = budgetPct >= 100 ? 'var(--red)' : budgetPct >= budgetAlerta ? 'var(--yellow)' : 'var(--green)';
   const budgetStatus= budgetMonto > 0
-    ? (budgetPct >= 100 ? '⚠️ Excedido' : budgetPct >= budgetAlerta ? '⚡ Cerca del límite' : '✅ En rango')
-    : '➕ Clic para configurar';
+    ? (budgetPct >= 100 ? t('budget.exceeded') : budgetPct >= budgetAlerta ? t('budget.close') : t('budget.in_range'))
+    : '➕ ' + t('budget.setup').replace('✏️ ','');
   const budgetSymbol= budgetGen?.moneda === 'USD' ? '🇺🇸' : '🇲🇽';
   const budgetLabel = getWeekLabel(nowWeekKey);
 
@@ -1833,8 +1992,8 @@ async function renderDashboard(c) {
   const brecha = planActivo ? (totalEntradasMXN - planPendiente) : null;
   const brechaColor = brecha === null ? 'var(--border)' : brecha >= 0 ? 'var(--green)' : 'var(--red)';
   const brechaTxtColor = brecha === null ? 'var(--accent)' : brecha >= 0 ? 'var(--green)' : 'var(--red)';
-  const brechaStatus = brecha === null ? 'Activa un plan para calcular la brecha'
-    : brecha >= 0 ? '✅ Las entradas cubren el pendiente' : '⚠️ Faltan recursos para cubrir el pendiente';
+  const brechaStatus = brecha === null ? t('brecha.no_plan')
+    : brecha >= 0 ? t('brecha.ok') : t('brecha.err');
 
   c.innerHTML = `
     <!-- Dashboard: Budget izquierda | KPIs derecha -->
@@ -1858,13 +2017,13 @@ async function renderDashboard(c) {
             <span style="font-size:11px;color:var(--muted);">${budgetStatus}</span>
           </div>
           <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-            <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">Ejecutado (gastos efectuados)</div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">${t('budget.executed')}</div>
             <div style="font-size:14px;font-weight:700;color:${budgetColor};">${fmt(budgetEjec)}</div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px;">de ${fmtBudget(budgetMonto, budgetGen?.moneda)}</div>
           </div>` : `
-          <div class="kpi-click-hint" style="margin-top:12px;">✏️ Clic para configurar</div>
+          <div class="kpi-click-hint" style="margin-top:12px;">${t('budget.setup')}</div>
           <div style="margin-top:10px;font-size:10px;color:var(--muted);line-height:1.6;">
-            Define tu presupuesto semanal para ver el progreso de gasto en tiempo real.
+            ${t('budget.help')}
           </div>`}
       </div>
 
@@ -1874,19 +2033,19 @@ async function renderDashboard(c) {
         <div class="kpi-value" style="font-size:22px;color:${saldoColor};">
           ${saldoMXN >= 0 ? '+' : ''}${fmt(saldoMXN)}
         </div>
-        <div class="kpi-sub" style="margin-top:4px;">Entradas menos gastos efectuados</div>
+        <div class="kpi-sub" style="margin-top:4px;">${t('saldo.sub')}</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px;font-size:11px;">
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--muted);">🇲🇽 Gastos MXN</span>
+            <span style="color:var(--muted);">${t('saldo.gastos_mxn')}</span>
             <span style="color:var(--red);font-weight:700;">-${fmt(gastosMXNraw)}</span>
           </div>
           ${gastosUSDraw > 0 ? `
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--muted);">🇺🇸 Gastos USD</span>
+            <span style="color:var(--muted);">${t('saldo.gastos_usd')}</span>
             <span style="color:#60a5fa;font-weight:700;">-$${gastosUSDraw.toFixed(2)} USD</span>
           </div>` : ''}
           <div style="display:flex;justify-content:space-between;padding-top:4px;border-top:1px solid var(--border);margin-top:2px;">
-            <span style="color:var(--muted);">🇺🇸 Equiv. USD</span>
+            <span style="color:var(--muted);">${t('saldo.usd_equiv')}</span>
             <span style="color:${saldoColor};font-weight:700;">${saldoUSD >= 0 ? '+' : ''}$${saldoUSD.toFixed(2)} USD</span>
           </div>
         </div>
@@ -1915,7 +2074,7 @@ async function renderDashboard(c) {
         <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-size:10px;color:var(--muted);">
           Plan activo: <span style="color:${planCfg.color};font-weight:700;">${planCfg.label}</span> → ${fmt(planMonto)}
         </div>` : ''}` : ''}
-        <div class="kpi-click-hint" style="margin-top:8px;font-size:10px;color:var(--muted);">📋 Clic para ver reporte semanal</div>
+        <div class="kpi-click-hint" style="margin-top:8px;font-size:10px;color:var(--muted);">${t('kpi.click_weekly')}</div>
       </div>
       </div><!-- /izquierda flex -->
 
@@ -1935,9 +2094,9 @@ async function renderDashboard(c) {
                  style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};margin:0;">
               <div class="kpi-label">${t('kpi.entradas')}</div>
               <div class="kpi-value positive" style="font-size:24px;color:var(--green);">
-                ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : '— Sin entradas —'}
+                ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : t('kpi.no_entradas')}
               </div>
-              <div class="kpi-sub" style="margin-top:4px;">${nEntradas > 0 ? nEntradas+' registro'+(nEntradas>1?'s':'') : 'Clic para registrar'}</div>
+              <div class="kpi-sub" style="margin-top:4px;">${nEntradas > 0 ? nEntradas + ' ' + (nEntradas>1 ? t('kpi.record_plur') : t('kpi.record_sing')) : t('kpi.click_register')}</div>
               ${fuentesResumen.length > 0 ? `
               <div class="kpi-fuentes-resumen" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
                 ${fuentesResumen.map(x=>{
@@ -1948,58 +2107,58 @@ async function renderDashboard(c) {
                     <span style="color:${color};font-weight:700;margin-left:4px;">$${Math.round(x.sumMXN).toLocaleString('es-MX')}</span>
                   </div>`;
                 }).join('')}
-              </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para agregar</div>`}
+              </div>` : `<div class="kpi-click-hint" style="margin-top:6px;">${t('kpi.click_add')}</div>`}
             </div>
 
             <!-- KPI Plan de Pagos -->
             <div class="kpi-card kpi-clickable" onclick="${planActivo ? 'openPlanPagoDetalleModal()' : 'openPlanPagoModal()'}"
-                 style="border-color:${planActivo ? planCfg.color : 'var(--border)'};margin:0;">
+                 style="border-color:${planActivo ? 'var(--yellow)' : 'var(--border)'};margin:0;">
               <div class="kpi-label">${t('kpi.plan_pagos')}</div>
-              <div class="kpi-value" style="font-size:22px;color:${planActivo ? planCfg.color : 'var(--accent)'};">
-                ${planActivo ? fmt(planMonto) : '— Sin plan activo —'}
+              <div class="kpi-value" style="font-size:22px;color:${planActivo ? 'var(--yellow)' : 'var(--accent)'};">
+                ${planActivo ? fmt(planMonto) : t('kpi.no_plan_active')}
               </div>
-              <div class="kpi-sub" style="margin-top:4px;">${planActivo ? planCfg.label + ' · ' + planCfg.sub : 'Clic para elegir plan'}</div>
+              <div class="kpi-sub" style="margin-top:4px;">${planActivo ? planCfg.label + ' · ' + planCfg.sub : t('kpi.click_choose_plan')}</div>
               ${planActivo ? `
                 <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:11px;">
-                  <span style="color:var(--muted);">Pendiente por pagar</span>
+                  <span style="color:var(--muted);">${t('kpi.pending_pay')}</span>
                   <span style="color:${planPendiente>0?'var(--red)':'var(--green)'};font-weight:700;">${fmt(planPendiente)}</span>
                 </div>
-                <div class="kpi-click-hint" style="margin-top:6px;">🔎 Clic para ver detalle</div>`
-                : `<div class="kpi-click-hint" style="margin-top:6px;">✏️ Clic para activar</div>`}
+                <div class="kpi-click-hint" style="margin-top:6px;">${t('kpi.click_detail')}</div>`
+                : `<div class="kpi-click-hint" style="margin-top:6px;">${t('kpi.click_activate')}</div>`}
             </div>
 
             <!-- KPI Gastos Efectuados — clickeable -->
             <div class="kpi-card kpi-clickable" onclick="openGastosDetalleModal()" style="margin:0;">
               <div class="kpi-label">${t('kpi.gastos_efect')}</div>
               <div class="kpi-value negative" style="font-size:22px;">${fmt(totalGastosEfectuados)}</div>
-              <div class="kpi-sub">Total MXN equivalente · Clic para ver detalle</div>
+              <div class="kpi-sub">${t('kpi.gastos_sub')}</div>
               <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
                 <div style="display:flex;justify-content:space-between;">
-                  <span style="color:var(--muted);">🇲🇽 En pesos MXN</span>
+                  <span style="color:var(--muted);">${t('kpi.in_mxn')}</span>
                   <span style="color:var(--red);font-weight:700;">${fmt(gastosMXNraw)}</span>
                 </div>
                 ${gastosUSDraw > 0 ? `
                 <div style="display:flex;justify-content:space-between;">
-                  <span style="color:var(--muted);">🇺🇸 En dólares USD</span>
+                  <span style="color:var(--muted);">${t('kpi.in_usd')}</span>
                   <span style="color:#60a5fa;font-weight:700;">$${gastosUSDraw.toFixed(2)} USD</span>
                 </div>` : ''}
               </div>
-              <div class="kpi-click-hint" style="margin-top:6px;">🔎 Clic para ver historial</div>
+              <div class="kpi-click-hint" style="margin-top:6px;">${t('kpi.click_history')}</div>
             </div>
 
             <!-- KPI Brecha Entradas vs Plan de Pagos -->
             <div class="kpi-card ${planActivo ? 'kpi-clickable' : ''}" onclick="${planActivo ? 'openFlujoEfectivoModal()' : 'openPlanPagoModal()'}" style="margin:0;border-color:${brechaColor};">
               <div class="kpi-label">${t('kpi.brecha')}</div>
               <div class="kpi-value" style="font-size:22px;color:${brechaTxtColor};">
-                ${brecha === null ? '— Sin plan activo —' : fmt(brecha)}
+                ${brecha === null ? t('kpi.no_plan_active') : fmt(brecha)}
               </div>
               <div class="kpi-sub" style="margin-top:4px;">${brechaStatus}</div>
               ${brecha !== null ? `
                 <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
-                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Entradas</span><span style="color:var(--green);font-weight:700;">${fmt(totalEntradasMXN)}</span></div>
-                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Pendiente del plan</span><span style="color:var(--red);font-weight:700;">${fmt(planPendiente)}</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">${t('kpi.income_short')}</span><span style="color:var(--green);font-weight:700;">${fmt(totalEntradasMXN)}</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">${t('kpi.plan_pending')}</span><span style="color:var(--red);font-weight:700;">${fmt(planPendiente)}</span></div>
                 </div>
-                <div class="kpi-click-hint" style="margin-top:6px;">💰 Clic para ver Flujo de Efectivo</div>` : ''}
+                <div class="kpi-click-hint" style="margin-top:6px;">${t('kpi.click_cashflow')}</div>` : ''}
             </div>
 
 
@@ -2012,12 +2171,12 @@ async function renderDashboard(c) {
     <!-- Barra de acciones semanales -->
     <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);">
-        ${arrastreCierres > 0 ? `<span style="background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.3);border-radius:6px;padding:3px 8px;color:var(--yellow);font-weight:700;">⬆️ Arrastre ${arrastreCierres} semana${arrastreCierres>1?'s':''}: ${fmt(arrastreMonto)}</span>` : '<span>Sin arrastre de semanas anteriores</span>'}
+        ${arrastreCierres > 0 ? `<span style="background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.3);border-radius:6px;padding:3px 8px;color:var(--yellow);font-weight:700;">${t('arrastre.label')} ${arrastreCierres} ${arrastreCierres>1?t('week.plural'):t('week.singular')}: ${fmt(arrastreMonto)}</span>` : '<span>' + t('arrastre.none') + '</span>'}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${canAccess('reporte') ? `<button onclick="openReporteSemanaModal()" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">📋 Reporte</button>` : ''}
-        ${canAccess('cierre') ? `<button onclick="openCierreSemanaModal()" style="background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">🔒 Cerrar Semana</button>` : ''}
-        ${canAccess('reset') ? `<button onclick="openResetTotalModal()" style="background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">♻️ Reset</button>` : ''}
+        ${canAccess('reporte') ? `<button onclick="openReporteSemanaModal()" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.report')}</button>` : ''}
+        ${canAccess('cierre') ? `<button onclick="openCierreSemanaModal()" style="background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.close_week')}</button>` : ''}
+        ${canAccess('reset') ? `<button onclick="openResetTotalModal()" style="background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.reset')}</button>` : ''}
       </div>
     </div>
   `;
