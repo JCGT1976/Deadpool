@@ -27,6 +27,20 @@
   --radius:12px;
   --font:'Inter',system-ui,sans-serif;
 }
+/* ── Tema claro (light) ── se activa con <html data-theme="light"> ── */
+[data-theme="light"]{
+  --bg:#f2f5f9;
+  --surface:#ffffff;
+  --surface2:#eef2f7;
+  --border:#d5dde6;
+  --accent:#0077b6;
+  --accent2:#005b8a;
+  --green:#00875a;
+  --red:#d22f52;
+  --yellow:#b8860b;
+  --text:#1a2332;
+  --muted:#5c6d80;
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-text-size-adjust:100%}
 body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -416,34 +430,34 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
     </div>
     <h1>Mi Technologies</h1>
-    <p id="loginDesc">Reporte financiero confidencial</p>
+    <p id="loginDesc" data-i18n="login.subtitle">Reporte financiero confidencial</p>
 
     <div class="field">
-      <label>Usuario</label>
+      <label data-i18n="login.user">Usuario</label>
       <input id="usr" type="text" autocapitalize="off" autocomplete="off" placeholder="nombre.apellido">
     </div>
     <div class="field">
-      <label>Contraseña</label>
+      <label data-i18n="login.pwd">Contraseña</label>
       <input id="pwd" type="password" autocomplete="off" placeholder="••••••••">
     </div>
 
     <!-- primer acceso -->
     <div id="cambioBox" style="display:none">
-      <div style="font-size:12px;color:var(--accent);font-weight:600;margin-bottom:12px;padding:10px 12px;background:rgba(0,194,255,.08);border-radius:8px;border-left:3px solid var(--accent)">
+      <div style="font-size:12px;color:var(--accent);font-weight:600;margin-bottom:12px;padding:10px 12px;background:rgba(0,194,255,.08);border-radius:8px;border-left:3px solid var(--accent)" data-i18n="login.first.sub">
         🔐 Primer acceso — elige tu contraseña personal
       </div>
       <div class="field">
-        <label>Nueva contraseña</label>
+        <label data-i18n="login.first.new">Nueva contraseña</label>
         <input id="pwd2" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
       </div>
       <div id="pwdStrength"></div>
       <div class="field">
-        <label>Confirmar contraseña</label>
+        <label data-i18n="login.first.confirm">Confirmar contraseña</label>
         <input id="pwd3" type="password" autocomplete="new-password" placeholder="Repite la contraseña">
       </div>
     </div>
 
-    <button class="btn-primary" id="loginBtn" onclick="doLogin()">Entrar</button>
+    <button class="btn-primary" id="loginBtn" onclick="doLogin()" data-i18n="login.enter">Entrar</button>
     <div id="loginErr"></div>
   </div>
 </div>
@@ -459,29 +473,36 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div class="topbar-user">
       <span class="name" id="topName"></span>
       <span class="role-badge" id="topRole"></span>
+      <button class="btn-icon" onclick="toggleLang()" id="langToggleBtn" title="Language / Idioma" style="min-width:auto;padding:6px 8px;">
+        <span style="font-size:14px;">🌐</span>
+        <span class="label" id="langCodeLbl" style="font-weight:700;font-size:11px;">ES</span>
+      </button>
+      <button class="btn-icon" onclick="toggleTheme()" id="themeToggleBtn" title="Theme / Tema" style="min-width:auto;padding:6px 8px;">
+        <span id="themeIconLbl" style="font-size:14px;">🌙</span>
+      </button>
       <button class="btn-icon" onclick="doLogout()">
         <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        <span class="label">Salir</span>
+        <span class="label" data-i18n="btn.logout">Salir</span>
       </button>
     </div>
   </div>
 
   <!-- session bar -->
   <div id="sessionBar">
-    Sesión activa · expira en <span id="sessionTimer">10:00</span>
-    <button class="btn-icon" onclick="resetTimer()" style="padding:2px 8px;font-size:10px">Renovar</button>
+    <span data-i18n="session.active">Sesión activa · expira en</span> <span id="sessionTimer">10:00</span>
+    <button class="btn-icon" onclick="resetTimer()" style="padding:2px 8px;font-size:10px" data-i18n="session.renew">Renovar</button>
   </div>
 
   <!-- nav tabs -->
   <div class="nav" id="navTabs">
-    <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard">📊 Dashboard</button>
-    <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp">💳 CxP</button>
-    <button class="nav-tab admin-only" onclick="showTab('usuarios')" data-tab="usuarios" style="display:none">👥 Usuarios</button>
+    <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard" data-i18n="nav.dashboard">📊 Dashboard</button>
+    <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp" data-i18n="nav.cxp">💳 CxP</button>
+    <button class="nav-tab admin-only" onclick="showTab('usuarios')" data-tab="usuarios" style="display:none" data-i18n="nav.usuarios">👥 Usuarios</button>
   </div>
 
   <!-- content area -->
   <div class="content" id="mainContent">
-    <div class="loading-wrap"><div class="spinner"></div>Cargando datos…</div>
+    <div class="loading-wrap"><div class="spinner"></div><span data-i18n="loading.data">Cargando datos…</span></div>
   </div>
 </div>
 
@@ -1019,6 +1040,181 @@ const { createClient } = supabase;
 const sb = createClient(SB_URL, SB_KEY);
 
 /* ══════════════════════════════════════════
+   i18n — TRADUCCIÓN ES/EN
+   Uso:
+   - En HTML estático:  <span data-i18n="btn.save">Guardar</span>
+   - En placeholders:   <input data-i18n-placeholder="input.search">
+   - En atributos title:<button data-i18n-title="btn.tip">
+   - En JS dinámico:    ${t('btn.save')}
+   Fallback: si la key no existe, retorna la key para que sea fácil detectarla.
+══════════════════════════════════════════ */
+window.APP_LANG  = localStorage.getItem('mitech_lang')  || 'es';
+window.APP_THEME = localStorage.getItem('mitech_theme') || 'dark';
+
+const I18N = {
+  // ── Navegación ──
+  'nav.dashboard':      { es:'📊 Dashboard',     en:'📊 Dashboard' },
+  'nav.cxp':            { es:'💳 CxP',           en:'💳 A/P' },
+  'nav.usuarios':       { es:'👥 Usuarios',      en:'👥 Users' },
+
+  // ── Sesión / topbar ──
+  'session.active':     { es:'Sesión activa · expira en', en:'Session active · expires in' },
+  'session.renew':      { es:'Renovar',          en:'Renew' },
+  'session.expired':    { es:'Sesión expirada',  en:'Session expired' },
+  'btn.logout':         { es:'Salir',            en:'Sign out' },
+  'loading.data':       { es:'Cargando datos…',  en:'Loading data…' },
+
+  // ── Login ──
+  'login.title':        { es:'Panel de Control', en:'Control Panel' },
+  'login.subtitle':     { es:'Ingresa tus credenciales para continuar', en:'Sign in to continue' },
+  'login.user':         { es:'Usuario',          en:'Username' },
+  'login.pwd':          { es:'Contraseña',       en:'Password' },
+  'login.enter':        { es:'Entrar',           en:'Sign in' },
+  'login.first.title':  { es:'Primer ingreso',   en:'First sign-in' },
+  'login.first.sub':    { es:'Debes cambiar tu contraseña', en:'You must change your password' },
+  'login.first.new':    { es:'Nueva contraseña', en:'New password' },
+  'login.first.confirm':{ es:'Confirmar contraseña', en:'Confirm password' },
+  'login.first.save':   { es:'Guardar y entrar', en:'Save and sign in' },
+  'login.err.creds':    { es:'Credenciales incorrectas', en:'Invalid credentials' },
+  'login.err.short':    { es:'Mínimo 8 caracteres', en:'Minimum 8 characters' },
+  'login.err.match':    { es:'Las contraseñas no coinciden', en:'Passwords do not match' },
+
+  // ── KPIs / Dashboard ──
+  'kpi.deuda_total':    { es:'💳 Deuda Total',   en:'💳 Total Debt' },
+  'kpi.entradas':       { es:'💵 Entradas',      en:'💵 Income' },
+  'kpi.plan_pagos':     { es:'📑 Plan de Pagos', en:'📑 Payment Plan' },
+  'kpi.gastos_efect':   { es:'💸 Gastos Efectuados', en:'💸 Expenses Paid' },
+  'kpi.brecha':         { es:'📐 Brecha Entradas vs. Plan', en:'📐 Income vs. Plan Gap' },
+  'kpi.saldo_banco':    { es:'🏦 Saldo Bancario',en:'🏦 Bank Balance' },
+  'kpi.presupuesto':    { es:'Presupuesto Semanal', en:'Weekly Budget' },
+  'kpi.pagado':         { es:'Pagado',           en:'Paid' },
+  'kpi.pendiente':      { es:'Pendiente',        en:'Pending' },
+  'kpi.conceptos':      { es:'conceptos · columna TOTAL', en:'items · TOTAL column' },
+  'kpi.sin_catalogo':   { es:'— Sin catálogo cargado —', en:'— No catalog loaded —' },
+
+  // ── Botones generales ──
+  'btn.save':           { es:'Guardar',          en:'Save' },
+  'btn.cancel':         { es:'Cancelar',         en:'Cancel' },
+  'btn.close':          { es:'Cerrar',           en:'Close' },
+  'btn.confirm':        { es:'Confirmar',        en:'Confirm' },
+  'btn.delete':         { es:'Eliminar',         en:'Delete' },
+  'btn.edit':           { es:'Editar',           en:'Edit' },
+  'btn.new':            { es:'Nuevo',            en:'New' },
+  'btn.upload':         { es:'📤 Cargar Excel',  en:'📤 Load Excel' },
+  'btn.download':       { es:'📥 Descargar',     en:'📥 Download' },
+  'btn.refresh':        { es:'🔄 Refrescar',     en:'🔄 Refresh' },
+  'btn.print':          { es:'🖨️ Imprimir',      en:'🖨️ Print' },
+  'btn.register_pay':   { es:'💳 Registrar pago',en:'💳 Register payment' },
+  'btn.confirm_pay':    { es:'💾 Confirmar pago',en:'💾 Confirm payment' },
+
+  // ── Tabs internas del dashboard ──
+  'tab.cxp':            { es:'💳 CxP',           en:'💳 Accounts Payable' },
+  'tab.presupuestos':   { es:'💰 Presupuestos',  en:'💰 Budgets' },
+  'tab.entradas':       { es:'💵 Entradas',      en:'💵 Income' },
+  'tab.gastos_efect':   { es:'💸 Gastos Efectuados', en:'💸 Expenses Paid' },
+  'tab.cierre':         { es:'🔒 Cierre',        en:'🔒 Closing' },
+  'tab.reset':          { es:'♻️ Reset',         en:'♻️ Reset' },
+  'tab.diagnostico':    { es:'🔍 Diagnóstico',   en:'🔍 Diagnostics' },
+
+  // ── Modales / títulos ──
+  'modal.presupuesto':  { es:'💰 Presupuesto Semanal', en:'💰 Weekly Budget' },
+  'modal.gastos':       { es:'💸 Gastos Efectuados',   en:'💸 Expenses Paid' },
+  'modal.flujo':        { es:'📊 Flujo de Efectivo',   en:'📊 Cash Flow' },
+  'modal.plan_pagos':   { es:'📋 Plan de Pagos',       en:'📋 Payment Plan' },
+  'modal.registrar_pago':{es:'💳 Registrar Pago',      en:'💳 Register Payment' },
+  'modal.usuario':      { es:'👤 Usuario',      en:'👤 User' },
+  'modal.cierre':       { es:'🔒 Cierre de Semana',    en:'🔒 Week Closing' },
+  'modal.reset':        { es:'♻️ Reset Total',   en:'♻️ Full Reset' },
+  'modal.confirm_del':  { es:'¿Confirmas eliminar?',   en:'Confirm deletion?' },
+
+  // ── Toasts / mensajes ──
+  'toast.saved':        { es:'Guardado ✓',      en:'Saved ✓' },
+  'toast.paid':         { es:'Pago registrado ✓',en:'Payment registered ✓' },
+  'toast.deleted':      { es:'Eliminado ✓',     en:'Deleted ✓' },
+  'toast.err.saving':   { es:'Error al guardar',en:'Save failed' },
+  'toast.err.network':  { es:'Error de conexión',en:'Connection error' },
+  'toast.no_permission':{ es:'Sin permisos para esta acción', en:'No permission for this action' },
+
+  // ── Roles ──
+  'role.admin_master':  { es:'Master',          en:'Master' },
+  'role.admin':         { es:'Admin',           en:'Admin' },
+  'role.cohost':        { es:'Cohost',          en:'Cohost' },
+  'role.income':        { es:'Ingresos',        en:'Income' },
+  'role.view':          { es:'Consulta',        en:'View' },
+
+  // ── Semanas / fechas ──
+  'week.current':       { es:'Semana en curso', en:'Current week' },
+  'week.selector':      { es:'Selecciona semana', en:'Select week' },
+  'week.close':         { es:'Cerrar semana',   en:'Close week' },
+
+  // ── CxP / Plan de Pagos ──
+  'plan.total':         { es:'Total',           en:'Total' },
+  'plan.recomendado':   { es:'Recomendado',     en:'Recommended' },
+  'plan.urgente':       { es:'Urgente',         en:'Urgent' },
+  'plan.supervivencia': { es:'Supervivencia',   en:'Survival' },
+  'plan.categoria':     { es:'Categoría',       en:'Category' },
+  'plan.concepto':      { es:'Concepto',        en:'Item' },
+  'plan.monto':         { es:'Monto',           en:'Amount' },
+  'plan.nivel':         { es:'Nivel',           en:'Level' },
+  'plan.orden':         { es:'Orden',           en:'Order' },
+  'plan.acciones':      { es:'Acciones',        en:'Actions' },
+};
+
+/* Traduce una key. Si no existe, retorna la key (útil para detectar faltantes) */
+function t(key) {
+  if (key == null) return '';
+  const entry = I18N[key];
+  if (!entry) return key;
+  return entry[window.APP_LANG] || entry.es || key;
+}
+
+/* Aplica traducciones a todos los elementos con data-i18n* del DOM */
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.setAttribute('title', t(el.dataset.i18nTitle));
+  });
+  // También reconstruye tabs internos si están renderizados
+  const lbl = document.getElementById('langCodeLbl');
+  if (lbl) lbl.textContent = window.APP_LANG.toUpperCase();
+  document.documentElement.setAttribute('lang', window.APP_LANG);
+}
+
+/* Toggle Español ↔ English */
+function toggleLang() {
+  window.APP_LANG = (window.APP_LANG === 'es') ? 'en' : 'es';
+  localStorage.setItem('mitech_lang', window.APP_LANG);
+  applyI18n();
+  // Re-render de tabs dinámicos para actualizar strings hardcoded que aún no usan data-i18n
+  if (typeof window._currentTab === 'string' && typeof showTab === 'function') {
+    try { showTab(window._currentTab); } catch(e){}
+  }
+}
+
+/* Toggle tema oscuro ↔ claro */
+function toggleTheme() {
+  window.APP_THEME = (window.APP_THEME === 'dark') ? 'light' : 'dark';
+  localStorage.setItem('mitech_theme', window.APP_THEME);
+  document.documentElement.setAttribute('data-theme', window.APP_THEME);
+  const icon = document.getElementById('themeIconLbl');
+  if (icon) icon.textContent = (window.APP_THEME === 'dark') ? '🌙' : '☀️';
+}
+
+/* Aplicar tema e idioma inmediatamente al cargar el script */
+document.documentElement.setAttribute('data-theme', window.APP_THEME);
+document.documentElement.setAttribute('lang',       window.APP_LANG);
+/* applyI18n() se llama después de que el DOM esté listo (ver más abajo) */
+
+
+/* ══════════════════════════════════════════
    STATE
 ══════════════════════════════════════════ */
 let currentUser = null;
@@ -1228,6 +1424,7 @@ async function loadAllData() {
    TABS
 ══════════════════════════════════════════ */
 function showTab(tab) {
+  window._currentTab = tab;  // memorizar para re-render al cambiar idioma
   document.querySelectorAll('.nav-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.tab === tab);
   });
@@ -1237,6 +1434,8 @@ function showTab(tab) {
     case 'cxp':       renderCxP(c); break;
     case 'usuarios':  renderUsuarios(c); break;
   }
+  // Re-aplicar traducciones si el tab agrega nodos con data-i18n
+  setTimeout(() => { try { applyI18n(); } catch(e){} }, 0);
 }
 
 /* stub: tab reporte removido de nav, se conserva la función por compatibilidad */
@@ -1634,7 +1833,7 @@ async function renderDashboard(c) {
       <div style="display:flex;flex-direction:column;gap:16px;">
       <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
            style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};margin:0;">
-        <div class="kpi-label">${budgetSymbol} Presupuesto Semanal</div>
+        <div class="kpi-label">${budgetSymbol} ${t('kpi.presupuesto')}</div>
         <div class="kpi-value" style="font-size:22px;color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
           ${budgetMonto > 0 ? fmtBudget(budgetMonto, budgetGen?.moneda) : '— Sin monto —'}
         </div>
@@ -1660,7 +1859,7 @@ async function renderDashboard(c) {
 
       <!-- KPI Saldo Bancario -->
       <div class="kpi-card" style="margin:0;border-color:${saldoColor};">
-        <div class="kpi-label">🏦 Saldo Bancario</div>
+        <div class="kpi-label">${t('kpi.saldo_banco')}</div>
         <div class="kpi-value" style="font-size:22px;color:${saldoColor};">
           ${saldoMXN >= 0 ? '+' : ''}${fmt(saldoMXN)}
         </div>
@@ -1684,7 +1883,7 @@ async function renderDashboard(c) {
 
       <!-- KPI Deuda Total → siempre muestra el TOTAL general del catálogo -->
       <div class="kpi-card kpi-clickable" onclick="openReporteSemanaModal()" style="margin:0;border-color:${cxpData.length>0?'#ff6b6b':'var(--border)'};opacity:${cxpData.length>0?1:.5};">
-        <div class="kpi-label">💳 Deuda Total</div>
+        <div class="kpi-label">${t('kpi.deuda_total')}</div>
         <div class="kpi-value" style="font-size:22px;color:${cxpData.length>0?'#ff6b6b':'var(--muted)'};margin-bottom:4px;">
           ${cxpData.length>0 ? fmt(deudaTotal) : '— Sin catálogo cargado —'}
         </div>
@@ -1723,7 +1922,7 @@ async function renderDashboard(c) {
             <!-- KPI Entradas -->
             <div class="kpi-card kpi-clickable" onclick="openEntradasModal()"
                  style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};margin:0;">
-              <div class="kpi-label">💵 Entradas</div>
+              <div class="kpi-label">${t('kpi.entradas')}</div>
               <div class="kpi-value positive" style="font-size:24px;color:var(--green);">
                 ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : '— Sin entradas —'}
               </div>
@@ -1744,7 +1943,7 @@ async function renderDashboard(c) {
             <!-- KPI Plan de Pagos -->
             <div class="kpi-card kpi-clickable" onclick="${planActivo ? 'openPlanPagoDetalleModal()' : 'openPlanPagoModal()'}"
                  style="border-color:${planActivo ? planCfg.color : 'var(--border)'};margin:0;">
-              <div class="kpi-label">📑 Plan de Pagos</div>
+              <div class="kpi-label">${t('kpi.plan_pagos')}</div>
               <div class="kpi-value" style="font-size:22px;color:${planActivo ? planCfg.color : 'var(--accent)'};">
                 ${planActivo ? fmt(planMonto) : '— Sin plan activo —'}
               </div>
@@ -1760,7 +1959,7 @@ async function renderDashboard(c) {
 
             <!-- KPI Gastos Efectuados — clickeable -->
             <div class="kpi-card kpi-clickable" onclick="openGastosDetalleModal()" style="margin:0;">
-              <div class="kpi-label">💸 Gastos Efectuados</div>
+              <div class="kpi-label">${t('kpi.gastos_efect')}</div>
               <div class="kpi-value negative" style="font-size:22px;">${fmt(totalGastosEfectuados)}</div>
               <div class="kpi-sub">Total MXN equivalente · Clic para ver detalle</div>
               <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
@@ -1779,7 +1978,7 @@ async function renderDashboard(c) {
 
             <!-- KPI Brecha Entradas vs Plan de Pagos -->
             <div class="kpi-card ${planActivo ? 'kpi-clickable' : ''}" onclick="${planActivo ? 'openFlujoEfectivoModal()' : 'openPlanPagoModal()'}" style="margin:0;border-color:${brechaColor};">
-              <div class="kpi-label">📐 Brecha Entradas vs. Plan</div>
+              <div class="kpi-label">${t('kpi.brecha')}</div>
               <div class="kpi-value" style="font-size:22px;color:${brechaTxtColor};">
                 ${brecha === null ? '— Sin plan activo —' : fmt(brecha)}
               </div>
@@ -2328,6 +2527,9 @@ async function cxpHandleFile(e) {
     if (statusEl) statusEl.textContent = '⏳ Sincronizando con Supabase…';
     const syncResult = await cxpSyncToSupabase(cxpData);
 
+    // Guardar en cache local para que el plan sobreviva si Supabase falla en futuras sesiones
+    try { localStorage.setItem('mitech_plan_cache', JSON.stringify(cxpData)); } catch(e) { console.warn('Cache plan:', e); }
+
     const semanaLbl = getWeekLabel(cxpSemanaSeleccionada);
     if (statusEl) statusEl.textContent =
       '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos · semana ' + semanaLbl +
@@ -2462,6 +2664,10 @@ async function cxpFetchSupabaseData() {
     const _dedupMap = new Map();
     cxpData.forEach(r => { if (!_dedupMap.has(r._key)) _dedupMap.set(r._key, r); });
     cxpData = Array.from(_dedupMap.values());
+    // Persistir en cache local para que el plan sobreviva si Supabase falla o
+    // devuelve vacío en la próxima sesión (JC: "no cambies el plan cuando la
+    // sesión se acaba")
+    try { localStorage.setItem('mitech_plan_cache', JSON.stringify(cxpData)); } catch(e) { console.warn('No se pudo guardar plan en cache:', e); }
     return cxpData.length > 0;
   } catch(err) {
     console.error(err);
@@ -2472,7 +2678,23 @@ async function cxpFetchSupabaseData() {
 /* Asegura que cxpData tenga información, usado por Dashboard (Plan de Pagos) */
 async function cxpEnsureData() {
   if (cxpData.length > 0) return true;
-  return await cxpFetchSupabaseData();
+  const ok = await cxpFetchSupabaseData();
+  if (ok) return true;
+  // Fallback: Supabase vacío/no disponible → intentar recuperar del cache localStorage
+  // Esto garantiza que el plan cargado sobreviva incluso si Supabase tiene un hipo
+  // (JC: "siempre deja el plan que ya se cargó, no lo cambies cuando la sesión se acaba")
+  try {
+    const cached = localStorage.getItem('mitech_plan_cache');
+    if (cached) {
+      const arr = JSON.parse(cached);
+      if (Array.isArray(arr) && arr.length > 0) {
+        cxpData = arr;
+        console.log('✓ Plan restaurado desde cache localStorage (' + arr.length + ' conceptos) — Supabase no disponible o vacío');
+        return true;
+      }
+    }
+  } catch(e) { console.warn('Cache localStorage inválido:', e); }
+  return false;
 }
 
 /* ── CLAVE ESTABLE POR CONCEPTO ──────────────
@@ -4733,6 +4955,14 @@ function reporteImprimir() { window.print(); }
 /* ══════════════════════════════════════════
    AUTO-RESTORE SESSION
 ══════════════════════════════════════════ */
+/* Aplicar traducciones e icono de tema al DOM ya cargado (el script corre
+   al final del body, así que el DOM ya está parseado) */
+try {
+  applyI18n();
+  const themeIcon = document.getElementById('themeIconLbl');
+  if (themeIcon) themeIcon.textContent = (window.APP_THEME === 'dark') ? '🌙' : '☀️';
+} catch(e) { console.warn('i18n init:', e); }
+
 (async function() {
   try {
     const { data: { session } } = await sb.auth.getSession();
