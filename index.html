@@ -984,6 +984,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       </div>
     </div>
 
+    <!-- Moneda del concepto + TC referencia -->
+    <div class="budget-row" style="margin-bottom:14px;">
+      <div class="budget-field">
+        <label>Moneda del concepto</label>
+        <select id="nuevoGastoMoneda" onchange="nuevoGastoToggleMoneda(this.value)">
+          <option value="MXN">🇲🇽 MXN — Pesos mexicanos</option>
+          <option value="USD">🇺🇸 USD — Dólares</option>
+        </select>
+      </div>
+      <div class="budget-field" id="nuevoGastoTcRefWrap" style="display:none;">
+        <label>TC referencia (MXN por USD)</label>
+        <input id="nuevoGastoTcRef" type="text" inputmode="decimal" placeholder="17.00" oninput="fmtInputTC(this)">
+      </div>
+    </div>
+
     <!-- Monto -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:14px 0;">
       <div class="budget-field" style="margin-bottom:10px;">
@@ -2515,6 +2530,8 @@ async function cxpHandleFile(e) {
           recomendado:  parseFloat(find(['RECOM']) || 0),
           urgente:      parseFloat(find(['URG']) || 0),
           supervivencia:parseFloat(find(['SUPERV','SURV','SOB']) || 0),
+          moneda:       (find(['MONEDA','CURRENCY','DIVISA']) || 'MXN').toString().toUpperCase() === 'USD' ? 'USD' : 'MXN',
+          tc_ref:       parseFloat(find(['TC','TCREF','TIPO_CAMBIO','TIPOCAMBIO','EXCHANGE'])) || null,
         };
       })
       .filter(r => r.concepto && r.concepto.toString().trim() !== '');
@@ -2585,6 +2602,8 @@ async function cxpSyncToSupabase(rows) {
       recomendado:   parseFloat(r.recomendado) || 0,
       urgente:       parseFloat(r.urgente) || 0,
       supervivencia: parseFloat(r.supervivencia) || 0,
+      moneda:        r.moneda || 'MXN',
+      tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
     }));
     const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rows[i]._semana || null }));
 
@@ -2612,8 +2631,9 @@ async function cxpSyncToSupabase(rows) {
     const variantes = [
       { nombre: 'con semana',        payload: payloadConSemana },
       { nombre: 'sin semana',        payload: payloadBase },
-      { nombre: 'sin semana ni nota',payload: payloadBase.map(({nota, ...r}) => r) },
-      { nombre: 'sin clave',         payload: payloadBase.map(({clave, ...r}) => r) },
+      { nombre: 'sin moneda',        payload: payloadBase.map(({moneda, tc_ref, ...r}) => r) },
+      { nombre: 'sin semana ni nota',payload: payloadBase.map(({nota, moneda, tc_ref, ...r}) => r) },
+      { nombre: 'sin clave',         payload: payloadBase.map(({clave, moneda, tc_ref, ...r}) => r) },
       { nombre: 'mínimo',            payload: payloadBase.map(r => ({
           categoria: r.categoria, concepto: r.concepto,
           total: r.total, recomendado: r.recomendado,
@@ -2686,6 +2706,8 @@ async function cxpFetchSupabaseData() {
       recomendado:   parseFloat(r.recomendado ?? 0),
       urgente:       parseFloat(r.urgente ?? 0),
       supervivencia: parseFloat(r.supervivencia ?? r.sobrevivencia ?? 0),
+      moneda:        r.moneda || 'MXN',
+      tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
       _semana:       r.semana || null,
     })).filter(r => r.concepto.trim() !== '');
 
@@ -3083,8 +3105,8 @@ function cambiarPlanPago() {
 /* Calcula el monto total del plan activo a partir de cxpData */
 function planPagoGetMonto(plan) {
   const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
-  if (plan === 'all') return rows.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
-  return rows.reduce((s,r) => s + (parseFloat(r[plan])||0), 0);
+  if (plan === 'all') return rows.reduce((s,r) => s + cxpMontoMXN(r, 'total'), 0);
+  return rows.reduce((s,r) => s + cxpMontoMXN(r, plan), 0);
 }
 
 /* Monto pendiente por pagar del plan activo (lo que falta de cubrir),
@@ -3095,7 +3117,7 @@ function planPagoGetPendiente(plan) {
   const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
   const colPlan = plan === 'all' ? 'total' : plan;
   return rows.reduce((s,r) => {
-    const montoPlan = parseFloat(r[colPlan]) || 0;
+    const montoPlan = cxpMontoMXN(r, colPlan);
     const pagado = gastosEfectuadosTotalPorClave(r._key);
     return s + Math.max(montoPlan - pagado, 0);
   }, 0);
@@ -3187,7 +3209,7 @@ function planPagoToggleSeccion(grupo, checked) {
   const gRows = filtradas.filter(r => (r.categoria || 'General') === grupo);
   gRows.forEach(r => {
     const colPlan = st.plan === 'all' ? 'total' : st.plan;
-    const pendiente = Math.max((parseFloat(r[colPlan])||0) - gastosEfectuadosTotalPorClave(r._key), 0);
+    const pendiente = Math.max(cxpMontoMXN(r, colPlan) - gastosEfectuadosTotalPorClave(r._key), 0);
     if (pendiente <= 0) return; // ya liquidado, no se puede volver a seleccionar
     if (checked) st.seleccion.add(r._key); else st.seleccion.delete(r._key);
   });
@@ -3242,7 +3264,7 @@ function planPagoRenderTabla() {
     .filter(r => (parseFloat(r[colPlan]) || 0) > 0);
   // Solo los pendientes (excluye los 100% liquidados)
   const filtradas = todas.filter(r =>
-    Math.max((parseFloat(r[colPlan])||0) - gastosEfectuadosTotalPorClave(r._key), 0) > 0
+    Math.max(cxpMontoMXN(r, colPlan) - gastosEfectuadosTotalPorClave(r._key), 0) > 0
   );
   const nLiquidados = todas.length - filtradas.length;
 
@@ -3264,7 +3286,7 @@ function planPagoRenderTabla() {
   // Totales calculados sobre TODAS las filas (incl. liquidadas) para el pie
   let grandPlan = 0, grandPagado = 0, grandPendiente = 0;
   todas.forEach(r => {
-    const mp = parseFloat(r[colPlan]) || 0;
+    const mp = cxpMontoMXN(r, colPlan);
     const pg = Math.min(gastosEfectuadosTotalPorClave(r._key), mp);
     grandPlan += mp; grandPagado += pg; grandPendiente += Math.max(mp - pg, 0);
   });
@@ -3297,11 +3319,16 @@ function planPagoRenderTabla() {
     // Ordenar dentro del grupo por 'orden' (persistido en Supabase)
     gRows.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
     gRows.forEach(r => {
-      const montoTotal = parseFloat(r.total) || 0;
-      const montoPlan = parseFloat(r[colPlan]) || 0;
+      const montoTotal = cxpMontoMXN(r, 'total');
+      const montoTotalRaw = parseFloat(r.total) || 0;
+      const montoPlan = cxpMontoMXN(r, colPlan);
       const pagado = Math.min(gastosEfectuadosTotalPorClave(r._key), montoPlan);
       const pendiente = Math.max(montoPlan - pagado, 0);
       const liquidado = pendiente <= 0 && montoPlan > 0;
+      const esUSD = r.moneda === 'USD';
+      const monedaBadge = esUSD
+        ? `<span title="Concepto en USD · TC ref ${r.tc_ref || '—'} · MXN equiv $${Math.round(montoTotal).toLocaleString('es-MX')}" style="display:inline-block;background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.4);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">🇺🇸 USD $${Math.round(montoTotalRaw).toLocaleString('es-MX')}</span>`
+        : '';
       const rowKeyIdx = planPagoRegistrarClaveSegura(r._key);
       const esInferido = nivelEsInferido(r);
       const nivKeyRow = nivelEfectivo(r);
@@ -3324,7 +3351,7 @@ function planPagoRenderTabla() {
         : '';
       html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:${canAccess('cxp')?'grab':'default'};">
         <td><span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
-        <td>${r.concepto}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
+        <td>${r.concepto}${monedaBadge}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
         <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
         ${mostrarPlanCol ? `<td class="col-active">${fmt(montoPlan)}</td>` : ''}
@@ -3357,7 +3384,7 @@ function planPagoRenderTabla() {
     </td></tr>`;
   }
   // Total general considerando montoTotal (columna Total) y montoPlan (columna Plan activo)
-  const grandTotalCol = todas.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
+  const grandTotalCol = todas.reduce((s,r) => s + cxpMontoMXN(r, 'total'), 0);
   html += `<tr class="cxp-total">
     <td></td><td>TOTAL GENERAL</td><td></td>
     <td class="${plan==='all'?'col-active':''}">${fmt(grandTotalCol)}</td>
@@ -3469,9 +3496,9 @@ function cambiarNivelPreview() {
 
   // Suma de pendientes de los conceptos afectados
   const rowsAfectadas = st.rows.filter(r => state.keys.includes(r._key));
-  const sumPlan = rowsAfectadas.reduce((s,r) => s + (parseFloat(r[colPlan])||0), 0);
+  const sumPlan = rowsAfectadas.reduce((s,r) => s + cxpMontoMXN(r, colPlan), 0);
   const sumPendiente = rowsAfectadas.reduce((s,r) => {
-    const mp = parseFloat(r[colPlan]) || 0;
+    const mp = cxpMontoMXN(r, colPlan);
     return s + Math.max(mp - gastosEfectuadosTotalPorClave(r._key), 0);
   }, 0);
 
@@ -4112,7 +4139,7 @@ function flujoRenderTabla() {
   const filtradas = cxpData
     .filter(r => r.concepto && r.total !== undefined)
     .map(r => {
-      const mp = parseFloat(r[colPlan]) || 0;
+      const mp = cxpMontoMXN(r, colPlan);
       const pagado = gastosEfectuadosTotalPorClave(r._key);
       const pendiente = Math.max(mp - pagado, 0);
       return { ...r, _pendiente: pendiente };
@@ -4228,10 +4255,10 @@ function abrirRegistroPagoSeleccion() {
   if (!st || st.seleccion.size === 0) return;
   const colPlan = st.plan === 'all' ? 'total' : st.plan;
   const items = st.rows.filter(r => st.seleccion.has(r._key)).map(r => {
-    const montoPlan = parseFloat(r[colPlan]) || 0;
+    const montoPlan = cxpMontoMXN(r, colPlan);
     const pagado = gastosEfectuadosTotalPorClave(r._key);
     const pendiente = Math.max(montoPlan - pagado, 0);
-    return { clave: r._key, concepto: r.concepto, categoria: r.categoria || 'General', montoConcepto: montoPlan, pendiente };
+    return { clave: r._key, concepto: r.concepto, categoria: r.categoria || 'General', montoConcepto: montoPlan, pendiente, moneda: r.moneda || 'MXN', tc_ref: r.tc_ref || null };
   }).filter(it => it.pendiente > 0);
 
   if (items.length === 0) { toast('Los conceptos seleccionados ya están liquidados', 'err'); return; }
@@ -4239,19 +4266,38 @@ function abrirRegistroPagoSeleccion() {
   window._pagoSeleccionItems = items;
   const totalPendiente = items.reduce((s,it) => s + it.pendiente, 0);
 
+  // Determinar moneda default: si TODOS los conceptos son USD, default a USD; si son mixtos o MXN, default a MXN
+  const todosUSD = items.every(it => it.moneda === 'USD');
+  const monedaDefault = todosUSD ? 'USD' : 'MXN';
+  const tcRefDefault = todosUSD
+    ? (items.find(it => it.tc_ref)?.tc_ref || parseFloat(localStorage.getItem('mitech_tc') || '17'))
+    : parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const hayMixto = items.some(it => it.moneda === 'USD') && items.some(it => it.moneda !== 'USD');
+
   document.getElementById('registroPagoResumen').innerHTML =
-    items.map(it => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">
-      <span>${it.concepto}</span><span style="color:var(--muted);">${fmt(it.pendiente)} pendiente</span>
-    </div>`).join('');
+    items.map(it => {
+      const badgeUSD = it.moneda === 'USD'
+        ? ` <span style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.4);border-radius:4px;padding:0 4px;font-size:9px;font-weight:800;">USD</span>`
+        : '';
+      return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">
+        <span>${it.concepto}${badgeUSD}</span><span style="color:var(--muted);">${fmt(it.pendiente)} pendiente</span>
+      </div>`;
+    }).join('') + (hayMixto
+      ? `<div style="font-size:10px;color:var(--yellow);margin-top:6px;">⚠️ Conceptos con monedas mezcladas — el modal usa MXN por defecto; cambia manualmente si aplica.</div>`
+      : '');
   document.getElementById('registroPagoTotalPendiente').textContent = fmt(totalPendiente);
   document.getElementById('registroPagoMonto').value = items.length === 1 ? totalPendiente.toFixed(2) : '';
   document.getElementById('registroPagoTipo').value = 'total';
-  document.getElementById('registroPagoMoneda').value = 'MXN';
-  registroPagoToggleMoneda('MXN');
+  document.getElementById('registroPagoMoneda').value = monedaDefault;
+  registroPagoToggleMoneda(monedaDefault);
   registroPagoToggleMonto('total');
-  // Pre-llenar TC con el último tipo de cambio guardado
-  const tcActual = localStorage.getItem('mitech_tc') || '17';
-  document.getElementById('registroPagoTc').value = parseFloat(tcActual).toFixed(2);
+  // Pre-llenar TC: si default es USD, usar tc_ref del concepto; si no, usar último TC guardado
+  document.getElementById('registroPagoTc').value = parseFloat(tcRefDefault).toFixed(2);
+  // Si es USD y monto único, convertir la sugerencia a USD
+  if (monedaDefault === 'USD' && items.length === 1) {
+    const montoUSD = totalPendiente / tcRefDefault;
+    document.getElementById('registroPagoMonto').value = montoUSD.toFixed(2);
+  }
   document.getElementById('registroPagoModal').classList.add('open');
 }
 
@@ -4351,18 +4397,30 @@ const CATEGORIA_A_NIVEL = {
 function openAgregarGastoPlanModal() {
   // Reset todos los campos
   ['nuevoGastoConcepto','nuevoGastoNota','nuevoGastoTotal','nuevoGastoRecomendado',
-   'nuevoGastoUrgente','nuevoGastoSupervivencia','nuevoGastoMonto']
+   'nuevoGastoUrgente','nuevoGastoSupervivencia','nuevoGastoMonto','nuevoGastoTcRef']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('nuevoGastoCategoria').value = '';
   document.getElementById('nuevoGastoTipo').value = 'Maquila';
+  document.getElementById('nuevoGastoMoneda').value = 'MXN';
   document.getElementById('nuevoGastoMismo').checked = true;
   document.getElementById('nuevoGastoDetallado').style.display = 'none';
+  nuevoGastoToggleMoneda('MXN');
   nuevoGastoActualizarNivel();
   document.getElementById('agregarGastoPlanModal').classList.add('open');
 }
 
 function closeAgregarGastoPlanModal() {
   document.getElementById('agregarGastoPlanModal').classList.remove('open');
+}
+
+/* Muestra/oculta el campo TC ref según la moneda seleccionada */
+function nuevoGastoToggleMoneda(moneda) {
+  const tcWrap = document.getElementById('nuevoGastoTcRefWrap');
+  if (tcWrap) tcWrap.style.display = moneda === 'USD' ? '' : 'none';
+  if (moneda === 'USD') {
+    const tcCur = document.getElementById('nuevoGastoTcRef');
+    if (tcCur && !tcCur.value) tcCur.value = parseFloat(localStorage.getItem('mitech_tc') || '17').toFixed(2);
+  }
 }
 
 /* Muestra el nivel L1-L7 correspondiente a la categoría elegida */
@@ -4438,7 +4496,12 @@ async function confirmarAgregarGastoPlan() {
   const catFinal = categoria === 'Operativos-Logistica' ? 'Operativos' : categoria;
   const tipoFinal = categoria === 'Operativos-Logistica' ? 'Logistica 1' : tipo;
 
-  const nuevaFila = { categoria: catFinal, concepto, tipo: tipoFinal, nota, nivel, total, recomendado, urgente, supervivencia };
+  const moneda = document.getElementById('nuevoGastoMoneda').value || 'MXN';
+  const tc_ref = moneda === 'USD'
+    ? (parseMoney(document.getElementById('nuevoGastoTcRef').value) || parseFloat(localStorage.getItem('mitech_tc') || '17'))
+    : null;
+
+  const nuevaFila = { categoria: catFinal, concepto, tipo: tipoFinal, nota, nivel, total, recomendado, urgente, supervivencia, moneda, tc_ref };
   nuevaFila._key = cxpRowKey(nuevaFila);
 
   if (cxpConceptoExiste(nuevaFila._key)) {
@@ -4491,6 +4554,15 @@ function gastoToMXN(g) {
   if ((g.moneda || 'MXN') === 'MXN') return monto;
   const tc = parseFloat(g.tc) || parseFloat(localStorage.getItem('mitech_tc')) || 17;
   return monto * tc;
+}
+
+/* Convierte el monto de un concepto del catálogo (columna colPlan) a MXN equiv,
+   usando su moneda y tc_ref si es USD. Fallback al TC global si no hay tc_ref. */
+function cxpMontoMXN(r, colPlan) {
+  const m = parseFloat(r[colPlan]) || 0;
+  if (!r.moneda || r.moneda === 'MXN') return m;
+  const tc = parseFloat(r.tc_ref) || parseFloat(localStorage.getItem('mitech_tc')) || 17;
+  return m * tc;
 }
 
 /* Suma de lo ya pagado (en MXN equiv.) para una clave de concepto */
@@ -4812,7 +4884,7 @@ function renderReporteSemanaModal() {
   const colPlanR  = planAct === 'all' ? 'total' : planAct;
   const planMntR  = planAct ? planPagoGetMonto(planAct) : 0;
   const planPndR  = planAct ? planPagoGetPendiente(planAct) : 0;
-  const planTotAll = cxpData.filter(r => r.concepto && r.total !== undefined).reduce((s,r) => s + (parseFloat(r.total)||0), 0);
+  const planTotAll = cxpData.filter(r => r.concepto && r.total !== undefined).reduce((s,r) => s + cxpMontoMXN(r, 'total'), 0);
   const totalE    = getEntradasTotal();
   const totalG    = gastosEfectuadosTotalGeneral();
   const brecha    = totalE - planPndR;
@@ -4855,14 +4927,15 @@ function renderReporteSemanaModal() {
   Object.entries(grupos).forEach(([grupo, gRows]) => {
     tablaHtml += `<tr class="cxp-group"><th colspan="10" style="text-align:left;">${grupo}</th></tr>`;
     gRows.forEach(r => {
-      const mTot  = parseFloat(r.total)||0;
-      const mPlan = planAct ? (parseFloat(r[colPlanR])||0) : mTot;
+      const mTot  = cxpMontoMXN(r, 'total');
+      const mPlan = planAct ? cxpMontoMXN(r, colPlanR) : mTot;
       const pagado  = Math.min(gastosEfectuadosTotalPorClave(r._key), mTot);
       const pend    = Math.max(mPlan - pagado, 0);
       const liq     = pend <= 0 && mPlan > 0;
+      const badgeUSD = r.moneda === 'USD' ? ` <span style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.4);border-radius:3px;padding:0 4px;font-size:8px;font-weight:800;">USD</span>` : '';
       gTot+=mTot; gPlanAct+=mPlan; gPagado+=pagado; gPendiente+=pend;
       tablaHtml += `<tr>
-        <td>${r.concepto}${r.nota?`<span style="color:var(--muted);font-size:9px;"> — ${r.nota}</span>`:''}</td>
+        <td>${r.concepto}${badgeUSD}${r.nota?`<span style="color:var(--muted);font-size:9px;"> — ${r.nota}</span>`:''}</td>
         <td style="text-align:right;">${fmt(mTot)}</td>
         ${planAct && planAct !== 'all' ? `<td style="text-align:right;color:var(--accent);">${fmt(mPlan)}</td>` : ''}
         <td style="text-align:right;color:var(--green);">${pagado>0?fmt(pagado):'—'}</td>
@@ -5031,6 +5104,7 @@ try {
 </script>
 </body>
 </html>
+
 
 
 
