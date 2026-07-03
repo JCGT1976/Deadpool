@@ -497,7 +497,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   <div class="nav" id="navTabs">
     <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard" data-i18n="nav.dashboard">📊 Dashboard</button>
     <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp" data-i18n="nav.cxp">💳 CxP</button>
-    <button class="nav-tab admin-only" onclick="showTab('usuarios')" data-tab="usuarios" style="display:none" data-i18n="nav.usuarios">👥 Usuarios</button>
+    <button class="nav-tab master-only" onclick="showTab('usuarios')" data-tab="usuarios" style="display:none" data-i18n="nav.usuarios">👥 Usuarios</button>
   </div>
 
   <!-- content area -->
@@ -1371,13 +1371,11 @@ async function loginSuccess(userData) {
   rb.textContent = ROLE_LABELS_TOP[userData.rol] || userData.rol;
   rb.className = 'role-badge role-' + userData.rol;
 
-  // mostrar tabs según rol
-  if (userData.rol === 'admin' || userData.rol === 'cohost' || userData.rol === 'admin_master') {
-    document.querySelectorAll('.admin-only').forEach(el => el.style.display='');
-  // Permisos por rol: solo lectura para view/income (sin tabs de admin)
-  if (userData.rol === 'view' || userData.rol === 'income') {
-    document.querySelectorAll('.admin-only').forEach(el => el.style.display='none');
-  }
+  // Solo el Admon Master puede ver/gestionar usuarios
+  if (userData.rol === 'admin_master') {
+    document.querySelectorAll('.master-only').forEach(el => el.style.display='');
+  } else {
+    document.querySelectorAll('.master-only').forEach(el => el.style.display='none');
   }
 
   startTimer();
@@ -1409,8 +1407,8 @@ function doLogout() {
 ══════════════════════════════════════════ */
 async function loadAllData() {
   try {
-    // Usuarios (solo admin / cohost / admin_master)
-    if (currentUser.rol === 'admin' || currentUser.rol === 'cohost' || currentUser.rol === 'admin_master') {
+    // Usuarios (solo admin_master)
+    if (currentUser.rol === 'admin_master') {
       const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
       if (data) allData.usuarios = data;
     }
@@ -2017,11 +2015,11 @@ async function renderDashboard(c) {
 
 
 /* ══════════════════════════════════════════
-   TAB: USUARIOS (admin)
+   TAB: USUARIOS (solo admin_master)
 ══════════════════════════════════════════ */
 function renderUsuarios(c) {
-  if (currentUser.rol !== 'admin' && currentUser.rol !== 'admin_master') {
-    c.innerHTML = '<div class="loading-wrap">Solo administradores.</div>'; return;
+  if (currentUser.rol !== 'admin_master') {
+    c.innerHTML = '<div class="loading-wrap">🔒 Solo el Admon Master puede gestionar usuarios.</div>'; return;
   }
   const users = allData.usuarios || [];
   // Estado del panel de usuarios
@@ -2184,6 +2182,7 @@ function usuSetTab(tab) {
 }
 function usuShowCrearForm() { usuSetTab('nuevo'); }
 function usuChangeRol(userId, newRol) {
+  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede cambiar roles', 'err'); return; }
   const users = allData.usuarios || [];
   const u = users.find(x => String(x.id) === String(userId));
   if (!u) return;
@@ -2204,6 +2203,7 @@ function usuChangeRol(userId, newRol) {
   });
 }
 function usuTogglePerm(userId, modId) {
+  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede cambiar permisos', 'err'); return; }
   const users = allData.usuarios || [];
   const u = users.find(x => String(x.id) === String(userId));
   if (!u || u.rol === 'admin' || u.rol === 'admin_master') return;
@@ -2215,6 +2215,7 @@ function usuTogglePerm(userId, modId) {
   showTab('usuarios');
 }
 function usuResetPerms(userId) {
+  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede restablecer permisos', 'err'); return; }
   const users = allData.usuarios || [];
   const u = users.find(x => String(x.id) === String(userId));
   if (!u) return;
@@ -2224,6 +2225,7 @@ function usuResetPerms(userId) {
   showTab('usuarios');
 }
 function usuGuardarPerms(userId) {
+  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede guardar permisos', 'err'); return; }
   toast('Permisos guardados ✓');
   // Los permisos ya se guardan en localStorage en usuTogglePerm
   // Si el usuario actual está editando sus propios permisos, recargar dashboard
@@ -2234,6 +2236,7 @@ function usuGuardarPerms(userId) {
 
 
 async function toggleUser(id, activo) {
+  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede activar/desactivar usuarios', 'err'); return; }
   const { error } = await sb.from('usuarios').update({ activo: !activo }).eq('id', id);
   if (error) { toast('Error al actualizar', 'err'); return; }
   toast(`Usuario ${activo?'desactivado':'activado'} ✓`);
@@ -2243,6 +2246,7 @@ async function toggleUser(id, activo) {
 }
 
 async function resetPwd(id) {
+  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede resetear contraseñas', 'err'); return; }
   if (!confirm('¿Forzar cambio de contraseña en el próximo acceso?')) return;
   const { error } = await sb.from('usuarios').update({ debe_cambiar: true }).eq('id', id);
   if (error) { toast('Error', 'err'); return; }
@@ -2253,6 +2257,7 @@ async function resetPwd(id) {
 }
 
 async function createUser() {
+  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede crear usuarios', 'err'); return; }
   const usuario = document.getElementById('nuUsuario').value.trim();
   const nombre  = document.getElementById('nuNombre').value.trim();
   const rol     = document.getElementById('nuRol').value;
