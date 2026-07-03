@@ -2581,56 +2581,60 @@ async function cxpSyncToSupabase(rows) {
       urgente:       parseFloat(r.urgente) || 0,
       supervivencia: parseFloat(r.supervivencia) || 0,
     }));
-    // Intento 1: con columna 'semana' incluida (requiere que exista en catalogo_cxp)
     const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rows[i]._semana || null }));
 
-    // ── PURGA PREVIA ──
-    // Cada carga de Excel es un REEMPLAZO TOTAL del catálogo — no una fusión.
-    // Purgamos primero para eliminar cualquier residuo de planes anteriores
-    // (JC: "una vez cargado el plan no haya errores que hagan que se cargue
-    // algún plan anterior salvo que se sustituya por una carga nueva").
-    // Si la purga falla (RLS o permisos), caemos al comportamiento upsert.
-    let purgaOk = false;
+    // ── ESTRATEGIA A PRUEBA DE TABLA VACÍA ──
+    // Problema anterior: purgábamos y luego el INSERT fallaba en silencio → tabla en 0.
+    // Ahora: (1) purgamos, (2) intentamos varias variantes de payload hasta que una
+    // funcione, (3) si TODAS fallan, lo reportamos claramente. Nunca confiamos en
+    // que insertó sin verificar el error de cada intento.
+
+    // Paso 1: PURGA
     let purgeErr = null;
     ({ error: purgeErr } = await sb.from('catalogo_cxp').delete().gte('created_at', '1900-01-01'));
     if (purgeErr) {
-      // Fallback: intento sin depender de created_at (por si la columna no existe)
       ({ error: purgeErr } = await sb.from('catalogo_cxp').delete().neq('clave', '__nunca_existira__'));
     }
-    if (!purgeErr) {
-      purgaOk = true;
-      console.log('✓ catalogo_cxp purgado — insertando plan nuevo desde cero');
-    } else {
-      console.warn('No se pudo purgar catalogo_cxp; se usará upsert como fallback:', purgeErr);
+    if (purgeErr) {
+      console.warn('No se pudo purgar catalogo_cxp:', purgeErr);
+      // Si no podemos purgar, mejor no arriesgarse a duplicar — reportamos y salimos.
+      return { ok:false, message: 'No se pudo limpiar el catálogo anterior: ' + (purgeErr.message||'') + '. No se cargó el nuevo plan para evitar mezclar datos.' };
+    }
+    console.log('✓ catalogo_cxp purgado — insertando plan nuevo (' + payloadBase.length + ' conceptos)');
+
+    // Paso 2: INSERT con variantes en cascada. Cada variante quita algo que podría
+    // no existir en el schema. Probamos en orden de más completo a más mínimo.
+    const variantes = [
+      { nombre: 'con semana',        payload: payloadConSemana },
+      { nombre: 'sin semana',        payload: payloadBase },
+      { nombre: 'sin semana ni nota',payload: payloadBase.map(({nota, ...r}) => r) },
+      { nombre: 'sin clave',         payload: payloadBase.map(({clave, ...r}) => r) },
+      { nombre: 'mínimo',            payload: payloadBase.map(r => ({
+          categoria: r.categoria, concepto: r.concepto,
+          total: r.total, recomendado: r.recomendado,
+          urgente: r.urgente, supervivencia: r.supervivencia
+      })) },
+    ];
+
+    let ultimoError = null;
+    for (const v of variantes) {
+      const { error } = await sb.from('catalogo_cxp').insert(v.payload);
+      if (!error) {
+        console.log('✓ Plan insertado en Supabase (variante: ' + v.nombre + ')');
+        return { ok:true };
+      }
+      console.warn('INSERT variante "' + v.nombre + '" falló:', error.message);
+      ultimoError = error;
+      // Si el error NO es de columna faltante, no tiene caso probar más variantes
+      // (p.ej. si es RLS, todas fallarán igual). Rompemos y reportamos.
+      if (!/column|schema|does not exist|could not find/i.test(error.message || '')) {
+        break;
+      }
     }
 
-    // ── INSERT / UPSERT ──
-    let { error } = purgaOk
-      ? await sb.from('catalogo_cxp').insert(payloadConSemana)
-      : await sb.from('catalogo_cxp').upsert(payloadConSemana, { onConflict: 'clave' });
-    if (error && /semana/i.test(error.message || '')) {
-      // La tabla aún no tiene la columna 'semana' (falta correr el ALTER TABLE en Supabase).
-      // Reintenta sin ese campo para no bloquear la carga del catálogo.
-      console.warn('Columna semana no existe en catalogo_cxp, reintentando sin ella:', error);
-      ({ error } = purgaOk
-        ? await sb.from('catalogo_cxp').insert(payloadBase)
-        : await sb.from('catalogo_cxp').upsert(payloadBase, { onConflict: 'clave' }));
-    }
-    if (error) {
-      // Fallback: la tabla puede no tener aún la columna 'clave' como única.
-      // Reintenta sin especificar onConflict (inserta tal cual; puede duplicar
-      // si se repite el Excel, pero no rompe la carga del catálogo).
-      console.warn('Upsert con onConflict=clave falló, reintentando sin onConflict:', error);
-      const errorPrimario = error;
-      const payloadSinClave = payloadBase.map(({clave, ...rest}) => rest);
-      const { error: error2 } = await sb.from('catalogo_cxp').insert(payloadSinClave);
-      if (error2) {
-        console.error('Sync catalogo_cxp (fallback):', error2);
-        return { ok:false, message: (error2.message || 'error desconocido') + ' [upsert previo: ' + (errorPrimario.message||'') + ']' };
-      }
-      return { ok:true };
-    }
-    return { ok:true };
+    // Todas las variantes fallaron
+    return { ok:false, message: 'No se pudo insertar el plan: ' + (ultimoError?.message || 'error desconocido') + '. ⚠️ La tabla quedó vacía — vuelve a intentar o revisa permisos RLS.' };
+
   } catch(err) {
     console.error(err);
     return { ok:false, message: (err && err.message) ? err.message : 'error desconocido al sincronizar' };
