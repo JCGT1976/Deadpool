@@ -1519,11 +1519,21 @@ async function doFirstChange(userData) {
   const { error: authErr } = await sb.auth.updateUser({ password: p2 });
   if (authErr) { setErr('Error al guardar. Intenta de nuevo.'); console.error(authErr); return; }
 
-  const { error } = await sb.from('usuarios')
-    .update({ debe_cambiar: false })
-    .eq('id', userData.id);
+  // RPC SECURITY DEFINER: se salta RLS pero solo modifica el registro del propio usuario autenticado
+  const { error: rpcErr } = await sb.rpc('clear_debe_cambiar');
+  if (rpcErr) { setErr('Error al guardar. Intenta de nuevo.'); console.error('clear_debe_cambiar:', rpcErr); return; }
 
-  if (error) { setErr('Error al guardar. Intenta de nuevo.'); return; }
+  // Verificar que el flag efectivamente quedó en false (defensa contra RLS silencioso)
+  const { data: verify, error: verifyErr } = await sb.from('usuarios')
+    .select('debe_cambiar')
+    .eq('id', userData.id)
+    .single();
+  if (verifyErr || !verify || verify.debe_cambiar !== false) {
+    setErr('No se pudo actualizar el estado. Contacta al administrador.');
+    console.error('debe_cambiar no se limpió. verify:', verify, 'err:', verifyErr);
+    return;
+  }
+
   userData.debe_cambiar = false;
   toast('Contraseña guardada ✓');
   await loginSuccess(userData);
