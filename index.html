@@ -1120,7 +1120,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.04.7';
+const APP_VERSION = '2026.07.04.8';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2919,6 +2919,78 @@ async function cxpHandleFile(e) {
    usando categoria+concepto como llave de negocio (clave). Esto da a cada
    concepto una identidad estable entre sesiones/usuarios sin depender del
    Excel a futuro. */
+/* ══════════════════════════════════════════
+   FIX v2026.07.04.8 · cxpInsertarGastoNuevo
+   INSERT de UNA sola fila sin purgar el catálogo completo.
+   Antes se usaba cxpSyncToSupabase([nuevaFila]) que borra TODO
+   el catálogo y solo dejaba el nuevo gasto — bug catastrófico
+   reportado por el usuario ("solo se ve el gasto nuevo, no
+   se ve el resto del plan").
+════════════════════════════════════════════ */
+async function cxpInsertarGastoNuevo(row) {
+  try {
+    const nivelToInt = (v) => {
+      const n = parseInt((v || '').toString().replace(/\D/g, ''), 10);
+      return isNaN(n) ? 0 : n;
+    };
+    // Calcular el próximo orden disponible (evita colisión de unicidad)
+    const ordenMax = cxpData.reduce((max, r) => {
+      const o = parseInt(r.orden || 0, 10);
+      return isNaN(o) ? max : Math.max(max, o);
+    }, 0);
+
+    const payloadCompleto = {
+      clave:         row._key,
+      orden:         ordenMax + 1,
+      tipo:          row.tipo || '',
+      nivel:         nivelToInt(row.nivel),
+      categoria:     row.categoria || 'General',
+      concepto:      row.concepto || '',
+      nota:          row.nota || '',
+      total:         parseFloat(row.total) || 0,
+      recomendado:   parseFloat(row.recomendado) || 0,
+      urgente:       parseFloat(row.urgente) || 0,
+      supervivencia: parseFloat(row.supervivencia) || 0,
+      moneda:        row.moneda || 'MXN',
+      tc_ref:        row.tc_ref != null ? parseFloat(row.tc_ref) : null,
+    };
+
+    // Intentar con variantes en cascada (por si el schema real no tiene alguna columna).
+    // Nunca purgamos — solo INSERT.
+    const variantes = [
+      { nombre: 'completo',   payload: payloadCompleto },
+      { nombre: 'sin moneda', payload: (({moneda, tc_ref, ...r}) => r)(payloadCompleto) },
+      { nombre: 'sin nota',   payload: (({moneda, tc_ref, nota, ...r}) => r)(payloadCompleto) },
+      { nombre: 'sin clave',  payload: (({moneda, tc_ref, clave, ...r}) => r)(payloadCompleto) },
+      { nombre: 'mínimo',     payload: {
+          categoria: payloadCompleto.categoria,
+          concepto:  payloadCompleto.concepto,
+          total:         payloadCompleto.total,
+          recomendado:   payloadCompleto.recomendado,
+          urgente:       payloadCompleto.urgente,
+          supervivencia: payloadCompleto.supervivencia,
+      } },
+    ];
+
+    let ultimoError = null;
+    for (const v of variantes) {
+      const { error } = await sb.from('catalogo_cxp').insert([v.payload]);
+      if (!error) {
+        console.log('✓ Gasto insertado en catalogo_cxp (variante: ' + v.nombre + ') — el resto del catálogo NO se tocó');
+        return { ok: true };
+      }
+      console.warn('INSERT gasto variante "' + v.nombre + '" falló:', error.message);
+      ultimoError = error;
+      // Si no es error de columna faltante, ya no vale la pena probar más variantes
+      if (error.message && !/(column|does not exist|schema)/i.test(error.message)) break;
+    }
+    return { ok: false, message: (ultimoError && ultimoError.message) || 'Error desconocido al insertar el gasto' };
+  } catch(e) {
+    console.error('cxpInsertarGastoNuevo:', e);
+    return { ok: false, message: e.message || 'Error inesperado' };
+  }
+}
+
 async function cxpSyncToSupabase(rows) {
   try {
     // La columna 'nivel' en Supabase es tipo integer, pero el Excel trae valores
@@ -5013,7 +5085,7 @@ async function confirmarAgregarGastoPlan() {
     return;
   }
 
-  const syncResult = await cxpSyncToSupabase([nuevaFila]);
+  const syncResult = await cxpInsertarGastoNuevo(nuevaFila);
   if (!syncResult.ok) { toast('Error al guardar el gasto en Supabase: ' + syncResult.message, 'err'); return; }
 
   await cxpFetchSupabaseData(); // recarga cxpData completo desde Supabase → afecta a todos los planes
