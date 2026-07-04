@@ -1120,7 +1120,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.04.8';
+const APP_VERSION = '2026.07.04.9';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5300,6 +5300,104 @@ function renderGastosDetalleModal() {
 }
 
 /* ══════════════════════════════════════════
+   CIERRE DE SEMANA — Impacto sobre KPIs
+   Al cerrar la semana, los pagos efectuados deben:
+   1) Descontarse permanentemente del catálogo CxP (afecta KPI Deuda Total)
+   2) Archivar y limpiar el presupuesto de la semana (afecta KPI Presupuesto)
+   Estas dos operaciones se calculan aquí y se aplican en confirmarCierreSemana.
+══════════════════════════════════════════ */
+
+/* Calcula el impacto del cierre SIN aplicarlo. Retorna:
+   { pagosPorClave, pagosAplicadosMXN, deudaAntes, deudaDespues,
+     filasAfectadas[], budgetSemana, semanaKey } */
+function calcularImpactoCierre() {
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc')) || 17;
+  // 1) Sumar pagos efectuados por clave (todo en MXN equiv.)
+  const pagosPorClave = {};
+  gastosEfectuadosData.forEach(g => {
+    if (!g.concepto_key) return;
+    pagosPorClave[g.concepto_key] = (pagosPorClave[g.concepto_key] || 0) + gastoToMXN(g);
+  });
+  // 2) Deuda actual del catálogo (columna TOTAL, en MXN equiv.)
+  const deudaAntes = cxpData.reduce((s,r) => s + cxpMontoMXN(r, 'total'), 0);
+  // 3) Determinar filas afectadas y nuevos montos (en la moneda ORIGINAL de la fila)
+  const filasAfectadas = [];
+  cxpData.forEach(r => {
+    const claveRow = r._key || r.clave;
+    const pagadoMXN = pagosPorClave[claveRow] || 0;
+    if (pagadoMXN <= 0) return;
+    const tc = parseFloat(r.tc_ref) || tcGlobal;
+    const esUSD = r.moneda === 'USD';
+    // Convertir el pagado (MXN) a la moneda de la fila para restarlo
+    const pagadoEnMoneda = esUSD ? pagadoMXN / tc : pagadoMXN;
+    const nuevos = {
+      total:         Math.max((parseFloat(r.total)||0)         - pagadoEnMoneda, 0),
+      recomendado:   Math.max((parseFloat(r.recomendado)||0)   - pagadoEnMoneda, 0),
+      urgente:       Math.max((parseFloat(r.urgente)||0)       - pagadoEnMoneda, 0),
+      supervivencia: Math.max((parseFloat(r.supervivencia)||0) - pagadoEnMoneda, 0),
+      ajuste:        Math.max((parseFloat(r.ajuste)||0)        - pagadoEnMoneda, 0),
+    };
+    filasAfectadas.push({
+      id: r.id, clave: claveRow, concepto: r.concepto,
+      moneda: r.moneda || 'MXN', tc_ref: tc,
+      pagadoMXN, pagadoEnMoneda,
+      antes: {
+        total: parseFloat(r.total)||0, recomendado: parseFloat(r.recomendado)||0,
+        urgente: parseFloat(r.urgente)||0, supervivencia: parseFloat(r.supervivencia)||0,
+        ajuste: parseFloat(r.ajuste)||0
+      },
+      despues: nuevos,
+    });
+  });
+  // 4) Deuda proyectada tras el cierre
+  const pagosAplicadosMXN = filasAfectadas.reduce((s,f) => s + f.pagadoMXN, 0);
+  const deudaDespues = Math.max(deudaAntes - pagosAplicadosMXN, 0);
+  // 5) Budget de la semana en curso (a archivar)
+  const semanaKey = getWeekKey();
+  const budgetSemana = budgetData.find(b => b.semana === semanaKey) || null;
+  return { pagosPorClave, pagosAplicadosMXN, deudaAntes, deudaDespues, filasAfectadas, budgetSemana, semanaKey };
+}
+
+/* Aplica el impacto calculado:
+   - UPDATE en catalogo_cxp (Supabase) por cada fila con pagos
+   - Refresca cxpData local
+   - Archiva y borra el budget de la semana cerrada */
+async function aplicarImpactoCierre(impacto) {
+  // 1) Persistir cambios en Supabase (fila por fila)
+  for (const f of impacto.filasAfectadas) {
+    if (!f.id) continue;
+    try {
+      const { error } = await sb.from('catalogo_cxp').update({
+        total:          f.despues.total,
+        recomendado:    f.despues.recomendado,
+        urgente:        f.despues.urgente,
+        supervivencia:  f.despues.supervivencia,
+        ajuste:         f.despues.ajuste,
+        actualizado_en: new Date().toISOString(),
+      }).eq('id', f.id);
+      if (error) console.warn('[cierre] update catalogo_cxp id=' + f.id, error);
+    } catch(e) {
+      console.warn('[cierre] update err id=' + f.id, e);
+    }
+    // 2) Reflejar en cxpData local (para que los KPIs recalculen sin refetch)
+    const row = cxpData.find(r => r.id === f.id);
+    if (row) {
+      row.total         = f.despues.total;
+      row.recomendado   = f.despues.recomendado;
+      row.urgente       = f.despues.urgente;
+      row.supervivencia = f.despues.supervivencia;
+      row.ajuste        = f.despues.ajuste;
+    }
+  }
+  // 3) Archivar y limpiar budget de la semana cerrada
+  if (impacto.budgetSemana) {
+    budgetData = budgetData.filter(b => b.semana !== impacto.semanaKey);
+    localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
+  }
+  return impacto;
+}
+
+/* ══════════════════════════════════════════
    CIERRE DE SEMANA
 ══════════════════════════════════════════ */
 
@@ -5312,6 +5410,10 @@ function openCierreSemanaModal() {
   const planPnd = planAct ? planPagoGetPendiente(planAct) : 0;
   const totalG  = gastosEfectuadosTotalGeneral();
   const arrData = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+
+  // Impacto sobre KPIs (Deuda Total y Presupuesto)
+  let impacto = null;
+  try { impacto = calcularImpactoCierre(); } catch(e) { console.warn('calcularImpactoCierre:', e); }
 
   document.getElementById('cierreSemanaResumen').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
@@ -5326,7 +5428,34 @@ function openCierreSemanaModal() {
         <div style="font-size:10px;color:var(--muted);">${k.l}</div>
         <div style="font-size:14px;font-weight:${k.bold?800:700};color:${k.c};margin-top:2px;">${k.v}</div>
       </div>`).join('')}
-    </div>`;
+    </div>
+    ${impacto ? `
+    <div style="background:linear-gradient(135deg,rgba(255,107,107,.06),rgba(63,185,80,.06));border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">📉 Impacto sobre KPIs al cerrar</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+          <div style="font-size:10px;color:var(--muted);">💳 Deuda antes</div>
+          <div style="font-size:13px;font-weight:700;color:#ff6b6b;margin-top:2px;">${fmt(impacto.deudaAntes)}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+          <div style="font-size:10px;color:var(--muted);">➖ Se descuenta</div>
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-top:2px;">-${fmt(impacto.pagosAplicadosMXN)}</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:1px;">${impacto.filasAfectadas.length} conceptos</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+          <div style="font-size:10px;color:var(--muted);">💳 Deuda después</div>
+          <div style="font-size:13px;font-weight:800;color:var(--green);margin-top:2px;">${fmt(impacto.deudaDespues)}</div>
+        </div>
+      </div>
+      ${impacto.budgetSemana ? `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+        <span style="color:var(--muted);">💰 Presupuesto de la semana</span>
+        <span style="color:var(--yellow);font-weight:700;">${fmtBudget(impacto.budgetSemana.monto, impacto.budgetSemana.moneda)} → se archivará</span>
+      </div>` : `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:11px;color:var(--muted);text-align:center;">
+        💰 Sin presupuesto capturado para esta semana
+      </div>`}
+    </div>` : ''}`;
   document.getElementById('cierreSemanaNote').value = '';
   document.getElementById('cierreSemanaModal').classList.add('open');
 }
@@ -5343,9 +5472,19 @@ async function confirmarCierreSemana() {
   const totalG  = gastosEfectuadosTotalGeneral();
   const totalE  = getEntradasTotal();
 
-  // 1) Renderizar el REPORTE DE CIERRE con los datos actuales ANTES de limpiar,
+  // 1) Calcular impacto sobre KPIs (Deuda Total y Presupuesto) ANTES de borrar nada
+  let impacto = null;
+  try { impacto = calcularImpactoCierre(); } catch(e) { console.warn('calcularImpactoCierre:', e); }
+
+  // 2) Renderizar el REPORTE DE CIERRE con los datos actuales ANTES de limpiar,
   //    para que el HTML quede pintado en el DOM con la información de la semana cerrada.
   try { renderReporteSemanaModal(); } catch(e) { console.warn('render reporte cierre:', e); }
+
+  // 3) Aplicar impacto: descontar pagos del catálogo CxP (Supabase + local)
+  //    y archivar+borrar el presupuesto de la semana cerrada.
+  if (impacto) {
+    try { await aplicarImpactoCierre(impacto); } catch(e) { console.warn('aplicarImpactoCierre:', e); }
+  }
 
   // Archivar snapshot en localStorage
   const semanaKey = getWeekKey();
@@ -5361,6 +5500,18 @@ async function confirmarCierreSemana() {
     planPendiente: planPnd,
     nGastos: gastosEfectuadosData.length,
     nEntradas: entradasData.length,
+    // ── nuevo: impacto sobre KPIs (Deuda Total + Presupuesto) ──
+    deudaAntes: impacto ? impacto.deudaAntes : null,
+    deudaDespues: impacto ? impacto.deudaDespues : null,
+    pagosAplicadosMXN: impacto ? impacto.pagosAplicadosMXN : 0,
+    conceptosAfectados: impacto ? impacto.filasAfectadas.length : 0,
+    budgetArchivado: impacto && impacto.budgetSemana ? {
+      monto: impacto.budgetSemana.monto,
+      moneda: impacto.budgetSemana.moneda,
+      alerta: impacto.budgetSemana.alerta,
+      notas: impacto.budgetSemana.notas || '',
+      ejecutado: totalG,
+    } : null,
   });
   localStorage.setItem('mitech_cierres_hist', JSON.stringify(historial.slice(0, 52))); // máx 52 semanas
 
@@ -5391,7 +5542,10 @@ async function confirmarCierreSemana() {
   const repEl = document.getElementById('reporteSemanaModal');
   if (repEl) repEl.classList.add('open');
 
-  toast('✅ Semana cerrada — Reporte de cierre generado');
+  const msg = impacto && impacto.pagosAplicadosMXN > 0
+    ? `✅ Semana cerrada — Deuda reducida en ${fmt(impacto.pagosAplicadosMXN)}`
+    : '✅ Semana cerrada — Reporte de cierre generado';
+  toast(msg);
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
 
