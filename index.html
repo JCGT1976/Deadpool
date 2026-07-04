@@ -5398,6 +5398,9 @@ function renderReporteSemanaModal() {
     </div>
     <div style="overflow-x:auto;margin-bottom:14px;">${tablaHtml}</div>
 
+    <!-- Etapa 3 — Análisis de varianza (Baseline vs Forecast vs Real) -->
+    ${varianzaCierreHtml()}
+
     <!-- Historial de cierres -->
     ${(()=>{
       const hist = JSON.parse(localStorage.getItem('mitech_cierres_hist') || '[]');
@@ -5414,6 +5417,88 @@ function renderReporteSemanaModal() {
         </div>`;
     })()}
   `;
+}
+
+/* ══════════════════════════════════════════
+   Etapa 3 — ANÁLISIS DE VARIANZA (Plan vs Forecast vs Real)
+   Genera el HTML del panel de análisis de varianza que aparece en el
+   Reporte Semanal (al hacer Cierre de Semana). Compara:
+    • Baseline  = plan inicial (Excel del lunes)
+    • Forecast  = baseline + ajustes agregados durante la semana
+    • Actual    = lo efectivamente pagado
+   Solo se muestra si hay baseline registrado para la semana actual.
+══════════════════════════════════════════ */
+function varianzaCierreHtml() {
+  try {
+    const r = forecastResumen();
+    if (!r.tieneBaseline) return '';
+    const totalG = gastosEfectuadosTotalGeneral();
+    const baseline = r.planInicialMXN;
+    const forecast = r.totalMXN;
+    const real     = totalG;
+    // Varianzas (positivas = gastaste más que lo planeado)
+    const varAjustes = r.ajustesMXN;                             // Baseline → Forecast
+    const varEjec    = real - forecast;                          // Forecast → Real
+    const varTotal   = real - baseline;                          // Baseline → Real
+    // Porcentajes
+    const pctCumpl   = baseline > 0 ? (real / baseline * 100) : 0;
+    const pctAjustes = baseline > 0 ? (varAjustes / baseline * 100) : 0;
+    // Semáforo para % cumplimiento
+    const colorCumpl = pctCumpl <= 100 ? 'var(--green)' : (pctCumpl <= 110 ? 'var(--yellow)' : 'var(--red)');
+    // Top 3 categorías con ajustes
+    const rowsAll = cxpData.filter(x => x && x.concepto && x.total !== undefined);
+    const catAjustes = {};
+    rowsAll.forEach(x => {
+      if (esGastoAjuste(x)) {
+        const c = x.categoria || 'General';
+        catAjustes[c] = (catAjustes[c] || 0) + cxpMontoMXN(x, 'total');
+      }
+    });
+    const topCats = Object.entries(catAjustes).sort((a,b) => b[1] - a[1]).slice(0, 3);
+
+    return `
+      <div style="background:linear-gradient(135deg,rgba(96,165,250,.06),rgba(251,191,36,.04));border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;">📊 Análisis de varianza — Plan vs Forecast vs Real</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;">
+          ${[
+            { l:'Baseline (plan)', v: fmt(baseline), c:'var(--muted)',   sub: r.planCount+' conceptos'},
+            { l:'⚡ Ajustes semana', v: '+'+fmt(varAjustes), c:'#fbbf24',   sub: r.ajustesCount+' agregados' },
+            { l:'Forecast (op.)',  v: fmt(forecast), c:'var(--accent)', sub: 'plan + ajustes' },
+            { l:'Real pagado',     v: fmt(real),     c:'var(--red)',    sub: '' },
+            { l:'% cumplimiento',  v: pctCumpl.toFixed(1)+'%', c: colorCumpl, sub: 'real vs baseline' },
+            { l:'% ajustes',       v: pctAjustes.toFixed(1)+'%', c:'#fbbf24', sub: 'sobre baseline' }
+          ].map(k=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
+            <div style="font-size:10px;color:var(--muted);">${k.l}</div>
+            <div style="font-size:14px;font-weight:700;color:${k.c};margin-top:2px;">${k.v}</div>
+            ${k.sub ? `<div style="font-size:9px;color:var(--muted);margin-top:1px;">${k.sub}</div>` : ''}
+          </div>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;margin-bottom:10px;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;">
+            <div style="color:var(--muted);font-size:10px;">Var. Baseline → Forecast</div>
+            <div style="color:${varAjustes>0?'#fbbf24':'var(--muted)'};font-weight:700;">${varAjustes>=0?'+':''}${fmt(varAjustes)}</div>
+            <div style="color:var(--muted);font-size:9px;">Accuracy del pronóstico</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;">
+            <div style="color:var(--muted);font-size:10px;">Var. Forecast → Real</div>
+            <div style="color:${varEjec>0?'var(--red)':(varEjec<0?'var(--green)':'var(--muted)')};font-weight:700;">${varEjec>=0?'+':''}${fmt(varEjec)}</div>
+            <div style="color:var(--muted);font-size:9px;">Disciplina de ejecución</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;">
+            <div style="color:var(--muted);font-size:10px;">Var. Total (Baseline → Real)</div>
+            <div style="color:${varTotal>0?'var(--red)':(varTotal<0?'var(--green)':'var(--muted)')};font-weight:700;">${varTotal>=0?'+':''}${fmt(varTotal)}</div>
+            <div style="color:var(--muted);font-size:9px;">Desviación de origen a fin</div>
+          </div>
+        </div>
+        ${topCats.length > 0 ? `<div style="font-size:11px;color:var(--text);">
+          <span style="color:var(--muted);">Top categorías con más ajustes:</span>
+          ${topCats.map(([c,m]) => `<span style="display:inline-block;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);color:#fbbf24;padding:2px 8px;border-radius:6px;margin-left:6px;font-weight:600;">${c}: +${fmt(m)}</span>`).join('')}
+        </div>` : ''}
+      </div>`;
+  } catch(e) {
+    console.warn('varianzaCierreHtml:', e);
+    return '';
+  }
 }
 
 /* ══════════════════════════════════════════
