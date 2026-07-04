@@ -1543,16 +1543,23 @@ async function loginSuccess(userData) {
   rb.textContent = ROLE_LABELS_TOP[userData.rol] || userData.rol;
   rb.className = 'role-badge role-' + userData.rol;
 
-  // Solo el Admon Master puede ver/gestionar usuarios
-  if (userData.rol === 'admin_master') {
-    document.querySelectorAll('.master-only').forEach(el => el.style.display='');
-  } else {
-    document.querySelectorAll('.master-only').forEach(el => el.style.display='none');
-  }
+  // 🔒 Aplicar visibilidad de tabs según rol + permisos
+  aplicarVisibilidadTabs();
 
   startTimer();
   await loadAllData();
-  showTab('dashboard');
+
+  // Elegir el primer tab accesible (dashboard por defecto, sino cxp, sino usuarios)
+  const primerTabAccesible = ['dashboard','cxp','usuarios'].find(tab => {
+    if (tab === 'usuarios') return userData.rol === 'admin_master';
+    return canAccess(tab);
+  });
+  if (primerTabAccesible) {
+    showTab(primerTabAccesible);
+  } else {
+    toast('Este usuario no tiene módulos habilitados. Contacta al Admon Master.', 'err');
+    setTimeout(doLogout, 2500);
+  }
 }
 
 function doLogout() {
@@ -1594,6 +1601,22 @@ async function loadAllData() {
    TABS
 ══════════════════════════════════════════ */
 function showTab(tab) {
+  // 🔒 VALIDACIÓN DE ACCESO: mapa tab → permiso requerido
+  const TAB_PERM = { dashboard:'dashboard', cxp:'cxp', usuarios:'usuarios' };
+  const permId = TAB_PERM[tab];
+  if (permId && !canAccess(permId)) {
+    toast(t('toast.no_permission') || 'Sin permisos para esta sección', 'err');
+    // Fallback: primer tab permitido, o cerrar sesión si ninguno
+    const fallback = ['dashboard','cxp','usuarios'].find(x => canAccess(TAB_PERM[x]));
+    if (!fallback) { doLogout(); return; }
+    tab = fallback;
+  }
+  // Doble seguro: 'usuarios' es exclusivo de admin_master
+  if (tab === 'usuarios' && currentUser?.rol !== 'admin_master') {
+    toast('Solo el Admon Master puede gestionar usuarios', 'err');
+    tab = canAccess('dashboard') ? 'dashboard' : (canAccess('cxp') ? 'cxp' : null);
+    if (!tab) { doLogout(); return; }
+  }
   window._currentTab = tab;  // memorizar para re-render al cambiar idioma
   document.querySelectorAll('.nav-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.tab === tab);
@@ -1606,6 +1629,23 @@ function showTab(tab) {
   }
   // Re-aplicar traducciones si el tab agrega nodos con data-i18n
   setTimeout(() => { try { applyI18n(); } catch(e){} }, 0);
+}
+
+/* Filtra visualmente los tabs de la barra de navegación según permisos */
+function aplicarVisibilidadTabs() {
+  if (!currentUser) return;
+  const map = { dashboard:'dashboard', cxp:'cxp', usuarios:'usuarios' };
+  document.querySelectorAll('.nav-tab').forEach(btn => {
+    const tab = btn.dataset.tab;
+    const perm = map[tab];
+    if (!perm) return;
+    // 'usuarios' es master-only además del permiso
+    if (tab === 'usuarios') {
+      btn.style.display = (currentUser.rol === 'admin_master') ? '' : 'none';
+    } else {
+      btn.style.display = canAccess(perm) ? '' : 'none';
+    }
+  });
 }
 
 /* stub: tab reporte removido de nav, se conserva la función por compatibilidad */
@@ -1655,6 +1695,7 @@ function fmtBudget(n, moneda) {
 }
 
 function openBudgetModal() {
+  if (!requirePerm('cxp', 'Sin permisos para editar el presupuesto')) return;
   const weekKey   = getWeekKey();
   const weekLabel = getWeekLabel(weekKey);
   document.getElementById('budgetSemanaLabel').textContent = weekLabel;
@@ -1680,6 +1721,7 @@ function budgetSetMoneda(moneda, btn) {
 }
 
 function saveBudget() {
+  if (!requirePerm('cxp', 'Sin permisos para guardar el presupuesto')) return;
   const semana = getWeekKey();
   const monto  = parseMoney(document.getElementById('budgetMonto').value);
   const alerta = parseFloat(document.getElementById('budgetAlerta').value) || 80;
@@ -1775,6 +1817,7 @@ function getEntradasTotal() {
 }
 
 function openEntradasModal() {
+  if (!requirePerm('entradas', 'Sin permisos para registrar/ver entradas')) return;
   const tc = localStorage.getItem('mitech_tc') || '17';
   document.getElementById('tcValue').value = tc;
   entradasRenderList();
@@ -1908,6 +1951,7 @@ function entradasRenderList() {
 }
 
 function saveEntrada() {
+  if (!requirePerm('entradas', 'Sin permisos para registrar entradas')) return;
   const fuente  = document.getElementById('entradaFuente').value;
   const montoRaw= document.getElementById('entradaMonto').value;
   const monto   = parseMoney(montoRaw);
@@ -1926,6 +1970,7 @@ function saveEntrada() {
 }
 
 function deleteEntrada(i) {
+  if (!requirePerm('entradas', 'Sin permisos para eliminar entradas')) return;
   entradasData.splice(i,1);
   localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
   entradasRenderList();
@@ -2548,8 +2593,15 @@ let cxpSemanaSeleccionada = localStorage.getItem('cxpSemanaSeleccionada') || nul
 
 /* ── RENDER PRINCIPAL ────────────────────── */
 function renderCxP(c) {
+  // 🔒 Defensa en profundidad: nunca renderizar si no hay permiso cxp
+  if (!canAccess('cxp')) {
+    c.innerHTML = '<div class="loading-wrap">🔒 No tienes permiso para ver Cuentas por Pagar.</div>';
+    return;
+  }
+  const puedeEditarCatalogo = canAccess('catalogo');
   c.innerHTML = `
-    <!-- Accordion Upload CxP -->
+    ${puedeEditarCatalogo ? `
+    <!-- Accordion Upload CxP (solo para usuarios con permiso 'catalogo') -->
     <div class="accordion open">
       <div class="accordion-header" onclick="toggleAccordion(this)">
         <span class="accordion-icon">📂</span>
@@ -2575,6 +2627,7 @@ function renderCxP(c) {
     <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
       </div></div>
     </div><!-- /.accordion upload -->
+    ` : ''}
 
     <!-- Accordion KPIs CxP -->
     <div class="accordion open">
@@ -2612,7 +2665,8 @@ function renderCxP(c) {
     </div><!-- /.accordion detalle -->
   `;
 
-  /* Drag & drop */
+  /* Drag & drop — solo si se renderizó la zona de upload */
+  if (puedeEditarCatalogo) {
   const zone = document.getElementById('cxpUploadZone');
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
@@ -2621,6 +2675,7 @@ function renderCxP(c) {
     const f = e.dataTransfer.files[0];
     if (f) cxpHandleFile({ target: { files: [f] } });
   });
+  } // fin if (puedeEditarCatalogo)
 
   if (cxpData.length > 0) {
     cxpRenderAll();
@@ -2631,6 +2686,8 @@ function renderCxP(c) {
 
 /* ── CARGA EXCEL ─────────────────────────── */
 async function cxpHandleFile(e) {
+  // 🔒 Solo usuarios con permiso 'catalogo' pueden cargar el Excel de CxP
+  if (!requirePerm('catalogo', 'Sin permisos para cargar el catálogo de CxP')) return;
   const file = e.target.files[0];
   if (!file) return;
   const statusEl = document.getElementById('cxpUploadStatus');
@@ -3248,11 +3305,15 @@ async function confirmPlanPago(plan) {
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
 
-/* Permite cambiar de plan desde el modal de detalle — restringido a admin */
+/* Permite cambiar de plan desde el modal de detalle — restringido a admin/admin_master */
 function cambiarPlanPago() {
-  const esAdmin = currentUser?.rol === 'admin' || currentUser?.rol === 'admin_master';
-  if (!esAdmin) {
-    toast('🔒 Solo Juan Carlos (admin) puede cambiar el plan activo', 'err');
+  // Solo admin_master o admin (que tenga permiso plan_pagos) pueden cambiar plan
+  if (currentUser?.rol !== 'admin_master' && currentUser?.rol !== 'admin') {
+    toast('🔒 Solo el Admon Master o Admin puede cambiar el plan activo', 'err');
+    return;
+  }
+  if (!canAccess('plan_pagos')) {
+    toast('Sin permisos para cambiar el plan de pagos', 'err');
     return;
   }
   closePlanPagoDetalleModal();
@@ -3977,6 +4038,7 @@ function refrescarKPIsPostMove() {
 /* Abre modal de registro de pago para UNA fila específica (reemplaza el flujo
    por selección múltiple con checkboxes) */
 function abrirRegistroPagoFila(rowKeyIdx) {
+  if (!requirePerm('reg_pago', 'Sin permisos para registrar pagos')) return;
   const clave = window._planPagoClaves[rowKeyIdx];
   const st = window._planPagoState;
   if (!st || !clave) return;
@@ -3989,6 +4051,7 @@ function abrirRegistroPagoFila(rowKeyIdx) {
    que actualmente no tienen nivel explícito, usando la lógica de inferencia
    basada en categoría+tipo. */
 async function planPagoPersistirNivelesInferidos() {
+  if (!requirePerm('catalogo', 'Sin permisos para modificar el catálogo')) return;
   const st = window._planPagoState;
   if (!st) { toast('Abre primero el detalle del plan', 'err'); return; }
 
@@ -4879,6 +4942,7 @@ function renderGastosDetalleModal() {
 ══════════════════════════════════════════ */
 
 function openCierreSemanaModal() {
+  if (!requirePerm('cierre', 'Sin permisos para cerrar la semana')) return;
   const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
   const totalE  = getEntradasTotal();
   const planAct = planPagoGetActivo();
@@ -4974,8 +5038,7 @@ async function confirmarCierreSemana() {
 ══════════════════════════════════════════ */
 
 function openResetTotalModal() {
-  const user = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
-  if (user.rol !== 'admin' && user.rol !== 'admin_master') { toast('Solo administradores pueden ejecutar el reset', 'err'); return; }
+  if (!requirePerm('reset', 'Solo el Admon Master puede ejecutar el reset total')) return;
   document.getElementById('resetTotalConfirmInput').value = '';
   document.getElementById('resetTotalBtn').disabled = true;
   document.getElementById('resetTotalBtn').style.opacity = '.4';
@@ -4997,8 +5060,7 @@ function resetTotalCheckConfirm() {
 }
 
 async function confirmarResetTotal() {
-  const user = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
-  if (user.rol !== 'admin' && user.rol !== 'admin_master') { toast('Sin permisos', 'err'); return; }
+  if (!requirePerm('reset', 'Sin permisos para reset total')) return;
   if (document.getElementById('resetTotalConfirmInput').value.trim() !== 'RESET') return;
 
   // Eliminar gastos_efectuados
@@ -5028,6 +5090,7 @@ async function confirmarResetTotal() {
 ══════════════════════════════════════════ */
 
 function openReporteSemanaModal() {
+  if (!requirePerm('reporte', 'Sin permisos para ver el reporte semanal')) return;
   renderReporteSemanaModal();
   document.getElementById('reporteSemanaModal').classList.add('open');
 }
@@ -5190,23 +5253,31 @@ const PERMS_MODULOS = [
 ];
 
 const PERMS_DEFAULT = {
+  // admin_master: acceso total permanente (el canAccess ni siquiera consulta esto)
   admin_master: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, true])),
-  admin:  Object.fromEntries(PERMS_MODULOS.map(m => [m.id, true])),
+  // admin: TODO menos 'usuarios' y 'reset' (solo admin_master toca esos)
+  admin:  Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['usuarios','reset'].includes(m.id)])),
+  // cohost: operación normal, sin gestión de usuarios/reset/catálogo
   cohost: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['reset','usuarios','catalogo'].includes(m.id)])),
+  // view: solo lectura de dashboard/reporte/detalle de gastos
   view:   Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','reporte','gastos_det'].includes(m.id)])),
+  // income: solo dashboard + captura de entradas
   income: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','entradas'].includes(m.id)])),
 };
 
-/* Marca de reset único de permisos: al subir esta versión, todo usuario
-   NO admin/admin_master vuelve una sola vez a los permisos default de su
-   rol (view solo-lectura) en cada dispositivo, sin importar toggles previos
-   guardados localmente. Solicitado: "reestablece a todos como View, una vez". */
-const PERMS_FORCE_RESET_STAMP = '2026-07-01-admonmaster-v1';
+/* Marca de reset único de permisos: al subir esta versión, TODO usuario NO
+   admin_master vuelve una sola vez a los permisos default de su rol en cada
+   dispositivo, sin importar toggles previos guardados localmente.
+   ⚠️ Bumpear este stamp cuando se cambien los defaults de PERMS_DEFAULT. */
+const PERMS_FORCE_RESET_STAMP = '2026-07-04-role-hardening-v3';
 
-/* Obtiene permisos del usuario: custom si existen, sino defaults del rol */
+/* Obtiene permisos del usuario: custom si existen, sino defaults del rol.
+   Al bumpear PERMS_FORCE_RESET_STAMP, todo usuario NO admin_master se
+   recalibra una vez a los defaults de su rol actual (elimina permisos
+   huérfanos si el admin_master cambió el rol del usuario). */
 function permisosGet(userId, rol) {
   const all = JSON.parse(localStorage.getItem('mitech_permisos_v1') || '{}');
-  if (rol !== 'admin' && rol !== 'admin_master') {
+  if (rol !== 'admin_master') {
     const resets = JSON.parse(localStorage.getItem('mitech_permisos_reset_log') || '{}');
     if (resets[userId] !== PERMS_FORCE_RESET_STAMP) {
       const defaults = { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
@@ -5227,12 +5298,22 @@ function permisosSet(userId, permisos) {
   localStorage.setItem('mitech_permisos_v1', JSON.stringify(all));
 }
 
-/* Verifica si el usuario actual puede acceder a un módulo */
+/* Verifica si el usuario actual puede acceder a un módulo.
+   JERARQUÍA CORRECTA: admin_master (bypass total) → admin → cohost → income → view.
+   Solo admin_master salta la revisión de permisos; todos los demás roles
+   (incluido admin) deben respetar la matriz de permisos del rol o los custom. */
 function canAccess(modId) {
   if (!currentUser) return false;
-  if (currentUser.rol === 'admin' || currentUser.rol === 'admin_master') return true;
+  if (currentUser.rol === 'admin_master') return true;
   const perms = currentUser.permisos || PERMS_DEFAULT[currentUser.rol] || {};
   return !!perms[modId];
+}
+
+/* Guardián para acciones sensibles: muestra toast y retorna false si no autorizado. */
+function requirePerm(modId, mensaje) {
+  if (canAccess(modId)) return true;
+  toast(mensaje || 'Sin permisos para esta acción', 'err');
+  return false;
 }
 
 function reporteImprimir() { window.print(); }
@@ -5261,7 +5342,7 @@ try {
   } catch(e) { console.error(e); }
   sessionStorage.removeItem('mitech_user');
 })();
-/* deploy-nudge: 20260703T174426-r2 */
+/* deploy-nudge: 20260704T125830-role-hardening */
 </script>
 </body>
 </html>
