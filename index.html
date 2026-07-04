@@ -1120,7 +1120,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.04.6';
+const APP_VERSION = '2026.07.04.7';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -1708,6 +1708,9 @@ function showTab(tab) {
     case 'cxp':       renderCxP(c); break;
     case 'usuarios':  renderUsuarios(c); break;
   }
+  // Restaurar el estado abierto/cerrado de acordeones (evita que se colapsen
+  // al re-renderizar después de agregar gasto, registrar pago, cerrar semana, etc.)
+  try { accordionApplySavedState(); } catch(e){}
   // Re-aplicar traducciones si el tab agrega nodos con data-i18n
   setTimeout(() => { try { applyI18n(); } catch(e){} }, 0);
 }
@@ -1881,8 +1884,39 @@ document.getElementById('resumenEjecutivoModal').addEventListener('click', funct
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
   const acc = el.closest('.accordion');
+  if (!acc) return;
   const isOpen = acc.classList.contains('open');
   acc.classList.toggle('open', !isOpen);
+  accordionPersistState();
+}
+
+/* ── Etapa 5.2 · Fix "el plan se compacta al agregar gasto" ──
+   Persiste el estado abierto/cerrado de cada acordeón en localStorage
+   y lo restaura después de cada showTab/renderDashboard. Sin esto,
+   cualquier re-render del dashboard (agregar gasto, registrar pago,
+   cerrar semana, etc.) devolvía todos los acordeones a "abiertos por
+   defecto" y el usuario perdía su vista de trabajo. */
+function accordionPersistState() {
+  try {
+    const state = {};
+    document.querySelectorAll('.accordion[id]').forEach(acc => {
+      state[acc.id] = acc.classList.contains('open');
+    });
+    localStorage.setItem('mitech_accordion_state', JSON.stringify(state));
+  } catch(e) { console.warn('accordionPersistState:', e); }
+}
+
+function accordionApplySavedState() {
+  try {
+    const raw = localStorage.getItem('mitech_accordion_state');
+    if (!raw) return; // primera vez, mantener defaults del HTML
+    const state = JSON.parse(raw);
+    document.querySelectorAll('.accordion[id]').forEach(acc => {
+      if (Object.prototype.hasOwnProperty.call(state, acc.id)) {
+        acc.classList.toggle('open', !!state[acc.id]);
+      }
+    });
+  } catch(e) { console.warn('accordionApplySavedState:', e); }
 }
 
 /* ── RENDER DASHBOARD ─────────────────── */
@@ -2688,7 +2722,7 @@ function renderCxP(c) {
   c.innerHTML = `
     ${puedeEditarCatalogo ? `
     <!-- Accordion Upload CxP (solo para usuarios con permiso 'catalogo') -->
-    <div class="accordion open">
+    <div class="accordion open" id="acc-cxp-upload">
       <div class="accordion-header" onclick="toggleAccordion(this)">
         <span class="accordion-icon">📂</span>
         <span class="accordion-title">Cargar Archivo de CxP</span>
@@ -2716,7 +2750,7 @@ function renderCxP(c) {
     ` : ''}
 
     <!-- Accordion KPIs CxP -->
-    <div class="accordion open">
+    <div class="accordion open" id="acc-cxp-kpis">
       <div class="accordion-header" onclick="toggleAccordion(this)">
         <span class="accordion-icon">💳</span>
         <span class="accordion-title">Indicadores de CxP</span>
@@ -2731,7 +2765,7 @@ function renderCxP(c) {
     </div><!-- /.accordion KPIs -->
 
     <!-- Accordion Detalle CxP -->
-    <div class="accordion open">
+    <div class="accordion open" id="acc-cxp-detalle">
       <div class="accordion-header" onclick="toggleAccordion(this)">
         <span class="accordion-icon">📋</span>
         <span class="accordion-title">Cuentas por Pagar — Detalle</span>
