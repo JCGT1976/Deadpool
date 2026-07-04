@@ -3018,6 +3018,8 @@ async function cxpLoadSupabase() {
   }
   document.getElementById('cxpUploadStatus').textContent = '✔ Supabase · catalogo_cxp · ' + cxpData.length + ' conceptos';
   cxpRenderAll();
+  // Etapa 2 — Sincronizar baseline desde Supabase (best-effort, no bloqueante)
+  try { sincronizarBaselineDesdeSupabase(); } catch(e) { /* ignora */ }
 }
 
 /* ── RENDER KPIs ─────────────────────────── */
@@ -4692,8 +4694,66 @@ function guardarBaseline(rows) {
       totalMXN
     };
     localStorage.setItem(baselineKey(), JSON.stringify(snapshot));
-    console.log('✓ Baseline guardado:', snapshot.claves.length, 'conceptos · $' + Math.round(totalMXN).toLocaleString('es-MX'));
+    console.log('✓ Baseline guardado (local):', snapshot.claves.length, 'conceptos · $' + Math.round(totalMXN).toLocaleString('es-MX'));
+    // Etapa 2 — persistir también en Supabase (best-effort, no bloqueante)
+    persistirBaselineSupabase(snapshot);
   } catch(e) { console.warn('No se pudo guardar baseline:', e); }
+}
+
+/* Etapa 2 — Upsert del baseline en Supabase (best-effort, silencioso si falla) */
+async function persistirBaselineSupabase(snapshot) {
+  try {
+    if (typeof sb === 'undefined' || !sb) return;
+    const usuario = (typeof state !== 'undefined' && state && state.usuarioNombre) ? state.usuarioNombre : null;
+    const payload = {
+      semana: snapshot.semana,
+      fecha: snapshot.fecha,
+      claves: snapshot.claves,
+      total_mxn: snapshot.totalMXN,
+      n_conceptos: snapshot.claves.length,
+      creado_por: usuario
+    };
+    const { error } = await sb.from('plan_baseline_snapshots').upsert(payload, { onConflict: 'semana' });
+    if (error) {
+      // Tabla puede no existir aún (Etapa 2 SQL no aplicado). No es error grave.
+      if (String(error.message || '').includes('does not exist') || error.code === '42P01') {
+        console.info('ℹ️ Tabla plan_baseline_snapshots no existe aún. Baseline solo en localStorage.');
+      } else {
+        console.warn('Baseline Supabase upsert error:', error.message);
+      }
+    } else {
+      console.log('✓ Baseline sincronizado a Supabase');
+    }
+  } catch(e) { console.warn('persistirBaselineSupabase:', e); }
+}
+
+/* Etapa 2 — Traer baseline de Supabase y guardarlo en localStorage si no hay local */
+async function sincronizarBaselineDesdeSupabase() {
+  try {
+    if (typeof sb === 'undefined' || !sb) return;
+    const semana = isoWeekKey();
+    if (localStorage.getItem(baselineKey())) return; // ya hay local, no sobrescribir
+    const { data, error } = await sb.from('plan_baseline_snapshots').select('*').eq('semana', semana).maybeSingle();
+    if (error) {
+      if (String(error.message || '').includes('does not exist') || error.code === '42P01') return;
+      console.warn('Baseline fetch:', error.message);
+      return;
+    }
+    if (data && data.claves) {
+      const snapshot = {
+        fecha: data.fecha,
+        semana: data.semana,
+        claves: Array.isArray(data.claves) ? data.claves : [],
+        totalMXN: parseFloat(data.total_mxn) || 0
+      };
+      localStorage.setItem(baselineKey(), JSON.stringify(snapshot));
+      console.log('✓ Baseline traído de Supabase:', snapshot.claves.length, 'conceptos');
+      // Refrescar la vista si el modal está abierto
+      if (window._planPagoState && typeof planPagoRenderTabla === 'function') {
+        planPagoRenderTabla();
+      }
+    }
+  } catch(e) { console.warn('sincronizarBaselineDesdeSupabase:', e); }
 }
 
 function leerBaseline() {
