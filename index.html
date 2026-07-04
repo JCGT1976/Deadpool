@@ -337,6 +337,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #resetTotalModal.open{display:flex;opacity:1;pointer-events:all;}
 #reporteSemanaModal{display:none;}
 #reporteSemanaModal.open{display:flex;opacity:1;pointer-events:all;}
+#resumenEjecutivoModal{display:none;}
+#resumenEjecutivoModal.open{display:flex;opacity:1;pointer-events:all;}
 #cambiarNivelModal{display:none;}
 #cambiarNivelModal.open{display:flex;opacity:1;pointer-events:all;}
 #flujoEfectivoModal{display:none;}
@@ -942,6 +944,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   </div>
 </div>
 
+<!-- ── MODAL RESUMEN EJECUTIVO (Etapa 5) ── -->
+<div id="resumenEjecutivoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1200;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(760px,97vw);max-height:92vh;overflow-y:auto;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:var(--text);" data-i18n="exec.title">📊 Resumen Ejecutivo</div>
+        <div id="resumenEjecutivoSubtitulo" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="resumenEjecutivoCopiar()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;" data-i18n="exec.copy">📋 Copiar texto</button>
+        <button onclick="reporteImprimir()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;" data-i18n="exec.print">🖨️ Imprimir</button>
+        <button onclick="closeResumenEjecutivoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">✕</button>
+      </div>
+    </div>
+    <div id="resumenEjecutivoBody"></div>
+  </div>
+</div>
+
 <!-- ── MODAL DETALLE GASTOS EFECTUADOS ── -->
 <div id="gastosDetalleModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(700px,96vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
@@ -1332,6 +1352,21 @@ const I18N = {
   'plan.nivel':         { es:'Nivel',           en:'Level' },
   'plan.orden':         { es:'Orden',           en:'Order' },
   'plan.acciones':      { es:'Acciones',        en:'Actions' },
+
+  // ── Etapa 5 · Resumen Ejecutivo + Histórico Excel ──
+  'btn.exec_summary':   { es:'📊 Resumen Ejecutivo', en:'📊 Executive Summary' },
+  'btn.export_history': { es:'📥 Histórico Excel',    en:'📥 History Excel' },
+  'exec.title':         { es:'📊 Resumen Ejecutivo', en:'📊 Executive Summary' },
+  'exec.print':         { es:'🖨️ Imprimir',           en:'🖨️ Print' },
+  'exec.copy':          { es:'📋 Copiar texto',        en:'📋 Copy text' },
+  'exec.alerts':        { es:'🚨 Alertas',             en:'🚨 Alerts' },
+  'exec.no_alerts':     { es:'Sin alertas relevantes esta semana',
+                          en:'No relevant alerts this week' },
+  'exec.copied':        { es:'✅ Resumen copiado al portapapeles',
+                          en:'✅ Summary copied to clipboard' },
+  'exec.no_history':    { es:'Aún no hay cierres semanales para exportar',
+                          en:'No weekly closes to export yet' },
+  'exec.export_ok':     { es:'✅ Histórico exportado',   en:'✅ History exported' },
 };
 
 /* Traduce una key. Si no existe, retorna la key (útil para detectar faltantes) */
@@ -1806,6 +1841,9 @@ document.getElementById('cierreSemanaModal').addEventListener('click', function(
 document.getElementById('reporteSemanaModal').addEventListener('click', function(e) {
   if (e.target === this) closeReporteSemanaModal();
 });
+document.getElementById('resumenEjecutivoModal').addEventListener('click', function(e) {
+  if (e.target === this) closeResumenEjecutivoModal();
+});
 /* ── FUNCIÓN ACCORDION ─────────────────── */
 function toggleAccordion(el) {
   const acc = el.closest('.accordion');
@@ -2232,6 +2270,8 @@ async function renderDashboard(c) {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${canAccess('reporte') ? `<button onclick="openReporteSemanaModal()" style="background:rgba(0,194,255,.1);color:var(--accent);border:1px solid rgba(0,194,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.report')}</button>` : ''}
+        ${canAccess('reporte') ? `<button onclick="openResumenEjecutivoModal()" style="background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.exec_summary')}</button>` : ''}
+        ${canAccess('cierre') ? `<button onclick="descargarHistoricoExcel()" style="background:rgba(96,165,250,.1);color:#60a5fa;border:1px solid rgba(96,165,250,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.export_history')}</button>` : ''}
         ${canAccess('cierre') ? `<button onclick="openCierreSemanaModal()" style="background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.close_week')}</button>` : ''}
         ${canAccess('reset') ? `<button onclick="openResetTotalModal()" style="background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">${t('btn.reset')}</button>` : ''}
       </div>
@@ -5584,6 +5624,305 @@ function requirePerm(modId, mensaje) {
 }
 
 function reporteImprimir() { window.print(); }
+
+/* ══════════════════════════════════════════
+   ETAPA 5 — RESUMEN EJECUTIVO + EXCEL HISTÓRICO
+   Resumen ejecutivo: one-pager con KPIs grandes, alertas
+   automáticas y comparativa vs baseline (reusa Etapa 3).
+   Excel Histórico: exporta mitech_cierres_hist + arrastre +
+   plan_baseline_snapshots (Supabase) como .xlsx multi-hoja.
+══════════════════════════════════════════ */
+
+function openResumenEjecutivoModal() {
+  if (!requirePerm('reporte', 'Sin permisos para ver el resumen ejecutivo')) return;
+  renderResumenEjecutivo();
+  document.getElementById('resumenEjecutivoModal').classList.add('open');
+}
+
+function closeResumenEjecutivoModal() {
+  document.getElementById('resumenEjecutivoModal').classList.remove('open');
+}
+
+/* Devuelve un array de alertas {tipo, icono, titulo, texto, color}
+   Tipos: 'ok' | 'warn' | 'err' | 'info' */
+function resumenEjecutivoAlertas() {
+  const alertas = [];
+  try {
+    const planAct = planPagoGetActivo();
+    const planMnt = planAct ? planPagoGetMonto(planAct) : 0;
+    const planPnd = planAct ? planPagoGetPendiente(planAct) : 0;
+    const totalG  = gastosEfectuadosTotalGeneral();
+    const totalE  = getEntradasTotal();
+    const brecha  = totalE - planPnd;
+    const rows    = cxpData.filter(r => r && r.concepto && r.total !== undefined);
+    const colPlan = planAct === 'all' ? 'total' : planAct;
+
+    // 1) Nivel L1 (Salarios) — ¿100% pagado?
+    if (planAct) {
+      const l1Rows = rows.filter(r => nivelEfectivo(r) === 1);
+      if (l1Rows.length > 0) {
+        const l1Plan  = l1Rows.reduce((s,r) => s + cxpMontoMXN(r, colPlan), 0);
+        const l1Pag   = l1Rows.reduce((s,r) => s + Math.min(gastosEfectuadosTotalPorClave(r._key), cxpMontoMXN(r,'total')), 0);
+        if (l1Plan > 0) {
+          const pct = (l1Pag / l1Plan) * 100;
+          if (pct >= 99.5) {
+            alertas.push({ tipo:'ok', icono:'✅', titulo:'L1 · Salarios cubiertos',
+              texto:'Nómina de la semana pagada al 100% ('+fmt(l1Pag)+')', color:'var(--green)' });
+          } else if (pct >= 50) {
+            alertas.push({ tipo:'warn', icono:'⏳', titulo:'L1 · Salarios parciales',
+              texto:'Pagado '+fmt(l1Pag)+' de '+fmt(l1Plan)+' ('+pct.toFixed(0)+'%)', color:'var(--yellow)' });
+          } else {
+            alertas.push({ tipo:'err', icono:'❗', titulo:'L1 · Salarios sin cubrir',
+              texto:'Solo '+pct.toFixed(0)+'% pagado — pendiente '+fmt(l1Plan-l1Pag), color:'var(--red)' });
+          }
+        }
+      }
+    }
+
+    // 2) Brecha positiva o negativa
+    if (planAct) {
+      if (brecha >= 0) {
+        alertas.push({ tipo:'ok', icono:'📐', titulo:'Brecha positiva',
+          texto:'Sobran '+fmt(brecha)+' después de cubrir plan pendiente', color:'var(--green)' });
+      } else {
+        alertas.push({ tipo:'err', icono:'📐', titulo:'Brecha negativa',
+          texto:'Faltan '+fmt(Math.abs(brecha))+' para cubrir el plan pendiente', color:'var(--red)' });
+      }
+    }
+
+    // 3) Conceptos urgentes (columna 'urgente' > 0) sin pagar
+    const urgentesRows = rows.filter(r => cxpMontoMXN(r, 'urgente') > 0);
+    const urgentesSinPagar = urgentesRows.filter(r => {
+      const mUrg = cxpMontoMXN(r, 'urgente');
+      const pag  = gastosEfectuadosTotalPorClave(r._key);
+      return pag < mUrg - 0.01;
+    });
+    if (urgentesSinPagar.length > 0) {
+      const monto = urgentesSinPagar.reduce((s,r) =>
+        s + Math.max(cxpMontoMXN(r,'urgente') - gastosEfectuadosTotalPorClave(r._key), 0), 0);
+      alertas.push({ tipo:'warn', icono:'⚠️',
+        titulo: urgentesSinPagar.length + ' urgente(s) sin cubrir',
+        texto:'Faltan '+fmt(monto)+' del bloque Urgente', color:'var(--yellow)' });
+    }
+
+    // 4) Arrastre acumulado
+    const arr = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+    if (arr.cierres > 0) {
+      alertas.push({ tipo:'info', icono:'📊', titulo:'Arrastre acumulado',
+        texto: fmt(arr.monto) + ' en ' + arr.cierres + ' cierre(s) previo(s)',
+        color:'#a78bfa' });
+    }
+  } catch(e) { console.warn('resumenEjecutivoAlertas:', e); }
+  return alertas;
+}
+
+function renderResumenEjecutivo() {
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
+  const semanaKey = getWeekKey();
+  const semanaLbl = getWeekLabel(semanaKey);
+  const planAct   = planPagoGetActivo();
+  const planCfg   = planAct ? (PLAN_PAGO_CFG[planAct] || PLAN_PAGO_CFG.all) : null;
+  const planMnt   = planAct ? planPagoGetMonto(planAct) : 0;
+  const planPnd   = planAct ? planPagoGetPendiente(planAct) : 0;
+  const totalE    = getEntradasTotal();
+  const totalG    = gastosEfectuadosTotalGeneral();
+  const brecha    = totalE - planPnd;
+  const pctEjec   = planMnt > 0 ? Math.min((totalG / planMnt) * 100, 100) : 0;
+  const now       = new Date();
+  const fechaCorte = now.toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' });
+
+  document.getElementById('resumenEjecutivoSubtitulo').textContent =
+    'MI Technologies · ' + semanaLbl + ' · ' + fechaCorte +
+    (planCfg ? ' · Plan: ' + planCfg.label : ' · Sin plan activo');
+
+  // Semáforo del % ejecución
+  const semColor = pctEjec >= 80 ? 'var(--green)' : (pctEjec >= 50 ? 'var(--yellow)' : 'var(--red)');
+  const semTxt   = pctEjec >= 80 ? 'En camino' : (pctEjec >= 50 ? 'A medio avance' : 'Baja ejecución');
+
+  // 4 KPIs grandes
+  const kpisHtml = [
+    { l:'💵 Entradas',   v:fmt(totalE),   c:'var(--green)' },
+    { l:'📑 Plan Activo',v:planAct?fmt(planMnt):'—', c:'var(--accent)' },
+    { l:'💸 Pagado',     v:fmt(totalG),   c:'var(--red)' },
+    { l:'📐 Brecha',     v:fmt(brecha),   c:brecha>=0?'var(--green)':'var(--red)' },
+  ].map(k=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;flex:1;min-width:140px;">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${k.l}</div>
+    <div style="font-size:20px;font-weight:800;color:${k.c};">${k.v}</div>
+  </div>`).join('');
+
+  // Barra de ejecución grande
+  const barraEjec = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+        <div style="font-size:12px;color:var(--muted);">% de ejecución del plan activo</div>
+        <div style="font-size:14px;font-weight:800;color:${semColor};">${pctEjec.toFixed(1)}% · ${semTxt}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:6px;height:14px;overflow:hidden;">
+        <div style="background:${semColor};height:100%;width:${pctEjec}%;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+        ${planAct ? fmt(totalG)+' pagado de '+fmt(planMnt)+' planeado — pendiente '+fmt(planPnd) : 'Sin plan activo — no hay meta contra qué medir'}
+      </div>
+    </div>`;
+
+  // Alertas
+  const alertas = resumenEjecutivoAlertas();
+  const alertasHtml = alertas.length === 0
+    ? `<div style="background:var(--surface);border:1px dashed var(--border);border-radius:10px;padding:14px 16px;color:var(--muted);font-size:12px;text-align:center;">${t('exec.no_alerts')}</div>`
+    : `<div style="display:flex;flex-direction:column;gap:8px;">
+        ${alertas.map(a=>`<div style="background:var(--surface);border:1px solid ${a.color}40;border-left:4px solid ${a.color};border-radius:8px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:18px;">${a.icono}</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:${a.color};">${a.titulo}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${a.texto}</div>
+          </div>
+        </div>`).join('')}
+      </div>`;
+
+  document.getElementById('resumenEjecutivoBody').innerHTML = `
+    <!-- 4 KPIs grandes -->
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      ${kpisHtml}
+    </div>
+
+    <!-- Barra de ejecución -->
+    ${barraEjec}
+
+    <!-- Alertas -->
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">${t('exec.alerts')}</div>
+    <div style="margin-bottom:16px;">${alertasHtml}</div>
+
+    <!-- Varianza vs baseline (Etapa 3) — se muestra solo si hay baseline -->
+    ${varianzaCierreHtml()}
+  `;
+}
+
+/* Copia al portapapeles una versión de texto plano del resumen ejecutivo */
+function resumenEjecutivoCopiar() {
+  const semanaLbl = getWeekLabel(getWeekKey());
+  const planAct   = planPagoGetActivo();
+  const planCfg   = planAct ? (PLAN_PAGO_CFG[planAct] || PLAN_PAGO_CFG.all) : null;
+  const planMnt   = planAct ? planPagoGetMonto(planAct) : 0;
+  const planPnd   = planAct ? planPagoGetPendiente(planAct) : 0;
+  const totalE    = getEntradasTotal();
+  const totalG    = gastosEfectuadosTotalGeneral();
+  const brecha    = totalE - planPnd;
+  const pctEjec   = planMnt > 0 ? Math.min((totalG / planMnt) * 100, 100) : 0;
+  const alertas   = resumenEjecutivoAlertas();
+  const fecha     = new Date().toLocaleDateString('es-MX');
+
+  const lineas = [
+    '📊 RESUMEN EJECUTIVO — MI Technologies',
+    semanaLbl + ' · ' + fecha,
+    planCfg ? ('Plan activo: ' + planCfg.label) : 'Sin plan activo',
+    '',
+    '── KPIs ──',
+    'Entradas:  ' + fmt(totalE),
+    'Plan:      ' + (planAct ? fmt(planMnt) : '—'),
+    'Pagado:    ' + fmt(totalG),
+    'Brecha:    ' + fmt(brecha),
+    '% Ejec.:   ' + pctEjec.toFixed(1) + '%',
+    '',
+    '── Alertas ──',
+    alertas.length === 0 ? '(sin alertas)' :
+      alertas.map(a => a.icono + ' ' + a.titulo + ' — ' + a.texto).join('\n'),
+  ];
+  const txt = lineas.join('\n');
+  navigator.clipboard.writeText(txt).then(
+    () => toast(t('exec.copied')),
+    () => toast('No se pudo copiar', 'err')
+  );
+}
+
+/* ══════════════════════════════════════════
+   EXCEL HISTÓRICO — descarga .xlsx multi-hoja
+   Sheet 1 "Resumen": una fila por cierre semanal
+   Sheet 2 "Arrastre": monto acumulado, cierres, promedio
+   Sheet 3 "Baselines": snapshots de plan_baseline_snapshots
+══════════════════════════════════════════ */
+async function descargarHistoricoExcel() {
+  if (!requirePerm('cierre', 'Sin permisos para exportar el histórico')) return;
+  if (typeof XLSX === 'undefined') {
+    toast('❌ SheetJS no está cargado', 'err');
+    return;
+  }
+  const hist = JSON.parse(localStorage.getItem('mitech_cierres_hist') || '[]');
+  const arr  = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+
+  if (hist.length === 0 && arr.cierres === 0) {
+    toast(t('exec.no_history'), 'err');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1 — Resumen (una fila por cierre)
+  const cabezaResumen = [
+    'Semana ISO', 'Etiqueta', 'Fecha cierre', 'Entradas (MXN)',
+    'Total pagado (MXN)', 'Plan activo', 'Plan pendiente (MXN)',
+    '# Gastos', '# Entradas', 'Nota'
+  ];
+  const filasResumen = hist.map(c => [
+    c.semana || '',
+    c.label || '',
+    c.fecha ? new Date(c.fecha).toLocaleString('es-MX') : '',
+    Number(c.totalEntradas || 0),
+    Number(c.totalPagado || 0),
+    c.planActivo || '',
+    Number(c.planPendiente || 0),
+    Number(c.nGastos || 0),
+    Number(c.nEntradas || 0),
+    c.nota || ''
+  ]);
+  const ws1 = XLSX.utils.aoa_to_sheet([cabezaResumen, ...filasResumen]);
+  ws1['!cols'] = [
+    { wch:14 }, { wch:26 }, { wch:20 }, { wch:16 }, { wch:18 },
+    { wch:14 }, { wch:18 }, { wch:9 }, { wch:11 }, { wch:40 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
+
+  // Sheet 2 — Arrastre
+  const promedio = arr.cierres > 0 ? (arr.monto / arr.cierres) : 0;
+  const ws2 = XLSX.utils.aoa_to_sheet([
+    ['Concepto', 'Valor'],
+    ['Monto acumulado (MXN)', Number(arr.monto || 0)],
+    ['Número de cierres',      Number(arr.cierres || 0)],
+    ['Promedio por cierre',    Number(promedio)],
+    ['Fecha de exportación',   new Date().toLocaleString('es-MX')],
+    ['Usuario',                (currentUser?.nombre || currentUser?.username || '—')],
+  ]);
+  ws2['!cols'] = [{ wch:26 }, { wch:22 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Arrastre');
+
+  // Sheet 3 — Baselines (Supabase, opcional)
+  try {
+    const { data: baselines, error } = await sb.from('plan_baseline_snapshots')
+      .select('semana, plan, total_mxn, n_conceptos, creado_en')
+      .order('semana', { ascending: false });
+    if (!error && baselines && baselines.length > 0) {
+      const cabezaBase = ['Semana ISO', 'Plan', 'Total baseline (MXN)', '# Conceptos', 'Creado'];
+      const filasBase = baselines.map(b => [
+        b.semana || '',
+        b.plan || '',
+        Number(b.total_mxn || 0),
+        Number(b.n_conceptos || 0),
+        b.creado_en ? new Date(b.creado_en).toLocaleString('es-MX') : ''
+      ]);
+      const ws3 = XLSX.utils.aoa_to_sheet([cabezaBase, ...filasBase]);
+      ws3['!cols'] = [{ wch:14 }, { wch:16 }, { wch:20 }, { wch:14 }, { wch:22 }];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Baselines');
+    }
+  } catch(e) {
+    console.warn('descargarHistoricoExcel — no se pudieron leer baselines:', e);
+  }
+
+  // Nombre de archivo con timestamp
+  const stamp = new Date().toISOString().slice(0,10);
+  const filename = 'Deadpool_Historico_' + stamp + '.xlsx';
+  XLSX.writeFile(wb, filename);
+  toast(t('exec.export_ok') + ' · ' + filename);
+}
+
 
 /* ══════════════════════════════════════════
    AUTO-RESTORE SESSION
