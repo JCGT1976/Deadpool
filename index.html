@@ -703,7 +703,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
       <div>
         <div id="planPagoDetalleTitulo" style="font-size:18px;font-weight:800;color:var(--text);">📑 Plan de Pagos</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo · <span style="color:var(--accent);">🖐️ Arrastra filas o grupos para cambiar de nivel</span></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Detalle de conceptos del plan activo</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="planPagoBtnAgregarGasto" onclick="openAgregarGastoPlanModal()" style="display:none;background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ Agregar gasto</button>
@@ -3457,17 +3457,9 @@ function planPagoRenderTabla() {
 
     const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
     const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
-    // Grupo/nivel — es dropzone Y draggable (para mover el nivel completo)
-    const dragAttrs = canAccess('cxp')
-      ? `draggable="true"
-         ondragstart="dragStartGrupo(event, ${nivKey})"
-         ondragend="dragEndClear(event)"
-         ondragover="dragOverNivel(event)"
-         ondragleave="dragLeaveNivel(event)"
-         ondrop="dropEnNivel(event, ${nivKey})"
-         data-drop-nivel="${nivKey}"`
-      : '';
-    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:${canAccess('cxp')?'grab':'default'};">
+    // Grupo/nivel — drag&drop removido del modal Plan de Pagos (el nivel se administra desde el catálogo)
+    const dragAttrs = '';
+    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:default;">
       <th colspan="99" style="border-left:3px solid ${colorNiv};padding-left:8px;">
         <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
         ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>
@@ -3496,17 +3488,9 @@ function planPagoRenderTabla() {
         ? `background:${nivColor}12;color:${nivColor};border:1px dashed ${nivColor}88;`
         : `background:${nivColor}22;color:${nivColor};border:1px solid ${nivColor}55;`;
       const badgeTitle = esInferido ? 'Nivel sugerido por categoría (no explícito en el catálogo)' : 'Nivel explícito';
-      // Fila draggable Y dropzone — arrastra sobre otra fila para mover/reordenar
-      const rowDragAttrs = canAccess('cxp')
-        ? `draggable="true"
-           ondragstart="dragStartItem(event, ${rowKeyIdx})"
-           ondragend="dragEndClear(event)"
-           ondragover="dragOverRow(event)"
-           ondragleave="dragLeaveRow(event)"
-           ondrop="dropEnRow(event, ${rowKeyIdx})"
-           data-row-key-idx="${rowKeyIdx}"`
-        : '';
-      html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:${canAccess('cxp')?'grab':'default'};">
+      // Fila estática — drag & drop removido del modal Plan de Pagos
+      const rowDragAttrs = '';
+      html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:default;">
         <td><span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
         <td>${r.concepto}${monedaBadge}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
@@ -4455,6 +4439,11 @@ function abrirRegistroPagoSeleccion() {
     const montoUSD = totalPendiente / tcRefDefault;
     document.getElementById('registroPagoMonto').value = montoUSD.toFixed(2);
   }
+  // Ocultar temporalmente el modal Plan de Pagos para que la pantalla se vea limpia
+  const planDetalle = document.getElementById('planPagoDetalleModal');
+  if (planDetalle && planDetalle.classList.contains('open')) {
+    planDetalle.style.visibility = 'hidden';
+  }
   document.getElementById('registroPagoModal').classList.add('open');
 }
 
@@ -4475,6 +4464,9 @@ function registroPagoToggleMoneda(moneda) {
 
 function closeRegistroPagoModal() {
   document.getElementById('registroPagoModal').classList.remove('open');
+  // Restaurar visibilidad del modal Plan de Pagos
+  const planDetalle = document.getElementById('planPagoDetalleModal');
+  if (planDetalle) planDetalle.style.visibility = '';
   window._pagoSeleccionItems = null;
   // Limpiar selección del plan (evita que la barra reaparezca al re-render)
   if (window._planPagoState) {
@@ -4528,7 +4520,9 @@ async function confirmarRegistroPago() {
 }
 
 function closePlanPagoDetalleModal() {
-  document.getElementById('planPagoDetalleModal').classList.remove('open');
+  const el = document.getElementById('planPagoDetalleModal');
+  el.classList.remove('open');
+  el.style.visibility = ''; // por seguridad, resetear cualquier ocultamiento temporal
 }
 
 /* ══════════════════════════════════════════
@@ -4923,6 +4917,10 @@ async function confirmarCierreSemana() {
   const totalG  = gastosEfectuadosTotalGeneral();
   const totalE  = getEntradasTotal();
 
+  // 1) Renderizar el REPORTE DE CIERRE con los datos actuales ANTES de limpiar,
+  //    para que el HTML quede pintado en el DOM con la información de la semana cerrada.
+  try { renderReporteSemanaModal(); } catch(e) { console.warn('render reporte cierre:', e); }
+
   // Archivar snapshot en localStorage
   const semanaKey = getWeekKey();
   const historial = JSON.parse(localStorage.getItem('mitech_cierres_hist') || '[]');
@@ -4961,7 +4959,13 @@ async function confirmarCierreSemana() {
   planPagoClear();
 
   closeCierreSemanaModal();
-  toast('✅ Semana cerrada — KPIs reiniciados. Arrastre acumulado.');
+
+  // 2) Abrir automáticamente el REPORTE DE CIERRE
+  //    (el HTML ya está pintado con la información de la semana cerrada)
+  const repEl = document.getElementById('reporteSemanaModal');
+  if (repEl) repEl.classList.add('open');
+
+  toast('✅ Semana cerrada — Reporte de cierre generado');
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
 
@@ -5261,6 +5265,7 @@ try {
 </script>
 </body>
 </html>
+
 
 
 
