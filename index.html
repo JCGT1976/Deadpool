@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
 <meta name="theme-color" content="#0f1923">
+<!-- Etapa 5.1 · Anti-caché: HTML NUNCA se guarda localmente. Los usuarios ven la última versión sin Ctrl+Shift+R. -->
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Mi Technologies — Acceso</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -438,9 +442,35 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 }
 .accordion.open .accordion-body{max-height:2000px;}
 .accordion-inner{padding:0 18px 18px;}
+
+/* ── Etapa 5.1 · Banner de nueva versión ── */
+#updateBanner{
+  position:fixed;top:0;left:0;right:0;z-index:9999;
+  background:linear-gradient(90deg,#3fb950,#00c2ff);
+  color:#0d1117;font-weight:800;font-size:13px;
+  padding:10px 18px;display:none;
+  align-items:center;justify-content:space-between;gap:12px;
+  box-shadow:0 4px 20px rgba(0,0,0,.35);
+  animation:slideDown .35s ease-out;
+}
+#updateBanner.visible{display:flex;}
+#updateBanner .msg{flex:1;min-width:0;}
+#updateBanner button{
+  background:#0d1117;color:#3fb950;border:none;border-radius:8px;
+  padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;
+  white-space:nowrap;
+}
+#updateBanner button:hover{background:#161b22;}
+@keyframes slideDown{from{transform:translateY(-100%);opacity:0;}to{transform:translateY(0);opacity:1;}}
 </style>
 </head>
 <body>
+
+<!-- Etapa 5.1 · Banner de actualización — aparece cuando el auto-updater detecta nueva versión -->
+<div id="updateBanner" role="alert" aria-live="polite">
+  <div class="msg">🔄 Hay una nueva versión de la app disponible. Recárgala para verla.</div>
+  <button onclick="applyUpdate()">Recargar ahora</button>
+</div>
 
 <!-- ══════════════════ LOGIN ══════════════════ -->
 <div id="loginScreen">
@@ -1088,6 +1118,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 /* ══════════════════════════════════════════
    CONFIG
 ══════════════════════════════════════════ */
+/* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
+   auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
+const APP_VERSION = '2026.07.04.5';
+
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
 const { createClient } = supabase;
@@ -5949,6 +5983,106 @@ try {
   sessionStorage.removeItem('mitech_user');
 })();
 /* deploy-nudge: 20260704T125830-role-hardening */
+
+/* ══════════════════════════════════════════
+   ETAPA 5.1 — AUTO-UPDATER (cero caché)
+   Elimina la necesidad de Ctrl+Shift+R para todos los usuarios.
+   Frentes:
+     1) Meta tags no-cache en <head> (ya insertados)
+     2) APP_VERSION única por deploy (bumpear en cada push)
+     3) Chequeo periódico: fetch index.html, comparar versión
+     4) Barrido preventivo de Service Workers y Cache Storage
+══════════════════════════════════════════ */
+
+/* Barrido preventivo: si algún día se registró un Service Worker o quedó
+   cache residual, lo eliminamos al abrir la app. Sin efectos secundarios
+   si no hay nada que limpiar. */
+async function upBarrerResiduos() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const r of regs) {
+        try { await r.unregister(); console.log('[updater] SW desregistrado:', r.scope); }
+        catch(e) { console.warn('[updater] no se pudo desregistrar SW:', e); }
+      }
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      for (const k of keys) {
+        try { await caches.delete(k); console.log('[updater] cache borrado:', k); }
+        catch(e) { console.warn('[updater] no se pudo borrar cache:', e); }
+      }
+    }
+  } catch(e) { console.warn('[updater] barrerResiduos:', e); }
+}
+
+/* Extrae el APP_VERSION de un blob de texto HTML remoto */
+function upExtraerVersion(html) {
+  const m = html && html.match(/const\s+APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+  return m ? m[1] : null;
+}
+
+/* Chequea si hay versión nueva en el servidor. Si la hay, muestra banner.
+   Cache-busting: query string único + header no-store. */
+async function checkForUpdates() {
+  try {
+    const url = location.pathname.replace(/[^/]+$/, '') + 'index.html?_=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store', headers: { 'Cache-Control':'no-cache' } });
+    if (!res.ok) return;
+    const html = await res.text();
+    const remota = upExtraerVersion(html);
+    if (!remota) return; // no encontró marca en HTML remoto — no interfiere
+    if (remota !== APP_VERSION) {
+      console.log('[updater] Versión nueva detectada: local='+APP_VERSION+' remota='+remota);
+      showUpdateBanner(remota);
+    }
+  } catch(e) {
+    // Silencioso: sin red, sin problema. Se reintenta en el siguiente ciclo.
+  }
+}
+
+let _upBannerVisible = false;
+function showUpdateBanner(remotaVer) {
+  if (_upBannerVisible) return;
+  _upBannerVisible = true;
+  const el = document.getElementById('updateBanner');
+  if (!el) { applyUpdate(); return; } // fallback: si no está el banner, recarga directo
+  const msg = el.querySelector('.msg');
+  if (msg) msg.innerHTML = '🔄 Nueva versión disponible ('+remotaVer+'). Recárgala para verla — se recargará sola en <span id="upCountdown">30</span>s.';
+  el.classList.add('visible');
+  // Cuenta regresiva y recarga automática a los 30s si el usuario no hace click
+  let restante = 30;
+  const iv = setInterval(() => {
+    restante--;
+    const c = document.getElementById('upCountdown');
+    if (c) c.textContent = restante;
+    if (restante <= 0) { clearInterval(iv); applyUpdate(); }
+  }, 1000);
+}
+
+/* Aplica la actualización: limpia todo lo cacheable y recarga forzado */
+async function applyUpdate() {
+  try { await upBarrerResiduos(); } catch(e) {}
+  try {
+    // Reemplaza URL con timestamp para que ni el navegador ni el CDN sirvan el HTML viejo
+    const url = location.pathname + '?_=' + Date.now() + (location.hash || '');
+    location.replace(url);
+  } catch(e) {
+    location.reload();
+  }
+}
+
+/* Arranque: barrer al abrir + primer check a los 5s + repetir cada 5 min */
+(function upBootstrap() {
+  upBarrerResiduos();
+  setTimeout(checkForUpdates, 5000);
+  setInterval(checkForUpdates, 5 * 60 * 1000);
+  // Además, revisar al volver a poner la pestaña en foco (móviles regresan del background)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdates();
+  });
+  window.addEventListener('focus', checkForUpdates);
+})();
 </script>
 </body>
 </html>
