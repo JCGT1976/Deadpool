@@ -821,8 +821,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
     <div id="registroPagoResumen" style="max-height:160px;overflow-y:auto;margin-bottom:14px;"></div>
 
-    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--text);padding:6px 0;border-top:1px solid var(--border);margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--text);padding:6px 0;border-top:1px solid var(--border);margin-bottom:0;">
       <span>Total pendiente</span><span id="registroPagoTotalPendiente">$0</span>
+    </div>
+    <div id="registroPagoSaldoWrap" style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0 8px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+      <span style="color:var(--muted);">🏦 Saldo disponible</span>
+      <span id="registroPagoSaldoDisp" style="font-weight:700;">$0</span>
     </div>
 
     <div class="budget-field" style="margin-bottom:12px;">
@@ -1120,7 +1124,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.04.10';
+const APP_VERSION = '2026.07.04.11';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -4729,6 +4733,34 @@ function abrirRegistroPagoSeleccion() {
       ? `<div style="font-size:10px;color:var(--yellow);margin-top:6px;">⚠️ Conceptos con monedas mezcladas — el modal usa MXN por defecto; cambia manualmente si aplica.</div>`
       : '');
   document.getElementById('registroPagoTotalPendiente').textContent = fmt(totalPendiente);
+
+  // ── Mostrar saldo disponible en el modal ──
+  // Verde si el saldo cubre el pendiente, amarillo si solo cubre parte, rojo si es 0 o negativo.
+  const saldoDisponible = getEntradasTotal() - gastosEfectuadosTotalGeneral();
+  const saldoEl = document.getElementById('registroPagoSaldoDisp');
+  if (saldoEl) {
+    saldoEl.textContent = fmt(saldoDisponible);
+    let color = 'var(--green)';
+    if (saldoDisponible <= 0)             color = '#ff6b6b';
+    else if (saldoDisponible < totalPendiente) color = 'var(--yellow)';
+    saldoEl.style.color = color;
+  }
+  // Si no hay saldo, deshabilitar el botón de confirmar antes de que el usuario intente
+  const btnConfirmar = document.querySelector('#registroPagoModal button.btn-accent');
+  if (btnConfirmar) {
+    if (saldoDisponible <= 0) {
+      btnConfirmar.disabled = true;
+      btnConfirmar.style.opacity = '.4';
+      btnConfirmar.style.cursor = 'not-allowed';
+      btnConfirmar.title = 'Sin saldo bancario disponible';
+    } else {
+      btnConfirmar.disabled = false;
+      btnConfirmar.style.opacity = '';
+      btnConfirmar.style.cursor = '';
+      btnConfirmar.title = '';
+    }
+  }
+
   document.getElementById('registroPagoMonto').value = items.length === 1 ? totalPendiente.toFixed(2) : '';
   document.getElementById('registroPagoTipo').value = 'total';
   document.getElementById('registroPagoMoneda').value = monedaDefault;
@@ -5188,6 +5220,28 @@ async function gastosEfectuadosRegistrar(items) {
     toast('No se puede registrar el pago: el concepto "' + invalidos[0].concepto + '" no está en el Plan de Pagos cargado.', 'err');
     return false;
   }
+
+  // ── VALIDACIÓN DE SALDO DISPONIBLE ──
+  // No se puede pagar más de lo que hay en el saldo bancario.
+  // Saldo disponible = Entradas totales - Gastos efectuados ya registrados.
+  // Todo se compara en MXN equivalente para no mezclar monedas.
+  const saldoDisponible = getEntradasTotal() - gastosEfectuadosTotalGeneral();
+  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc')) || 17;
+  const totalPagoMXN = items.reduce((s, it) => {
+    const monto = parseFloat(it.montoPagado) || 0;
+    const tc = it.tc ? parseFloat(it.tc) : tcGlobal;
+    return s + ((it.moneda || 'MXN') === 'USD' ? monto * tc : monto);
+  }, 0);
+  if (saldoDisponible <= 0) {
+    toast('❌ Sin saldo disponible. Registra Entradas antes de pagar gastos.', 'err');
+    return false;
+  }
+  if (totalPagoMXN > saldoDisponible + 0.01) {
+    const faltante = totalPagoMXN - saldoDisponible;
+    toast('❌ Saldo insuficiente. Intento: ' + fmt(totalPagoMXN) + ' · Disponible: ' + fmt(saldoDisponible) + ' · Faltan: ' + fmt(faltante), 'err');
+    return false;
+  }
+
   const userObj = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
   const payload = items.map(it => ({
     concepto_key:  it.clave,
