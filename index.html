@@ -69,11 +69,37 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 /* ── LOGIN ──────────────────────────────────────────── */
+/* Deadpool ya no tiene login propio: los usuarios entran desde el SIF-Portal
+   con Single Sign-On. El loginScreen queda oculto por defecto y solo aparece
+   como fallback en caso de que un usuario sin sesión llegue directamente
+   ANTES de que el bootstrap redirija al portal (edge case). */
 #loginScreen{
-  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  min-height:100vh;display:none;align-items:center;justify-content:center;
   padding:24px;
   background:radial-gradient(ellipse at 60% 20%, #0a2540 0%, #0f1923 60%);
 }
+/* Boot-loader: cubre toda la pantalla mientras el bootstrap verifica la
+   sesión Supabase. Se remueve por JS al decidir (loginSuccess o redirect). */
+#bootLoader{
+  position:fixed;inset:0;z-index:99999;
+  background:#0A0F1C;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+#bootLoader .spin{
+  width:32px;height:32px;
+  border:2px solid rgba(255,255,255,0.12);
+  border-top-color:#FFFFFF;
+  border-radius:50%;
+  animation:bootspin .7s linear infinite;
+  margin:0 auto 16px;
+}
+#bootLoader .txt{
+  font-size:11px;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(255,255,255,0.55);
+  text-align:center;
+}
+@keyframes bootspin{to{transform:rotate(360deg)}}
 .login-card{
   width:100%;max-width:360px;
   background:var(--surface);
@@ -465,6 +491,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 </style>
 </head>
 <body>
+
+<!-- Boot-loader: cubre la pantalla mientras se verifica sesión Supabase.
+     Se remueve por JS al confirmar sesión válida (loginSuccess) o desaparece
+     naturalmente cuando el bootstrap hace window.location.replace(PORTAL_URL). -->
+<div id="bootLoader">
+  <div>
+    <div class="spin"></div>
+    <div class="txt">Verificando sesión</div>
+  </div>
+</div>
 
 <!-- Etapa 5.1 · Banner de actualización — aparece cuando el auto-updater detecta nueva versión -->
 <div id="updateBanner" role="alert" aria-live="polite">
@@ -1124,11 +1160,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.05.1';
+const APP_VERSION = '2026.07.05.2';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
+const PORTAL_URL = 'https://jcgt1976.github.io/SIF-Portal/';
 const { createClient } = supabase;
+/* Cliente Supabase. Los defaults de supabase-js v2 ya son los correctos
+   para SSO: persistSession=true, autoRefreshToken=true, storage=localStorage.
+   Como /SIF-Portal/ y /Deadpool/ comparten el mismo origen jcgt1976.github.io,
+   ambos leen y escriben el mismo token de sesión desde localStorage. */
 const sb = createClient(SB_URL, SB_KEY);
 
 /* ══════════════════════════════════════════
@@ -1619,6 +1660,9 @@ async function loginSuccess(userData) {
   userData.permisos = permisosGet(userData.id || userData.username, userData.rol);
   currentUser = userData;
   sessionStorage.setItem('mitech_user', JSON.stringify(userData));
+  // Remover el boot-loader (verificación de sesión completada exitosamente)
+  const bl = document.getElementById('bootLoader');
+  if (bl && bl.parentNode) bl.parentNode.removeChild(bl);
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('app').style.flexDirection = 'column';
@@ -1654,8 +1698,8 @@ async function doLogout() {
   } catch(e) { console.warn('signOut error:', e); }
   sessionStorage.removeItem('mitech_user');
   currentUser = null;
-  // Redirigir al SIF-Portal para que el usuario firme nuevamente y elija módulo
-  window.location.href = 'https://jcgt1976.github.io/SIF-Portal/';
+  // Redirigir al SIF-Portal (replace: no queda en el history para evitar "back")
+  window.location.replace(PORTAL_URL);
 }
 
 /* ══════════════════════════════════════════
@@ -6373,19 +6417,37 @@ try {
   if (themeIcon) themeIcon.textContent = (window.APP_THEME === 'dark') ? '🌙' : '☀️';
 } catch(e) { console.warn('i18n init:', e); }
 
-(async function() {
+(async function bootstrap() {
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (session?.user) {
       const { data, error } = await sb.from('usuarios').select('*').eq('auth_id', session.user.id).single();
-      if (!error && data && data.activo !== false) {
+      // Sesión válida y usuario activo sin cambio pendiente → entra directo
+      if (!error && data && data.activo !== false && !data.debe_cambiar) {
         await loginSuccess(data);
         return;
       }
+      // Sesión existe pero el usuario no puede entrar (inactivo, requiere cambio de pwd
+      // o no vinculado): limpiar sesión y regresar al portal para el flujo correcto
+      try { await sb.auth.signOut(); } catch(_){}
     }
-  } catch(e) { console.error(e); }
+  } catch(e) { console.error('bootstrap:', e); }
   sessionStorage.removeItem('mitech_user');
+  // Sin sesión válida: Deadpool NO tiene login propio — regresar al portal
+  window.location.replace(PORTAL_URL);
 })();
+
+/* Escuchar cambios de sesión globalmente. Si un logout ocurre en otra pestaña
+   (portal u otro módulo), el evento SIGNED_OUT llega aquí vía el storage
+   event de localStorage, y redirigimos al portal para reiniciar el flujo. */
+sb.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT' && (currentUser || sessionStorage.getItem('mitech_user'))) {
+    try { clearInterval(sessionInterval); } catch(_){}
+    currentUser = null;
+    sessionStorage.removeItem('mitech_user');
+    window.location.replace(PORTAL_URL);
+  }
+});
 /* deploy-nudge: 20260704T125830-role-hardening */
 
 /* ══════════════════════════════════════════
