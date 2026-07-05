@@ -1120,7 +1120,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.04.9';
+const APP_VERSION = '2026.07.04.10';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3055,6 +3055,9 @@ async function cxpSyncToSupabase(rows) {
       const { error } = await sb.from('catalogo_cxp').insert(v.payload);
       if (!error) {
         console.log('✓ Plan insertado en Supabase (variante: ' + v.nombre + ')');
+        // Nuevo plan de Excel → limpiar el estado esperado post-cierre para no
+        // arrastrar descuentos de cierres previos sobre un plan diferente.
+        try { cxpEsperadoLimpiar(); } catch(e){}
         return { ok:true };
       }
       console.warn('INSERT variante "' + v.nombre + '" falló:', error.message);
@@ -3133,6 +3136,12 @@ async function cxpFetchSupabaseData() {
     const _dedupMap = new Map();
     cxpData.forEach(r => { if (!_dedupMap.has(r._key)) _dedupMap.set(r._key, r); });
     cxpData = Array.from(_dedupMap.values());
+    // ── Aplicar estado esperado post-cierre ──
+    // Si un cierre reciente descontó montos pero el UPDATE a Supabase no aterrizó
+    // (típicamente por RLS restrictivo en catalogo_cxp), recortamos las columnas
+    // planificables al valor esperado guardado en localStorage. Sin esto, cada
+    // refresh del navegador restauraría la deuda original desde Supabase.
+    try { cxpEsperadoAplicar(cxpData); } catch(e) { console.warn('cxpEsperadoAplicar:', e); }
     // Persistir en cache local para que el plan sobreviva si Supabase falla o
     // devuelve vacío en la próxima sesión (JC: "no cambies el plan cuando la
     // sesión se acaba"). Guardamos junto con la semana para NO restaurar el plan
@@ -5300,6 +5309,72 @@ function renderGastosDetalleModal() {
 }
 
 /* ══════════════════════════════════════════
+   ESTADO ESPERADO POST-CIERRE (persistencia)
+   ─────────────────────────────────────────────
+   Guarda en localStorage los valores esperados de cada fila del catálogo
+   tras aplicar los cierres. Al cargar cxpData desde Supabase, si el valor
+   en Supabase es MAYOR al esperado (porque el UPDATE no aterrizó por RLS
+   u otro motivo), se recorta al esperado. Así la Deuda Total refleja los
+   cierres aunque Supabase no se haya podido actualizar.
+   Se limpia en: Reset Total, carga de un Excel nuevo.
+══════════════════════════════════════════ */
+function cxpEsperadoGet() {
+  try { return JSON.parse(localStorage.getItem('mitech_cxp_esperado') || '{}') || {}; }
+  catch(e) { return {}; }
+}
+function cxpEsperadoSet(map) {
+  try { localStorage.setItem('mitech_cxp_esperado', JSON.stringify(map || {})); }
+  catch(e) { console.warn('No se pudo guardar mitech_cxp_esperado:', e); }
+}
+/* Registra los valores esperados (en la MONEDA ORIGINAL de la fila) tras un cierre.
+   Se llama por cada fila afectada dentro de aplicarImpactoCierre. */
+function cxpEsperadoRegistrar(claveKey, valores) {
+  if (!claveKey) return;
+  const map = cxpEsperadoGet();
+  map[claveKey] = {
+    total:         Math.max(parseFloat(valores.total)         || 0, 0),
+    recomendado:   Math.max(parseFloat(valores.recomendado)   || 0, 0),
+    urgente:       Math.max(parseFloat(valores.urgente)       || 0, 0),
+    supervivencia: Math.max(parseFloat(valores.supervivencia) || 0, 0),
+    ajuste:        Math.max(parseFloat(valores.ajuste)        || 0, 0),
+    ts:            Date.now(),
+  };
+  cxpEsperadoSet(map);
+}
+/* Aplica el estado esperado sobre rows recién cargados de Supabase.
+   Si Supabase reporta un valor mayor al esperado (el UPDATE no aterrizó),
+   se recorta al esperado. Si Supabase ya está en el esperado o menor, se
+   respeta Supabase. Se opera sobre las columnas planificables del plan. */
+function cxpEsperadoAplicar(rows) {
+  const map = cxpEsperadoGet();
+  if (!map || Object.keys(map).length === 0) return 0;
+  let ajustadas = 0;
+  const cols = ['total','recomendado','urgente','supervivencia','ajuste'];
+  rows.forEach(r => {
+    const clave = r._key || (r.clave || cxpRowKey(r));
+    const esp = map[clave];
+    if (!esp) return;
+    let cambiada = false;
+    cols.forEach(c => {
+      const supa = parseFloat(r[c]) || 0;
+      const espV = parseFloat(esp[c]);
+      if (espV != null && !isNaN(espV) && supa > espV) {
+        r[c] = espV;
+        cambiada = true;
+      }
+    });
+    if (cambiada) ajustadas++;
+  });
+  if (ajustadas > 0) console.log('[cxpEsperado] ' + ajustadas + ' fila(s) recortadas a los valores esperados post-cierre');
+  return ajustadas;
+}
+/* Limpia todos los ajustes esperados. Se llama en Reset Total y al cargar
+   un Excel nuevo (que reemplaza por completo el catálogo). */
+function cxpEsperadoLimpiar() {
+  try { localStorage.removeItem('mitech_cxp_esperado'); } catch(e){}
+}
+
+/* ══════════════════════════════════════════
    CIERRE DE SEMANA — Impacto sobre KPIs
    Al cerrar la semana, los pagos efectuados deben:
    1) Descontarse permanentemente del catálogo CxP (afecta KPI Deuda Total)
@@ -5360,27 +5435,42 @@ function calcularImpactoCierre() {
 
 /* Aplica el impacto calculado:
    - UPDATE en catalogo_cxp (Supabase) por cada fila con pagos
-   - Refresca cxpData local
+   - Refresca cxpData local (por id Y por _key como fallback)
+   - Persiste los valores esperados en localStorage (sobrevive refreshes
+     aunque el UPDATE a Supabase falle silenciosamente por RLS)
    - Archiva y borra el budget de la semana cerrada */
 async function aplicarImpactoCierre(impacto) {
-  // 1) Persistir cambios en Supabase (fila por fila)
+  let updatesOk = 0, updatesFail = 0;
+  // 1) Persistir cambios en Supabase (fila por fila) y localStorage
   for (const f of impacto.filasAfectadas) {
-    if (!f.id) continue;
-    try {
-      const { error } = await sb.from('catalogo_cxp').update({
-        total:          f.despues.total,
-        recomendado:    f.despues.recomendado,
-        urgente:        f.despues.urgente,
-        supervivencia:  f.despues.supervivencia,
-        ajuste:         f.despues.ajuste,
-        actualizado_en: new Date().toISOString(),
-      }).eq('id', f.id);
-      if (error) console.warn('[cierre] update catalogo_cxp id=' + f.id, error);
-    } catch(e) {
-      console.warn('[cierre] update err id=' + f.id, e);
+    // 1a) Registrar SIEMPRE el estado esperado en localStorage — esto es lo
+    //     que garantiza que la Deuda Total quede reducida incluso si Supabase
+    //     no acepta el UPDATE (p.ej. por RLS restrictivo en catalogo_cxp).
+    cxpEsperadoRegistrar(f.clave, f.despues);
+
+    // 1b) Intentar UPDATE en Supabase (nice-to-have). Si falla, seguimos.
+    if (f.id) {
+      try {
+        const { error } = await sb.from('catalogo_cxp').update({
+          total:          f.despues.total,
+          recomendado:    f.despues.recomendado,
+          urgente:        f.despues.urgente,
+          supervivencia:  f.despues.supervivencia,
+          ajuste:         f.despues.ajuste,
+          actualizado_en: new Date().toISOString(),
+        }).eq('id', f.id);
+        if (error) { updatesFail++; console.warn('[cierre] update catalogo_cxp id=' + f.id, error); }
+        else       { updatesOk++; }
+      } catch(e) {
+        updatesFail++;
+        console.warn('[cierre] update err id=' + f.id, e);
+      }
     }
-    // 2) Reflejar en cxpData local (para que los KPIs recalculen sin refetch)
-    const row = cxpData.find(r => r.id === f.id);
+
+    // 1c) Reflejar en cxpData local (para que los KPIs recalculen sin refetch)
+    //     Buscar por id primero, con fallback a _key/clave por si la fila no tuviera id.
+    let row = f.id ? cxpData.find(r => r.id === f.id) : null;
+    if (!row) row = cxpData.find(r => (r._key || r.clave) === f.clave);
     if (row) {
       row.total         = f.despues.total;
       row.recomendado   = f.despues.recomendado;
@@ -5389,7 +5479,9 @@ async function aplicarImpactoCierre(impacto) {
       row.ajuste        = f.despues.ajuste;
     }
   }
-  // 3) Archivar y limpiar budget de la semana cerrada
+  console.log('[cierre] Supabase updates → ok:' + updatesOk + ' fail:' + updatesFail + ' | estado esperado guardado en localStorage para ' + impacto.filasAfectadas.length + ' concepto(s)');
+
+  // 2) Archivar y limpiar budget de la semana cerrada
   if (impacto.budgetSemana) {
     budgetData = budgetData.filter(b => b.semana !== impacto.semanaKey);
     localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
@@ -5546,7 +5638,11 @@ async function confirmarCierreSemana() {
     ? `✅ Semana cerrada — Deuda reducida en ${fmt(impacto.pagosAplicadosMXN)}`
     : '✅ Semana cerrada — Reporte de cierre generado';
   toast(msg);
-  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
+  // Re-renderizar el tab activo (dashboard, cxp, etc.) para que los KPIs y la
+  // tabla del catálogo reflejen la Deuda Total reducida INMEDIATAMENTE, sin
+  // depender de que el usuario estuviera parado en dashboard.
+  const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'dashboard';
+  try { showTab(activeTab); } catch(e) { console.warn('re-render post-cierre:', e); }
 }
 
 /* ══════════════════════════════════════════
@@ -5595,6 +5691,8 @@ async function confirmarResetTotal() {
   planPagoClear();
   budgetData = [];
   localStorage.removeItem('mitech_budgets');
+  // Limpiar estado esperado post-cierre (los descuentos acumulados de cierres previos)
+  cxpEsperadoLimpiar();
 
   closeResetTotalModal();
   toast('♻️ Reset total ejecutado — todo limpio');
