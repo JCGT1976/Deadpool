@@ -192,14 +192,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 /* ── CARDS KPI ─────────────────────────────────────── */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px}
 .kpi-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:18px 20px;
+  background:linear-gradient(180deg,var(--surface) 0%,var(--surface2) 100%);
+  border:1px solid var(--border);border-top:3px solid var(--border);
+  border-radius:var(--radius);
+  padding:16px 18px;position:relative;overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06);
 }
-.kpi-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
-.kpi-value{font-size:24px;font-weight:800;color:var(--text)}
+.kpi-label{
+  font-size:10.5px;color:var(--muted);font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
+  display:flex;align-items:center;gap:4px;
+}
+.kpi-value{
+  font-size:24px;font-weight:800;color:var(--text);
+  font-variant-numeric:tabular-nums;letter-spacing:-.3px;line-height:1.1;
+}
 .kpi-value.positive{color:var(--green)}
 .kpi-value.negative{color:var(--red)}
-.kpi-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:4px;font-weight:500;}
 
 /* ── TABLA FINANCIERA ───────────────────────────────── */
 .section-title{
@@ -324,15 +334,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
 /* ── KPI PRESUPUESTO CLICKEABLE ─────────────────────── */
 .kpi-card{
-  cursor:default;transition:transform .18s,border-color .18s,box-shadow .18s;
+  cursor:default;transition:transform .2s cubic-bezier(.4,0,.2,1),border-color .2s,box-shadow .2s;
 }
 .kpi-card.kpi-clickable{
-  cursor:pointer;border:1.5px solid var(--border);
+  cursor:pointer;border:1.5px solid var(--border);border-top:3px solid var(--border);
+}
+.kpi-card.kpi-clickable::after{
+  content:"›";position:absolute;top:12px;right:14px;
+  font-size:18px;color:var(--muted);opacity:.4;
+  transition:opacity .2s,transform .2s;
+  font-weight:700;line-height:1;
 }
 .kpi-card.kpi-clickable:hover{
   border-color:var(--accent);transform:translateY(-3px);
-  box-shadow:0 8px 24px rgba(0,194,255,.18);
+  box-shadow:0 12px 28px rgba(0,194,255,.22),0 4px 8px rgba(0,0,0,.15);
 }
+.kpi-card.kpi-clickable:hover::after{opacity:1;transform:translateX(2px);color:var(--accent);}
 .kpi-card.kpi-clickable:active{transform:translateY(-1px);}
 .kpi-click-hint{
   font-size:10px;color:var(--accent);font-weight:600;
@@ -1397,7 +1414,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.05.4';
+const APP_VERSION = '2026.07.05.5';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
