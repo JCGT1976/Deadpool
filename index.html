@@ -373,7 +373,210 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 #cambiarNivelModal{display:none;}
 #cambiarNivelModal.open{display:flex;opacity:1;pointer-events:all;}
 #flujoEfectivoModal{display:none;}
-#flujoEfectivoModal.open{display:flex;opacity:1;pointer-events:all;}
+#flujoEfectivoModal.open{display:flex;opacity:1;pointer-events:all;animation:flujoModalIn .28s ease-out;}
+@keyframes flujoModalIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+
+/* ── FLUJO DE EFECTIVO — Rediseño profesional ── */
+.flujo-container{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:20px;width:min(920px,97vw);max-height:94vh;overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.03) inset;
+  display:flex;flex-direction:column;
+}
+.flujo-header{
+  background:linear-gradient(135deg,#0b3d91 0%,#1f6feb 55%,#2ea3ff 100%);
+  color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;
+  position:relative;overflow:hidden;
+}
+.flujo-header::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 85% 0%,rgba(255,255,255,.18),transparent 55%);
+  pointer-events:none;
+}
+.flujo-header-left{display:flex;align-items:center;gap:14px;position:relative;z-index:1;}
+.flujo-header-icon{
+  width:44px;height:44px;border-radius:12px;
+  background:rgba(255,255,255,.18);backdrop-filter:blur(10px);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  box-shadow:0 4px 12px rgba(0,0,0,.15) inset;
+}
+.flujo-header-title{font-size:17px;font-weight:800;letter-spacing:.2px;line-height:1.1;}
+.flujo-header-sub{font-size:11.5px;opacity:.85;margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.flujo-chip-plan{
+  background:rgba(255,255,255,.22);padding:2px 8px;border-radius:5px;
+  font-weight:700;font-size:10.5px;letter-spacing:.3px;
+  border:1px solid rgba(255,255,255,.25);
+}
+.flujo-close{
+  background:rgba(255,255,255,.15);color:#fff;
+  border:1px solid rgba(255,255,255,.3);border-radius:10px;
+  width:34px;height:34px;font-size:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s;position:relative;z-index:1;
+}
+.flujo-close:hover{background:rgba(255,255,255,.28);}
+.flujo-body{padding:20px 24px 22px;overflow-y:auto;flex:1;}
+
+/* KPI Grid */
+.flujo-kpi-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;
+}
+@media (max-width:720px){.flujo-kpi-grid{grid-template-columns:repeat(2,1fr);}}
+.flujo-kpi{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:12px 14px;position:relative;overflow:hidden;
+  transition:transform .15s,box-shadow .15s;
+}
+.flujo-kpi:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.18);}
+.flujo-kpi::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--accent);border-radius:12px 12px 0 0;
+}
+.flujo-kpi.saldo::before{background:linear-gradient(90deg,#22c55e,#16a34a);}
+.flujo-kpi.depositos::before{background:linear-gradient(90deg,#60a5fa,#3b82f6);}
+.flujo-kpi.total::before{background:linear-gradient(90deg,#a78bfa,#7c3aed);}
+.flujo-kpi.brecha-pos::before{background:linear-gradient(90deg,#22c55e,#16a34a);}
+.flujo-kpi.brecha-neg::before{background:linear-gradient(90deg,#f87171,#dc2626);}
+.flujo-kpi-label{
+  font-size:10.5px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;
+  display:flex;align-items:center;gap:5px;
+}
+.flujo-kpi-value{
+  font-size:19px;font-weight:800;color:var(--text);line-height:1.1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.3px;
+}
+.flujo-kpi.saldo .flujo-kpi-value{color:#22c55e;}
+.flujo-kpi.total .flujo-kpi-value{color:#a78bfa;}
+.flujo-kpi.brecha-pos .flujo-kpi-value{color:#22c55e;}
+.flujo-kpi.brecha-neg .flujo-kpi-value{color:#f87171;}
+.flujo-kpi-input{
+  width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;color:var(--text);
+  font-size:15px;font-weight:800;text-align:right;
+  font-variant-numeric:tabular-nums;
+  transition:border-color .15s,box-shadow .15s;
+}
+.flujo-kpi-input:focus{outline:none;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.2);}
+.flujo-kpi-sub{font-size:10.5px;color:var(--muted);margin-top:4px;text-align:right;font-weight:600;}
+
+/* Barra de progreso */
+.flujo-progress{margin-bottom:16px;}
+.flujo-progress-labels{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;
+}
+.flujo-progress-pct{color:var(--text);font-variant-numeric:tabular-nums;}
+.flujo-progress-track{
+  height:8px;background:var(--surface);border:1px solid var(--border);
+  border-radius:99px;overflow:hidden;position:relative;
+}
+.flujo-progress-bar{
+  height:100%;border-radius:99px;
+  background:linear-gradient(90deg,#22c55e,#16a34a);
+  transition:width .5s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 0 12px rgba(34,197,94,.4);
+}
+.flujo-progress-bar.warn{background:linear-gradient(90deg,#f59e0b,#d97706);box-shadow:0 0 12px rgba(245,158,11,.4);}
+.flujo-progress-bar.danger{background:linear-gradient(90deg,#f87171,#dc2626);box-shadow:0 0 12px rgba(248,113,113,.4);}
+
+/* Sección header */
+.flujo-section-header{
+  background:linear-gradient(90deg,rgba(240,180,41,.15),rgba(240,180,41,.05));
+  border:1px solid rgba(240,180,41,.4);
+  border-radius:10px 10px 0 0;border-bottom:none;
+  padding:10px 16px;display:flex;justify-content:space-between;align-items:center;
+}
+.flujo-section-title{
+  font-size:12.5px;font-weight:800;color:var(--text);
+  display:flex;align-items:center;gap:8px;letter-spacing:.2px;
+}
+.flujo-section-total{
+  font-size:13px;font-weight:800;color:#f0b429;
+  font-variant-numeric:tabular-nums;
+}
+
+/* Tabla */
+.flujo-table-wrap{
+  border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;
+  overflow:hidden;background:var(--surface);
+}
+.flujo-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.flujo-table thead th{
+  background:var(--surface2);color:var(--muted);
+  padding:8px 14px;text-align:left;font-size:10.5px;
+  font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  border-bottom:1px solid var(--border);
+}
+.flujo-table thead th.num{text-align:right;}
+.flujo-table tbody td{
+  padding:8px 14px;border-top:1px solid var(--border);
+  font-variant-numeric:tabular-nums;
+}
+.flujo-table tbody tr{transition:background .12s;}
+.flujo-table tbody tr.data-row:hover{background:rgba(96,165,250,.06);}
+.flujo-table tbody tr.negativo{background:rgba(248,113,113,.07);}
+.flujo-table tbody tr.negativo:hover{background:rgba(248,113,113,.13);}
+.flujo-nivel-sep td{
+  padding:7px 14px;font-size:10.5px;font-weight:800;
+  letter-spacing:.4px;text-transform:uppercase;
+}
+.flujo-nivel-badge{
+  display:inline-block;color:#fff;padding:2px 9px;
+  border-radius:6px;margin-right:10px;font-weight:800;font-size:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+  font-variant-numeric:tabular-nums;
+}
+.flujo-cutoff td{
+  padding:6px 14px 4px !important;background:transparent !important;
+  border-top:2px dashed #f87171 !important;position:relative;
+}
+.flujo-cutoff-label{
+  display:inline-block;background:#f87171;color:#fff;
+  padding:2px 10px;border-radius:5px;font-size:9.5px;
+  font-weight:800;letter-spacing:.4px;text-transform:uppercase;
+  box-shadow:0 2px 8px rgba(248,113,113,.4);
+}
+.flujo-table tfoot tr{
+  background:linear-gradient(90deg,#f0b429,#f59e0b);color:#111;
+}
+.flujo-table tfoot td{
+  padding:10px 14px;font-weight:800;font-size:13px;
+  font-variant-numeric:tabular-nums;
+}
+.flujo-running-pos{color:#16a34a;font-weight:700;}
+.flujo-running-neg{color:#dc2626;font-weight:700;}
+
+/* Footer */
+.flujo-footer{
+  margin-top:16px;display:flex;justify-content:space-between;
+  align-items:center;flex-wrap:wrap;gap:12px;
+}
+.flujo-footer-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.flujo-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 11px;border-radius:99px;font-size:11px;font-weight:700;
+  border:1px solid;font-variant-numeric:tabular-nums;
+}
+.flujo-pill.ok{background:rgba(34,197,94,.1);color:#22c55e;border-color:rgba(34,197,94,.3);}
+.flujo-pill.warn{background:rgba(245,158,11,.1);color:#f59e0b;border-color:rgba(245,158,11,.3);}
+.flujo-pill.danger{background:rgba(248,113,113,.1);color:#f87171;border-color:rgba(248,113,113,.3);}
+.flujo-footer-actions{display:flex;gap:8px;}
+.flujo-btn{
+  border-radius:10px;padding:8px 16px;font-size:12.5px;
+  cursor:pointer;font-weight:700;transition:all .15s;
+}
+.flujo-btn-secondary{
+  background:rgba(88,166,255,.1);color:var(--accent);
+  border:1px solid rgba(88,166,255,.35);
+}
+.flujo-btn-secondary:hover{background:rgba(88,166,255,.2);transform:translateY(-1px);}
+.flujo-btn-primary{
+  background:var(--surface2);color:var(--text);
+  border:1px solid var(--border);
+}
+.flujo-btn-primary:hover{background:var(--surface);}
 #diagnosticoModal{display:none;}
 #diagnosticoModal.open{display:flex;opacity:1;pointer-events:all;}
 .btn-danger{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.4);}
@@ -900,54 +1103,87 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 </div>
 
 <!-- ── MODAL FLUJO DE EFECTIVO (Brecha clickeable) ── -->
-<div id="flujoEfectivoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(880px,97vw);max-height:92vh;overflow-y:auto;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+<div id="flujoEfectivoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:1000;align-items:center;justify-content:center;">
+  <div class="flujo-container">
 
-    <!-- Header azul tipo Excel -->
-    <div style="background:linear-gradient(90deg,#1f6feb,#2088e6);color:#fff;padding:14px 20px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center;">
-      <div style="font-size:15px;font-weight:800;letter-spacing:.3px;">💰 Flujo de efectivo MXN</div>
-      <button onclick="closeFlujoEfectivoModal()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;line-height:1;">✕</button>
+    <!-- Header pro con gradiente -->
+    <div class="flujo-header">
+      <div class="flujo-header-left">
+        <div class="flujo-header-icon">💰</div>
+        <div>
+          <div class="flujo-header-title">Flujo de Efectivo</div>
+          <div class="flujo-header-sub">
+            <span>MXN</span>
+            <span>·</span>
+            <span id="flujoSemanaChip">Semana —</span>
+            <span class="flujo-chip-plan" id="flujoPlanChip">PLAN: —</span>
+          </div>
+        </div>
+      </div>
+      <button onclick="closeFlujoEfectivoModal()" class="flujo-close" title="Cerrar">✕</button>
     </div>
 
-    <div style="padding:18px 22px 22px;">
-      <!-- Bloque saldo + depósitos por enviar -->
-      <div style="display:grid;grid-template-columns:1fr auto;gap:10px 20px;margin-bottom:12px;align-items:center;">
-        <div style="font-size:13px;font-weight:700;color:var(--text);">Saldo disponible</div>
-        <div id="flujoSaldoDisp" style="font-size:15px;font-weight:800;color:var(--green);text-align:right;">$0</div>
+    <div class="flujo-body">
 
-        <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;">
-          Depósitos por enviar
-          <input id="flujoDepositosInput" type="text" inputmode="decimal" placeholder="0" oninput="fmtInputMoneyGeneric(this);flujoActualizarDepositos()" style="width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px;text-align:right;">
+      <!-- KPI Cards -->
+      <div class="flujo-kpi-grid">
+        <div class="flujo-kpi saldo">
+          <div class="flujo-kpi-label">💵 Saldo disponible</div>
+          <div id="flujoSaldoDisp" class="flujo-kpi-value">$0</div>
         </div>
-        <div id="flujoDepositosMonto" style="font-size:13px;font-weight:700;color:var(--muted);text-align:right;">—</div>
+        <div class="flujo-kpi depositos">
+          <div class="flujo-kpi-label">🏦 Depósitos por enviar</div>
+          <input id="flujoDepositosInput" type="text" inputmode="decimal" placeholder="0" oninput="fmtInputMoneyGeneric(this);flujoActualizarDepositos()" class="flujo-kpi-input">
+          <div id="flujoDepositosMonto" class="flujo-kpi-sub">—</div>
+        </div>
+        <div class="flujo-kpi total">
+          <div class="flujo-kpi-label">💰 Total disponible</div>
+          <div id="flujoTotalDisponible" class="flujo-kpi-value">$0</div>
+        </div>
+        <div class="flujo-kpi brecha-pos" id="flujoBrechaCard">
+          <div class="flujo-kpi-label" id="flujoBrechaLabel">📊 Brecha final</div>
+          <div id="flujoBrechaValue" class="flujo-kpi-value">$0</div>
+        </div>
       </div>
 
-      <!-- Header azul con total flujo -->
-      <div style="background:linear-gradient(90deg,#1f6feb,#2088e6);color:#fff;padding:10px 16px;border-radius:8px 8px 0 0;display:grid;grid-template-columns:1fr auto;align-items:center;font-weight:800;font-size:14px;">
-        <div>💰 Flujo de efectivo MXN</div>
-        <div id="flujoTotalDisponible" style="text-align:right;font-size:15px;">$0</div>
+      <!-- Barra de progreso de cobertura -->
+      <div class="flujo-progress">
+        <div class="flujo-progress-labels">
+          <span>Cobertura de gastos</span>
+          <span class="flujo-progress-pct" id="flujoProgressPct">0%</span>
+        </div>
+        <div class="flujo-progress-track">
+          <div id="flujoProgressBar" class="flujo-progress-bar" style="width:0%"></div>
+        </div>
       </div>
 
-      <!-- Header amarillo "Gastos urgentes por cubrir" -->
-      <div style="background:#f0b429;color:#111;padding:8px 16px;display:grid;grid-template-columns:1fr auto;font-weight:800;font-size:13px;">
-        <div>⚠️ Gastos urgentes por cubrir</div>
-        <div>$ To cover MXN</div>
+      <!-- Sección gastos pendientes -->
+      <div class="flujo-section-header">
+        <div class="flujo-section-title">⚠️ <span>Gastos pendientes por cubrir</span></div>
+        <div class="flujo-section-total" id="flujoSectionTotal">$0</div>
       </div>
 
-      <!-- Tabla de expenses -->
-      <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;overflow:hidden;">
-        <table id="flujoTabla" style="width:100%;border-collapse:collapse;font-size:12px;">
+      <!-- Tabla -->
+      <div class="flujo-table-wrap">
+        <table id="flujoTabla" class="flujo-table">
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th class="num">Monto</th>
+              <th class="num">Saldo tras pago</th>
+            </tr>
+          </thead>
           <tbody id="flujoTablaBody"></tbody>
           <tfoot id="flujoTablaFoot"></tfoot>
         </table>
       </div>
 
-      <!-- Botones -->
-      <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-        <div id="flujoResumen" style="font-size:11px;color:var(--muted);"></div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="flujoImprimir()" style="background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600;">🖨️ Imprimir</button>
-          <button onclick="closeFlujoEfectivoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;">Cerrar</button>
+      <!-- Footer -->
+      <div class="flujo-footer">
+        <div class="flujo-footer-pills" id="flujoResumen"></div>
+        <div class="flujo-footer-actions">
+          <button onclick="flujoImprimir()" class="flujo-btn flujo-btn-secondary">🖨️ Imprimir</button>
+          <button onclick="closeFlujoEfectivoModal()" class="flujo-btn flujo-btn-primary">Cerrar</button>
         </div>
       </div>
     </div>
@@ -1161,7 +1397,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.05.3';
+const APP_VERSION = '2026.07.05.4';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -4619,6 +4855,18 @@ function flujoRenderTabla() {
   document.getElementById('flujoDepositosMonto').textContent = depositos > 0 ? fmt(depositos) : '—';
   document.getElementById('flujoTotalDisponible').textContent = fmt(totalDisponible);
 
+  // Header: chip plan + semana
+  const planLabels = {all:'TODOS', recomendado:'RECOMENDADO', urgente:'URGENTE', supervivencia:'SUPERVIVENCIA'};
+  const planChip = document.getElementById('flujoPlanChip');
+  if (planChip) planChip.textContent = 'PLAN: ' + (planLabels[plan] || plan.toUpperCase());
+  const semanaChip = document.getElementById('flujoSemanaChip');
+  if (semanaChip) {
+    try {
+      const wk = (typeof cxpSemanaSeleccionada !== 'undefined' && cxpSemanaSeleccionada) ? cxpSemanaSeleccionada : getWeekKey();
+      semanaChip.textContent = 'Semana ' + getWeekLabel(wk);
+    } catch(e) { semanaChip.textContent = 'Semana actual'; }
+  }
+
   // Solo conceptos pendientes en el plan activo, ordenados por nivel
   const filtradas = cxpData
     .filter(r => r.concepto && r.total !== undefined)
@@ -4646,14 +4894,14 @@ function flujoRenderTabla() {
 
   filtradas.forEach((r, i) => {
     const nivKey = nivelEfectivo(r);
-    const nivDisp = nivKey === 999 ? '' : ('L' + nivKey);
+    const nivDisp = nivKey === 999 ? '—' : ('L' + nivKey);
     const nivCol = nivelColor(nivKey);
 
     // Insertar separador de nivel cuando cambia
     if (nivKey !== ultimoNivel) {
-      bodyHtml += `<tr style="background:${nivCol}12;">
-        <td colspan="3" style="padding:5px 14px;font-size:11px;font-weight:800;color:${nivCol};border-top:1px solid ${nivCol}55;">
-          <span style="background:${nivCol};color:#fff;padding:1px 8px;border-radius:5px;margin-right:8px;">${nivDisp || '—'}</span>
+      bodyHtml += `<tr class="flujo-nivel-sep" style="background:${nivCol}14;">
+        <td colspan="3" style="color:${nivCol};border-top:1px solid ${nivCol}55;">
+          <span class="flujo-nivel-badge" style="background:${nivCol};">${nivDisp}</span>
           ${nivelLabel(nivKey)}
         </td>
       </tr>`;
@@ -4667,47 +4915,80 @@ function flujoRenderTabla() {
     if (seCruza && cruceCubierto === null) cruceCubierto = i;
 
     // Colores del running balance
-    const runningColor = running >= 0 ? 'var(--green)' : 'var(--red)';
+    const runningClass = running >= 0 ? 'flujo-running-pos' : 'flujo-running-neg';
     const runningTxt = running >= 0 ? fmt(running) : '(' + fmt(Math.abs(running)) + ')';
 
-    // Estilo de fila: si running ya negativo, fondo rojo suave
-    const rowStyle = running < 0
-      ? 'background:rgba(255,77,109,.08);'
-      : (i % 2 === 0 ? 'background:var(--surface);' : '');
+    // Estilo de fila: si running ya negativo, marca como negativo
+    const rowClass = running < 0 ? 'data-row negativo' : 'data-row';
 
-    // Indicador visual de la línea de corte
+    // Indicador visual de la línea de corte con label integrado
     const cutoffMark = seCruza
-      ? `<tr><td colspan="3" style="border-top:2px dashed var(--red);padding:0;height:0;line-height:0;font-size:0;"></td></tr>`
+      ? `<tr class="flujo-cutoff"><td colspan="3" style="text-align:center;"><span class="flujo-cutoff-label">🔻 Línea de corte</span></td></tr>`
       : '';
 
-    bodyHtml += `<tr style="${rowStyle}">
-      <td style="padding:6px 14px;color:var(--text);border-top:1px solid var(--border);">${r.concepto}${r.nota?` <span style="color:var(--muted);font-size:10px;">(${r.nota})</span>`:''}</td>
-      <td style="padding:6px 14px;text-align:right;font-weight:600;color:var(--text);border-top:1px solid var(--border);white-space:nowrap;">${fmt(r._pendiente)}</td>
-      <td style="padding:6px 14px;text-align:right;font-weight:700;color:${runningColor};border-top:1px solid var(--border);white-space:nowrap;">${runningTxt}</td>
+    bodyHtml += `<tr class="${rowClass}">
+      <td style="color:var(--text);">${r.concepto}${r.nota?` <span style="color:var(--muted);font-size:10.5px;">(${r.nota})</span>`:''}</td>
+      <td style="text-align:right;font-weight:600;color:var(--text);white-space:nowrap;">${fmt(r._pendiente)}</td>
+      <td class="${runningClass}" style="text-align:right;white-space:nowrap;">${runningTxt}</td>
     </tr>${cutoffMark}`;
   });
 
   if (filtradas.length === 0) {
-    bodyHtml = `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">🎉 No hay gastos pendientes en este plan.</td></tr>`;
+    bodyHtml = `<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">🎉 No hay gastos pendientes en este plan.</td></tr>`;
   }
 
   document.getElementById('flujoTablaBody').innerHTML = bodyHtml;
   document.getElementById('flujoTablaFoot').innerHTML = `
-    <tr style="background:#f0b429;color:#111;">
-      <td style="padding:8px 14px;font-weight:800;">Total</td>
-      <td style="padding:8px 14px;text-align:right;font-weight:800;">${fmt(totalGastos)}</td>
-      <td style="padding:8px 14px;text-align:right;font-weight:800;">${totalGastos > totalDisponible ? '(' + fmt(totalGastos - totalDisponible) + ')' : fmt(totalDisponible - totalGastos)}</td>
+    <tr>
+      <td>Total</td>
+      <td style="text-align:right;">${fmt(totalGastos)}</td>
+      <td style="text-align:right;">${totalGastos > totalDisponible ? '(' + fmt(totalGastos - totalDisponible) + ')' : fmt(totalDisponible - totalGastos)}</td>
     </tr>
   `;
 
+  // Actualizar sección total
+  const secTotal = document.getElementById('flujoSectionTotal');
+  if (secTotal) secTotal.textContent = fmt(totalGastos);
+
+  // Brecha final + card dinámica
   const brechaFinal = totalDisponible - totalGastos;
+  const brechaCard = document.getElementById('flujoBrechaCard');
+  const brechaLabel = document.getElementById('flujoBrechaLabel');
+  const brechaValue = document.getElementById('flujoBrechaValue');
+  if (brechaCard && brechaValue && brechaLabel) {
+    if (brechaFinal >= 0) {
+      brechaCard.classList.remove('brecha-neg');
+      brechaCard.classList.add('brecha-pos');
+      brechaLabel.innerHTML = '✅ Sobrante';
+      brechaValue.textContent = fmt(brechaFinal);
+    } else {
+      brechaCard.classList.remove('brecha-pos');
+      brechaCard.classList.add('brecha-neg');
+      brechaLabel.innerHTML = '⚠️ Falta cubrir';
+      brechaValue.textContent = fmt(Math.abs(brechaFinal));
+    }
+  }
+
+  // Barra de progreso de cobertura
+  const cobertura = totalGastos > 0 ? Math.min(100, (totalDisponible / totalGastos) * 100) : 100;
+  const progBar = document.getElementById('flujoProgressBar');
+  const progPct = document.getElementById('flujoProgressPct');
+  if (progBar && progPct) {
+    progBar.style.width = cobertura.toFixed(1) + '%';
+    progPct.textContent = cobertura.toFixed(0) + '%';
+    progBar.classList.remove('warn','danger');
+    if (cobertura < 60) progBar.classList.add('danger');
+    else if (cobertura < 100) progBar.classList.add('warn');
+  }
+
+  // Pills de resumen
   const nCubiertos = cruceCubierto === null ? filtradas.length : cruceCubierto;
   const nNoCubiertos = filtradas.length - nCubiertos;
-  document.getElementById('flujoResumen').innerHTML = `
-    <span style="color:var(--green);font-weight:700;">✅ Cubiertos: ${nCubiertos}</span>
-    ${nNoCubiertos > 0 ? ` · <span style="color:var(--red);font-weight:700;">⚠️ Sin cubrir: ${nNoCubiertos}</span>` : ''}
-    ${brechaFinal < 0 ? ` · <span style="color:var(--red);font-weight:700;">Falta: ${fmt(Math.abs(brechaFinal))}</span>` : ` · <span style="color:var(--green);font-weight:700;">Sobrante: ${fmt(brechaFinal)}</span>`}
-  `;
+  let pillsHtml = `<span class="flujo-pill ok">✅ Cubiertos: ${nCubiertos}</span>`;
+  if (nNoCubiertos > 0) pillsHtml += `<span class="flujo-pill danger">⚠️ Sin cubrir: ${nNoCubiertos}</span>`;
+  if (brechaFinal < 0) pillsHtml += `<span class="flujo-pill danger">Falta: ${fmt(Math.abs(brechaFinal))}</span>`;
+  else pillsHtml += `<span class="flujo-pill ok">Sobrante: ${fmt(brechaFinal)}</span>`;
+  document.getElementById('flujoResumen').innerHTML = pillsHtml;
 }
 
 function flujoImprimir() {
@@ -4715,13 +4996,27 @@ function flujoImprimir() {
   if (!modal) return;
   const w = window.open('', '_blank', 'width=900,height=800');
   if (!w) { toast('Habilita popups para imprimir', 'err'); return; }
-  const contenido = modal.querySelector('div > div:nth-child(2)').innerHTML;
+  const bodyEl = modal.querySelector('.flujo-body') || modal.querySelector('div > div:nth-child(2)');
+  const contenido = bodyEl ? bodyEl.innerHTML : '';
+  const planChip = document.getElementById('flujoPlanChip')?.textContent || '';
+  const semanaChip = document.getElementById('flujoSemanaChip')?.textContent || '';
   w.document.write(`<html><head><title>Flujo de Efectivo</title>
-    <style>body{font-family:Arial,sans-serif;padding:20px;font-size:12px}
-    table{width:100%;border-collapse:collapse}
-    td,th{border:1px solid #ccc;padding:6px 10px}
+    <style>
+      body{font-family:Arial,sans-serif;padding:20px;font-size:12px;color:#111;}
+      table{width:100%;border-collapse:collapse;margin-top:10px;}
+      td,th{border:1px solid #ccc;padding:6px 10px;}
+      input{border:1px solid #ccc;padding:4px 6px;}
+      h2{background:linear-gradient(90deg,#0b3d91,#2ea3ff);color:#fff;padding:12px 16px;margin:0 0 14px;border-radius:8px;}
+      .flujo-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+      .flujo-kpi{border:1px solid #ddd;border-radius:8px;padding:10px;}
+      .flujo-kpi-label{font-size:10px;color:#666;text-transform:uppercase;font-weight:700;margin-bottom:4px;}
+      .flujo-kpi-value{font-size:16px;font-weight:800;}
+      .flujo-progress,.flujo-footer-actions,.flujo-close,.flujo-header{display:none;}
+      .flujo-section-header{background:#fff5d6;padding:8px 12px;font-weight:800;border-radius:6px 6px 0 0;border:1px solid #f0b429;display:flex;justify-content:space-between;}
+      .flujo-table-wrap{border:1px solid #ddd;border-top:none;border-radius:0 0 6px 6px;}
+      .flujo-pill{display:inline-block;padding:3px 8px;margin-right:6px;border-radius:99px;font-size:11px;border:1px solid #ccc;}
     </style></head><body>
-    <h2 style="background:#1f6feb;color:#fff;padding:10px 14px;margin:0 0 12px;border-radius:6px;">💰 Flujo de efectivo MXN</h2>
+    <h2>💰 Flujo de Efectivo MXN &nbsp;·&nbsp; ${semanaChip} &nbsp;·&nbsp; ${planChip}</h2>
     ${contenido}
     </body></html>`);
   w.document.close();
@@ -6553,6 +6848,7 @@ async function applyUpdate() {
 </script>
 </body>
 </html>
+
 
 
 
