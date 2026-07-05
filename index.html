@@ -1124,7 +1124,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.04.11';
+const APP_VERSION = '2026.07.05.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -1647,23 +1647,15 @@ async function loginSuccess(userData) {
   }
 }
 
-function doLogout() {
+async function doLogout() {
   clearInterval(sessionInterval);
-  sb.auth.signOut();
+  try {
+    await sb.auth.signOut();
+  } catch(e) { console.warn('signOut error:', e); }
   sessionStorage.removeItem('mitech_user');
   currentUser = null;
-  document.getElementById('app').style.display='none';
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('usr').value='';
-  document.getElementById('pwd').value='';
-  document.getElementById('pwd2').value='';
-  document.getElementById('pwd3').value='';
-  document.getElementById('cambioBox').style.display='none';
-  document.getElementById('loginBtn').textContent='Entrar';
-  document.getElementById('loginBtn').onclick=doLogin;
-  document.getElementById('loginBtn').disabled=false;
-  setErr('');
-  toast('Sesión cerrada');
+  // Redirigir al SIF-Portal para que el usuario firme nuevamente y elija módulo
+  window.location.href = 'https://jcgt1976.github.io/SIF-Portal/';
 }
 
 /* ══════════════════════════════════════════
