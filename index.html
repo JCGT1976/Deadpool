@@ -79,10 +79,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   background:radial-gradient(ellipse at 60% 20%, #0a2540 0%, #0f1923 60%);
 }
 /* Boot-loader: cubre toda la pantalla mientras el bootstrap verifica la
-   sesión Supabase. Se remueve por JS al decidir (loginSuccess o redirect). */
+   sesión Supabase. Se remueve por JS al decidir (loginSuccess o redirect).
+   Fondo en azul institucional MI Global para continuidad visual con el portal. */
 #bootLoader{
   position:fixed;inset:0;z-index:99999;
-  background:#0A0F1C;
+  background:#002855;
   display:flex;align-items:center;justify-content:center;
   font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
 }
@@ -1160,7 +1161,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.05.2';
+const APP_VERSION = '2026.07.05.3';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
