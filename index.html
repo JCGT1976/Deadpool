@@ -3322,8 +3322,12 @@ async function cxpHandleFile(e) {
       .filter(r => {
         const c = (r.concepto || '').toString().trim();
         if (!c) return false;
-        // Excluir filas de resumen/total del Excel (SUMA DE IMPORTES, TOTAL GENERAL, etc.)
-        if (/^(SUMA|TOTAL|SUBTOTAL|GRAND\s*TOTAL)/i.test(c)) return false;
+        // Excluir filas de resumen del Excel (ej. "SUMA DE IMPORTES") que además
+        // no tienen TIPO ni CATEGORIA — así un concepto legítimo como "Total nómina"
+        // con TIPO y CATEGORIA definidos NO se filtra aunque empiece por SUMA/TOTAL.
+        const sinClasif = !r.tipo?.toString().trim() &&
+                          (!r.categoria?.toString().trim() || r.categoria === 'General');
+        if (sinClasif && /^(SUMA|TOTAL|SUBTOTAL|GRAND\s*TOTAL)/i.test(c)) return false;
         return true;
       });
 
