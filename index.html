@@ -7037,6 +7037,35 @@ async function applyUpdate() {
   window.addEventListener('focus', checkForUpdates);
 })();
 </script>
+<script>
+(function(){
+  var PORTAL_URL = 'https://jcgt1976.github.io/SIF-Portal/';
+
+  function addPortalBtn(){
+    var bar = document.querySelector('.topbar');
+    if (!bar || document.querySelector('#btnVolverPortal')) return;
+    var btn = document.createElement('button');
+    btn.id = 'btnVolverPortal';
+    btn.type = 'button';
+    btn.textContent = '← Portal';
+    btn.style.cssText = 'margin-left:8px;background:#1d2a3a;border:1px solid #243044;' +
+      'color:#e8f0f8;border-radius:8px;padding:8px 14px;cursor:pointer;' +
+      'font-size:12px;font-weight:600;font-family:inherit;';
+    btn.onmouseenter = function(){ btn.style.opacity = '0.85'; };
+    btn.onmouseleave = function(){ btn.style.opacity = '1'; };
+    btn.onclick = function(){ window.location.href = PORTAL_URL; };
+    bar.appendChild(btn);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addPortalBtn);
+  } else {
+    addPortalBtn();
+  }
+  setTimeout(addPortalBtn, 800);
+  setTimeout(addPortalBtn, 2000);
+})();
+</script>
 </body>
 </html>
 
