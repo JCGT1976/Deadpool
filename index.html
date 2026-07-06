@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.05.8';
+const APP_VERSION = '2026.07.06.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -1998,6 +1998,8 @@ async function loadAllData() {
       const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
       if (data) allData.usuarios = data;
     }
+    // Entradas — cargar desde Supabase para que sean compartidas entre usuarios/dispositivos
+    await entradasFetch(true);
   } catch(e) {
     console.error('Error cargando datos:', e);
     toast('Error al cargar datos', 'err');
@@ -2247,7 +2249,37 @@ function accordionApplySavedState() {
 
 /* ── RENDER DASHBOARD ─────────────────── */
 /* ── ENTRADAS — estado global ─────────────────────── */
+/* entradasData es cache en memoria. Fuente de verdad = tabla `entradas` en Supabase.
+   localStorage se usa como respaldo offline y semilla inicial en primer arranque
+   (por si la tabla aún no existe o no hay red). */
 let entradasData = JSON.parse(localStorage.getItem('mitech_entradas') || '[]');
+let entradasLoaded = false;
+
+/* Carga (o recarga) las entradas desde Supabase. Compartidas entre TODOS los usuarios
+   y dispositivos, igual que gastos_efectuados. Fallback silencioso a localStorage
+   si la tabla no existe todavía. */
+async function entradasFetch(force) {
+  if (entradasLoaded && !force) return true;
+  try {
+    const { data, error } = await sb.from('entradas').select('*').order('fecha', { ascending: false });
+    if (error) {
+      // Tabla aún no creada en Supabase (schema cache) → seguimos con localStorage
+      if (/schema cache|does not exist|relation .* does not exist|entradas/i.test(error.message || '') && /entradas/i.test(error.message || '')) {
+        console.warn('[entradas] Tabla no existe en Supabase; usando localStorage local. Crea la tabla para compartir entre usuarios.', error);
+        return false;
+      }
+      console.error('entradas fetch:', error);
+      return false;
+    }
+    entradasData = data || [];
+    localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
+    entradasLoaded = true;
+    return true;
+  } catch(err) {
+    console.error('entradasFetch:', err);
+    return false;
+  }
+}
 
 function getEntradasTotal() {
   const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
@@ -2260,10 +2292,12 @@ function getEntradasTotal() {
   return totalMXN;
 }
 
-function openEntradasModal() {
+async function openEntradasModal() {
   if (!requirePerm('entradas', 'Sin permisos para registrar/ver entradas')) return;
   const tc = localStorage.getItem('mitech_tc') || '17';
   document.getElementById('tcValue').value = tc;
+  // Refrescar desde Supabase para ver entradas capturadas por otros usuarios/dispositivos
+  await entradasFetch(true);
   entradasRenderList();
   document.getElementById('entradasModal').classList.add('open');
 }
@@ -2363,16 +2397,20 @@ function entradasRenderList() {
     const clrMain = isUSD ? '#60a5fa' : 'var(--green)';   // azul USD / verde MXN
     const cls     = isUSD ? 'usd' : 'mxn';
     const prefix  = isUSD ? 'US' : 'MX';
+    // Si viene de Supabase tiene e.id; si es legacy localStorage usamos el índice
+    const delArg = (e.id != null) ? `${e.id}` : `'idx:${i}'`;
+    const autorTag = e.usuario ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">por ${e.usuario}</div>` : '';
     return `<div class="entrada-row ${cls}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:12px;font-weight:700;color:${clrMain};">${e.fuente}</span>
-        <button onclick="deleteEntrada(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;">✕</button>
+        <button onclick="deleteEntrada(${delArg})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;">✕</button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;">
         <div>
           <span style="font-size:11px;font-weight:600;color:${clrMain};opacity:.7;">${prefix}</span>
           <span style="font-size:15px;font-weight:800;color:${clrMain};margin-left:2px;">${isUSD ? fmtUSD(m)+' USD' : fmtMXN(m)+' MXN'}</span>
           ${isUSD ? `<div style="font-size:11px;color:var(--green);margin-top:2px;">≈ ${fmtMXN(mxnEq)} MXN <span style="color:var(--muted);">(TC ${etcv.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})})</span></div>` : ''}
+          ${autorTag}
         </div>
         ${e.notas ? `<span style="font-size:11px;color:var(--muted);text-align:right;max-width:120px;">${e.notas}</span>` : ''}
       </div>
@@ -2394,7 +2432,7 @@ function entradasRenderList() {
   if (telUSD) telUSD.textContent = totalUSD > 0 ? 'Incluye USD $'+totalUSD.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' convertidos a MXN' : '';
 }
 
-function saveEntrada() {
+async function saveEntrada() {
   if (!requirePerm('entradas', 'Sin permisos para registrar entradas')) return;
   const fuente  = document.getElementById('entradaFuente').value;
   const montoRaw= document.getElementById('entradaMonto').value;
@@ -2404,8 +2442,43 @@ function saveEntrada() {
   const tc      = parseMoney(document.getElementById('tcValue').value) || 17;
   if (!fuente || !monto || monto <= 0) { toast('Selecciona fuente y monto válido','err'); return; }
   if (moneda === 'USD') localStorage.setItem('mitech_tc', tc);
-  entradasData.push({ fuente, monto, moneda, tc: moneda==='USD'?tc:null, notas, fecha: new Date().toISOString() });
-  localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
+
+  const userObj = JSON.parse(sessionStorage.getItem('mitech_user') || '{}');
+  const payload = {
+    fuente,
+    monto,
+    moneda,
+    tc: moneda === 'USD' ? tc : null,
+    notas: notas || null,
+    fecha: new Date().toISOString(),
+    usuario: userObj.nombre || userObj.username || userObj.email || 'desconocido'
+  };
+
+  try {
+    const { error } = await sb.from('entradas').insert(payload);
+    if (error) {
+      // Fallback: si la tabla no existe (schema cache), guardar en localStorage
+      // como antes para no bloquear la operación
+      if (/schema cache|does not exist|relation/i.test(error.message || '')) {
+        console.warn('[entradas] Insert local (tabla Supabase no existe):', error);
+        entradasData.push(payload);
+        localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
+        toast('⚠ Entrada guardada localmente. Crea la tabla `entradas` en Supabase para compartir entre usuarios.', 'err');
+      } else {
+        console.error('Insert entrada:', error);
+        toast('Error al guardar entrada: ' + (error.message || 'ver consola'), 'err');
+        return;
+      }
+    } else {
+      // Recargar la lista desde Supabase para ver también entradas de otros usuarios
+      await entradasFetch(true);
+    }
+  } catch(err) {
+    console.error(err);
+    toast('Error al guardar entrada', 'err');
+    return;
+  }
+
   document.getElementById('entradaMonto').value = '';
   document.getElementById('entradaNotas').value = '';
   entradasSetMoneda('MXN');
@@ -2413,10 +2486,31 @@ function saveEntrada() {
   showTab('dashboard');
 }
 
-function deleteEntrada(i) {
+async function deleteEntrada(idOrIdxTag) {
   if (!requirePerm('entradas', 'Sin permisos para eliminar entradas')) return;
-  entradasData.splice(i,1);
-  localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
+  // Compat: si viene como 'idx:N' es una fila legacy sólo en localStorage
+  if (typeof idOrIdxTag === 'string' && idOrIdxTag.startsWith('idx:')) {
+    const i = parseInt(idOrIdxTag.slice(4), 10);
+    entradasData.splice(i, 1);
+    localStorage.setItem('mitech_entradas', JSON.stringify(entradasData));
+    entradasRenderList();
+    showTab('dashboard');
+    return;
+  }
+  const id = idOrIdxTag;
+  try {
+    const { error } = await sb.from('entradas').delete().eq('id', id);
+    if (error) {
+      console.error('Delete entrada:', error);
+      toast('Error al eliminar entrada: ' + (error.message || 'ver consola'), 'err');
+      return;
+    }
+    await entradasFetch(true);
+  } catch(err) {
+    console.error(err);
+    toast('Error al eliminar entrada', 'err');
+    return;
+  }
   entradasRenderList();
   showTab('dashboard');
 }
@@ -2425,9 +2519,11 @@ async function renderDashboard(c) {
   const cat = allData.catalogo || [];
   const dat = allData.datos || [];
 
-  // Asegura datos de plan (cxpData) y gastos efectuados antes de calcular KPIs
+  // Asegura datos de plan (cxpData), gastos efectuados y entradas antes de calcular KPIs.
+  // entradasFetch(true) es intencional: garantiza ver capturas hechas por otros usuarios/dispositivos.
   await cxpEnsureData();
   await gastosEfectuadosFetch();
+  await entradasFetch(true);
 
   const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
   const totalEntradasMXN = getEntradasTotal();
@@ -6052,8 +6148,15 @@ async function confirmarCierreSemana() {
   gastosEfectuadosData = [];
   gastosEfectuadosLoaded = false;
 
-  // Limpiar entradas
+  // Limpiar entradas — tanto en Supabase como en localStorage
+  try {
+    const { error } = await sb.from('entradas').delete().not('fecha', 'is', null);
+    if (error && !/schema cache|does not exist|relation/i.test(error.message || '')) {
+      console.warn('Error al limpiar entradas:', error);
+    }
+  } catch(e) { console.warn(e); }
   entradasData = [];
+  entradasLoaded = false;
   localStorage.setItem('mitech_entradas', '[]');
 
   // Limpiar plan activo (nueva semana, elegir plan de nuevo)
@@ -6116,7 +6219,14 @@ async function confirmarResetTotal() {
   gastosEfectuadosLoaded = false;
 
   // Limpiar entradas, plan, arrastre, historial, presupuesto semanal
+  try {
+    const { error } = await sb.from('entradas').delete().not('fecha', 'is', null);
+    if (error && !/schema cache|does not exist|relation/i.test(error.message || '')) {
+      console.warn('Error reset entradas:', error);
+    }
+  } catch(e) { console.warn(e); }
   entradasData = [];
+  entradasLoaded = false;
   localStorage.setItem('mitech_entradas', '[]');
   localStorage.removeItem('mitech_arrastre');
   localStorage.removeItem('mitech_cierres_hist');
