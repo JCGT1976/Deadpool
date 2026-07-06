@@ -211,8 +211,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   font-size:24px;font-weight:600;color:var(--text);
   font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15;
 }
-.kpi-value.positive{color:var(--green)}
-.kpi-value.negative{color:var(--red)}
+.kpi-value.positive{color:#10b981}
+.kpi-value.negative{color:#f43f5e}
+[data-theme="light"] .kpi-value.positive{color:#047857}
+[data-theme="light"] .kpi-value.negative{color:#be123c}
+.kpi-value.empty{
+  color:var(--muted);font-size:15px;font-weight:500;
+  letter-spacing:0;line-height:1.3;
+}
+.kpi-status-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--muted);vertical-align:middle;flex-shrink:0;
+  box-shadow:0 0 0 2px rgba(255,255,255,.04);
+}
+[data-theme="light"] .kpi-status-dot{box-shadow:0 0 0 2px rgba(0,0,0,.03);}
+.kpi-status-dot.ok{background:#10b981;}
+.kpi-status-dot.warn{background:#f59e0b;}
+.kpi-status-dot.err{background:#f43f5e;}
+.kpi-status-dot.info{background:var(--accent);}
 .kpi-sub{font-size:11px;color:var(--muted);margin-top:6px;font-weight:500;}
 
 /* ── TABLA FINANCIERA ───────────────────────────────── */
@@ -1430,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.05.7';
+const APP_VERSION = '2026.07.05.8';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2474,11 +2490,10 @@ async function renderDashboard(c) {
 
       <!-- IZQUIERDA: Presupuesto + Saldo Bancario -->
       <div style="display:flex;flex-direction:column;gap:16px;">
-      <div class="kpi-card kpi-clickable" onclick="openBudgetModal()"
-           style="border-color:${budgetMonto>0 ? budgetColor : 'var(--border)'};margin:0;">
-        <div class="kpi-label">${budgetSymbol} ${t('kpi.presupuesto')}</div>
-        <div class="kpi-value" style="font-size:22px;color:${budgetMonto>0 ? budgetColor : 'var(--accent)'};">
-          ${budgetMonto > 0 ? fmtBudget(budgetMonto, budgetGen?.moneda) : '— Sin monto —'}
+      <div class="kpi-card kpi-clickable" onclick="openBudgetModal()" style="margin:0;">
+        <div class="kpi-label"><span class="kpi-status-dot ${budgetMonto>0 ? (budgetPct>90?'err':budgetPct>70?'warn':'ok') : ''}"></span>${budgetSymbol} ${t('kpi.presupuesto')}</div>
+        <div class="kpi-value ${budgetMonto>0 ? '' : 'empty'}" style="${budgetMonto>0 ? 'font-size:22px;' : ''}">
+          ${budgetMonto > 0 ? fmtBudget(budgetMonto, budgetGen?.moneda) : '— Sin monto configurado —'}
         </div>
         <div class="kpi-sub" style="margin-top:2px;">${budgetLabel}</div>
         ${budgetMonto > 0 ? `
@@ -2501,9 +2516,9 @@ async function renderDashboard(c) {
       </div>
 
       <!-- KPI Saldo Bancario -->
-      <div class="kpi-card" style="margin:0;border-color:${saldoColor};">
-        <div class="kpi-label">${t('kpi.saldo_banco')}</div>
-        <div class="kpi-value" style="font-size:22px;color:${saldoColor};">
+      <div class="kpi-card" style="margin:0;">
+        <div class="kpi-label"><span class="kpi-status-dot ${saldoMXN>=0?'ok':'err'}"></span>${t('kpi.saldo_banco')}</div>
+        <div class="kpi-value ${saldoMXN>=0?'positive':'negative'}" style="font-size:22px;">
           ${saldoMXN >= 0 ? '+' : ''}${fmt(saldoMXN)}
         </div>
         <div class="kpi-sub" style="margin-top:4px;">${t('saldo.sub')}</div>
@@ -2525,9 +2540,9 @@ async function renderDashboard(c) {
       </div>
 
       <!-- KPI Deuda Total → siempre muestra el TOTAL general del catálogo -->
-      <div class="kpi-card kpi-clickable" onclick="openReporteSemanaModal()" style="margin:0;border-color:${cxpData.length>0?'#ff6b6b':'var(--border)'};opacity:${cxpData.length>0?1:.5};">
-        <div class="kpi-label">${t('kpi.deuda_total')}</div>
-        <div class="kpi-value" style="font-size:22px;color:${cxpData.length>0?'#ff6b6b':'var(--muted)'};margin-bottom:4px;">
+      <div class="kpi-card kpi-clickable" onclick="openReporteSemanaModal()" style="margin:0;">
+        <div class="kpi-label"><span class="kpi-status-dot ${cxpData.length>0?'err':''}"></span>${t('kpi.deuda_total')}</div>
+        <div class="kpi-value ${cxpData.length>0?'negative':'empty'}" style="${cxpData.length>0?'font-size:22px;':''}margin-bottom:4px;">
           ${cxpData.length>0 ? fmt(deudaTotal) : '— Sin catálogo cargado —'}
         </div>
         <div class="kpi-sub" style="margin-top:2px;font-size:11px;">${cxpData.length>0 ? cxpData.length + ' conceptos · columna TOTAL' : 'Carga el Excel del plan en CxP'}</div>
@@ -2563,10 +2578,9 @@ async function renderDashboard(c) {
           <div class="accordion-inner" style="display:flex;flex-direction:column;gap:14px;">
 
             <!-- KPI Entradas -->
-            <div class="kpi-card kpi-clickable" onclick="openEntradasModal()"
-                 style="border-color:${nEntradas>0?'var(--green)':'var(--border)'};margin:0;">
-              <div class="kpi-label">${t('kpi.entradas')}</div>
-              <div class="kpi-value positive" style="font-size:24px;color:var(--green);">
+            <div class="kpi-card kpi-clickable" onclick="openEntradasModal()" style="margin:0;">
+              <div class="kpi-label"><span class="kpi-status-dot ${nEntradas>0?'ok':''}"></span>${t('kpi.entradas')}</div>
+              <div class="kpi-value ${nEntradas>0?'positive':'empty'}" style="${nEntradas>0?'font-size:24px;':''}">
                 ${nEntradas > 0 ? '$'+Math.round(totalEntradasMXN).toLocaleString('es-MX')+' MXN' : t('kpi.no_entradas')}
               </div>
               <div class="kpi-sub" style="margin-top:4px;">${nEntradas > 0 ? nEntradas + ' ' + (nEntradas>1 ? t('kpi.record_plur') : t('kpi.record_sing')) : t('kpi.click_register')}</div>
@@ -2584,10 +2598,9 @@ async function renderDashboard(c) {
             </div>
 
             <!-- KPI Plan de Pagos -->
-            <div class="kpi-card kpi-clickable" onclick="${planActivo ? 'openPlanPagoDetalleModal()' : 'openPlanPagoModal()'}"
-                 style="border-color:${planActivo ? 'var(--yellow)' : 'var(--border)'};margin:0;">
-              <div class="kpi-label">${t('kpi.plan_pagos')}</div>
-              <div class="kpi-value" style="font-size:22px;color:${planActivo ? 'var(--yellow)' : 'var(--accent)'};">
+            <div class="kpi-card kpi-clickable" onclick="${planActivo ? 'openPlanPagoDetalleModal()' : 'openPlanPagoModal()'}" style="margin:0;">
+              <div class="kpi-label"><span class="kpi-status-dot ${planActivo?'warn':''}"></span>${t('kpi.plan_pagos')}</div>
+              <div class="kpi-value ${planActivo?'':'empty'}" style="${planActivo?'font-size:22px;':''}">
                 ${planActivo ? fmt(planMonto) : t('kpi.no_plan_active')}
               </div>
               <div class="kpi-sub" style="margin-top:4px;">${planActivo ? planCfg.label + ' · ' + planCfg.sub : t('kpi.click_choose_plan')}</div>
@@ -2602,8 +2615,8 @@ async function renderDashboard(c) {
 
             <!-- KPI Gastos Efectuados — clickeable -->
             <div class="kpi-card kpi-clickable" onclick="openGastosDetalleModal()" style="margin:0;">
-              <div class="kpi-label">${t('kpi.gastos_efect')}</div>
-              <div class="kpi-value negative" style="font-size:22px;">${fmt(totalGastosEfectuados)}</div>
+              <div class="kpi-label"><span class="kpi-status-dot ${totalGastosEfectuados>0?'err':''}"></span>${t('kpi.gastos_efect')}</div>
+              <div class="kpi-value ${totalGastosEfectuados>0?'negative':'empty'}" style="${totalGastosEfectuados>0?'font-size:22px;':''}">${totalGastosEfectuados>0 ? fmt(totalGastosEfectuados) : '— Sin gastos —'}</div>
               <div class="kpi-sub">${t('kpi.gastos_sub')}</div>
               <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
                 <div style="display:flex;justify-content:space-between;">
@@ -2620,9 +2633,9 @@ async function renderDashboard(c) {
             </div>
 
             <!-- KPI Brecha Entradas vs Plan de Pagos -->
-            <div class="kpi-card ${planActivo ? 'kpi-clickable' : ''}" onclick="${planActivo ? 'openFlujoEfectivoModal()' : 'openPlanPagoModal()'}" style="margin:0;border-color:${brechaColor};">
-              <div class="kpi-label">${t('kpi.brecha')}</div>
-              <div class="kpi-value" style="font-size:22px;color:${brechaTxtColor};">
+            <div class="kpi-card ${planActivo ? 'kpi-clickable' : ''}" onclick="${planActivo ? 'openFlujoEfectivoModal()' : 'openPlanPagoModal()'}" style="margin:0;">
+              <div class="kpi-label"><span class="kpi-status-dot ${brecha===null?'':brecha>=0?'ok':'err'}"></span>${t('kpi.brecha')}</div>
+              <div class="kpi-value ${brecha===null?'empty':brecha>=0?'positive':'negative'}" style="${brecha===null?'':'font-size:22px;'}">
                 ${brecha === null ? t('kpi.no_plan_active') : fmt(brecha)}
               </div>
               <div class="kpi-sub" style="margin-top:4px;">${brechaStatus}</div>
