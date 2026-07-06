@@ -190,36 +190,30 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 .content{padding:20px;max-width:1100px;margin:0 auto;width:100%}
 
 /* ── CARDS KPI ─────────────────────────────────────── */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px}
 .kpi-card{
-  background:linear-gradient(160deg,var(--surface) 0%,rgba(20,25,40,.4) 100%);
-  border:1px solid var(--border);border-top:5px solid var(--accent);
-  border-radius:14px;
-  padding:18px 20px 16px;position:relative;overflow:hidden;
-  box-shadow:0 4px 12px rgba(0,0,0,.25),0 1px 3px rgba(0,0,0,.15),inset 0 1px 0 rgba(255,255,255,.04);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:16px 18px 14px;position:relative;overflow:hidden;
+  box-shadow:0 1px 2px rgba(0,0,0,.15);
 }
 [data-theme="light"] .kpi-card{
-  background:linear-gradient(160deg,#fff 0%,#f6f8fb 100%);
-  box-shadow:0 4px 12px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.04);
-}
-.kpi-card::after{
-  content:"";position:absolute;top:-40px;right:-40px;
-  width:100px;height:100px;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,255,255,.05),transparent 70%);
-  pointer-events:none;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(30,58,95,.05),0 0 0 1px rgba(30,58,95,.02);
 }
 .kpi-label{
-  font-size:11px;color:var(--muted);font-weight:700;
-  text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;
-  display:flex;align-items:center;gap:5px;
+  font-size:11px;color:var(--muted);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
 }
 .kpi-value{
-  font-size:26px;font-weight:800;color:var(--text);
-  font-variant-numeric:tabular-nums;letter-spacing:-.5px;line-height:1.05;
+  font-size:24px;font-weight:600;color:var(--text);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.15;
 }
 .kpi-value.positive{color:var(--green)}
 .kpi-value.negative{color:var(--red)}
-.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px;font-weight:500;}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:6px;font-weight:500;}
 
 /* ── TABLA FINANCIERA ───────────────────────────────── */
 .section-title{
@@ -320,6 +314,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   /* ── DASHBOARD COMPACTO (sin scroll) ───────────────── */
   #dashboardGrid{grid-template-columns:1fr!important;gap:8px!important}
   #dashboardGrid .kpi-card{padding:10px 12px!important;margin:0!important}
+  #dashboardGrid .kpi-card.kpi-clickable{padding-left:16px!important}
+  #dashboardGrid .kpi-card.kpi-clickable::before{top:10px!important;bottom:10px!important}
   #dashboardGrid .kpi-label{font-size:9px!important;margin-bottom:3px!important}
   #dashboardGrid .kpi-value{font-size:16px!important;line-height:1.15!important}
   #dashboardGrid .kpi-sub{font-size:9px!important;margin-top:1px!important}
@@ -344,35 +340,45 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
 /* ── KPI PRESUPUESTO CLICKEABLE ─────────────────────── */
 .kpi-card{
-  cursor:default;transition:transform .2s cubic-bezier(.4,0,.2,1),border-color .2s,box-shadow .2s;
+  cursor:default;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;
 }
 .kpi-card.kpi-clickable{
-  cursor:pointer;border:1.5px solid var(--border);border-top:3px solid var(--border);
+  cursor:pointer;padding-left:22px;
+}
+.kpi-card.kpi-clickable::before{
+  content:"";position:absolute;left:0;top:14px;bottom:14px;
+  width:3px;border-radius:0 2px 2px 0;
+  background:var(--accent);opacity:.5;
+  transition:opacity .15s ease,background .15s ease;
 }
 .kpi-card.kpi-clickable::after{
   content:"›";position:absolute;top:12px;right:14px;
-  font-size:18px;color:var(--muted);opacity:.4;
-  transition:opacity .2s,transform .2s;
-  font-weight:700;line-height:1;
+  font-size:16px;color:var(--muted);opacity:.35;
+  transition:opacity .15s ease,transform .15s ease,color .15s ease;
+  font-weight:600;line-height:1;
 }
 .kpi-card.kpi-clickable:hover{
-  border-color:var(--accent);transform:translateY(-3px);
-  box-shadow:0 12px 28px rgba(0,194,255,.22),0 4px 8px rgba(0,0,0,.15);
+  border-color:var(--accent);transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(0,0,0,.08),0 1px 3px rgba(0,0,0,.06);
 }
-.kpi-card.kpi-clickable:hover::after{opacity:1;transform:translateX(2px);color:var(--accent);}
-.kpi-card.kpi-clickable:active{transform:translateY(-1px);}
+[data-theme="light"] .kpi-card.kpi-clickable:hover{
+  box-shadow:0 4px 12px rgba(30,58,95,.08),0 1px 3px rgba(30,58,95,.05);
+}
+.kpi-card.kpi-clickable:hover::before{opacity:1;}
+.kpi-card.kpi-clickable:hover::after{opacity:.9;transform:translateX(2px);color:var(--accent);}
+.kpi-card.kpi-clickable:active{transform:translateY(0);}
 .kpi-click-hint{
-  font-size:10px;color:var(--accent);font-weight:600;
-  letter-spacing:.04em;margin-top:6px;opacity:.8;
+  font-size:10px;color:var(--muted);font-weight:500;
+  letter-spacing:.02em;margin-top:6px;opacity:.7;
 }
 .kpi-budget-bar{
-  height:4px;border-radius:2px;background:var(--border);
+  height:3px;border-radius:2px;background:var(--border);
   margin-top:10px;overflow:hidden;
 }
 .kpi-budget-bar-fill{
   height:100%;border-radius:2px;
-  background:linear-gradient(90deg,var(--green),var(--accent));
-  transition:width .6s cubic-bezier(.4,0,.2,1);
+  background:var(--accent);
+  transition:width .5s cubic-bezier(.4,0,.2,1);
 }
 
 /* ── MODAL ENTRADAS ─────────────────────────────────── */
@@ -1424,7 +1430,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.05.6';
+const APP_VERSION = '2026.07.05.7';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
