@@ -3319,7 +3319,13 @@ async function cxpHandleFile(e) {
           tc_ref:       parseFloat(find(['TC','TCREF','TIPO_CAMBIO','TIPOCAMBIO','EXCHANGE'])) || null,
         };
       })
-      .filter(r => r.concepto && r.concepto.toString().trim() !== '');
+      .filter(r => {
+        const c = (r.concepto || '').toString().trim();
+        if (!c) return false;
+        // Excluir filas de resumen/total del Excel (SUMA DE IMPORTES, TOTAL GENERAL, etc.)
+        if (/^(SUMA|TOTAL|SUBTOTAL|GRAND\s*TOTAL)/i.test(c)) return false;
+        return true;
+      });
 
     if (parsedRows.length === 0) {
       // Diagnóstico: si el archivo tiene filas pero ninguna columna se reconoció como CONCEPTO,
