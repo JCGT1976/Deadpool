@@ -835,7 +835,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   <div class="nav" id="navTabs">
     <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard" data-i18n="nav.dashboard">📊 Dashboard</button>
     <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp" data-i18n="nav.cxp">💳 CxP</button>
-    <button class="nav-tab master-only" onclick="showTab('usuarios')" data-tab="usuarios" style="display:none" data-i18n="nav.usuarios">👥 Usuarios</button>
+
   </div>
 
   <!-- content area -->
@@ -1964,11 +1964,9 @@ async function loginSuccess(userData) {
   startTimer();
   await loadAllData();
 
-  // Elegir el primer tab accesible (dashboard por defecto, sino cxp, sino usuarios)
-  const primerTabAccesible = ['dashboard','cxp','usuarios'].find(tab => {
-    if (tab === 'usuarios') return userData.rol === 'admin_master';
-    return canAccess(tab);
-  });
+  // Elegir el primer tab accesible (dashboard por defecto, sino cxp)
+  // Nota: usuarios ya no es un tab independiente — se muestra dentro del dashboard para admin_master
+  const primerTabAccesible = ['dashboard','cxp'].find(tab => canAccess(tab));
   if (primerTabAccesible) {
     showTab(primerTabAccesible);
   } else {
@@ -2011,20 +2009,14 @@ async function loadAllData() {
 ══════════════════════════════════════════ */
 function showTab(tab) {
   // 🔒 VALIDACIÓN DE ACCESO: mapa tab → permiso requerido
-  const TAB_PERM = { dashboard:'dashboard', cxp:'cxp', usuarios:'usuarios' };
+  const TAB_PERM = { dashboard:'dashboard', cxp:'cxp' };
   const permId = TAB_PERM[tab];
   if (permId && !canAccess(permId)) {
     toast(t('toast.no_permission') || 'Sin permisos para esta sección', 'err');
     // Fallback: primer tab permitido, o cerrar sesión si ninguno
-    const fallback = ['dashboard','cxp','usuarios'].find(x => canAccess(TAB_PERM[x]));
+    const fallback = ['dashboard','cxp'].find(x => canAccess(TAB_PERM[x]));
     if (!fallback) { doLogout(); return; }
     tab = fallback;
-  }
-  // Doble seguro: 'usuarios' es exclusivo de admin_master
-  if (tab === 'usuarios' && currentUser?.rol !== 'admin_master') {
-    toast('Solo el Admon Master puede gestionar usuarios', 'err');
-    tab = canAccess('dashboard') ? 'dashboard' : (canAccess('cxp') ? 'cxp' : null);
-    if (!tab) { doLogout(); return; }
   }
   window._currentTab = tab;  // memorizar para re-render al cambiar idioma
   document.querySelectorAll('.nav-tab').forEach(t => {
@@ -2034,7 +2026,6 @@ function showTab(tab) {
   switch(tab) {
     case 'dashboard': renderDashboard(c); break;
     case 'cxp':       renderCxP(c); break;
-    case 'usuarios':  renderUsuarios(c); break;
   }
   // Restaurar el estado abierto/cerrado de acordeones (evita que se colapsen
   // al re-renderizar después de agregar gasto, registrar pago, cerrar semana, etc.)
@@ -2046,17 +2037,12 @@ function showTab(tab) {
 /* Filtra visualmente los tabs de la barra de navegación según permisos */
 function aplicarVisibilidadTabs() {
   if (!currentUser) return;
-  const map = { dashboard:'dashboard', cxp:'cxp', usuarios:'usuarios' };
+  const map = { dashboard:'dashboard', cxp:'cxp' };
   document.querySelectorAll('.nav-tab').forEach(btn => {
     const tab = btn.dataset.tab;
     const perm = map[tab];
     if (!perm) return;
-    // 'usuarios' es master-only además del permiso
-    if (tab === 'usuarios') {
-      btn.style.display = (currentUser.rol === 'admin_master') ? '' : 'none';
-    } else {
-      btn.style.display = canAccess(perm) ? '' : 'none';
-    }
+    btn.style.display = canAccess(perm) ? '' : 'none';
   });
 }
 
@@ -2797,6 +2783,13 @@ async function renderDashboard(c) {
     </div>
   `;
 
+  // Sección Gestión de Usuarios — exclusiva para admin_master, embebida en el dashboard
+  if (currentUser?.rol === 'admin_master') {
+    const usuSection = document.createElement('div');
+    usuSection.style.marginTop = '24px';
+    c.appendChild(usuSection);
+    renderUsuarios(usuSection);
+  }
 }
 
 
@@ -2961,12 +2954,12 @@ function renderUsuarios(c) {
 function usuSelectUser(id) {
   if (!window._usuPanelState) window._usuPanelState = {};
   window._usuPanelState.selId = id;
-  showTab('usuarios');
+  showTab('dashboard');
 }
 function usuSetTab(tab) {
   if (!window._usuPanelState) window._usuPanelState = {};
   window._usuPanelState.tab = tab;
-  showTab('usuarios');
+  showTab('dashboard');
 }
 function usuShowCrearForm() { usuSetTab('nuevo'); }
 function usuChangeRol(userId, newRol) {
@@ -2987,7 +2980,7 @@ function usuChangeRol(userId, newRol) {
     permisosSet(userId, { ...PERMS_DEFAULT[newRol] });
     u.rol = newRol;
     toast('Rol actualizado ✓');
-    showTab('usuarios');
+    showTab('dashboard');
   });
 }
 function usuTogglePerm(userId, modId) {
@@ -3000,7 +2993,7 @@ function usuTogglePerm(userId, modId) {
   permisosSet(userId, perms);
   // Actualizar si es el usuario actual
   if (currentUser && String(currentUser.id) === String(userId)) currentUser.permisos = perms;
-  showTab('usuarios');
+  showTab('dashboard');
 }
 function usuResetPerms(userId) {
   if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede restablecer permisos', 'err'); return; }
@@ -3010,7 +3003,7 @@ function usuResetPerms(userId) {
   permisosSet(userId, { ...PERMS_DEFAULT[u.rol] });
   if (currentUser && String(currentUser.id) === String(userId)) currentUser.permisos = { ...PERMS_DEFAULT[u.rol] };
   toast('Permisos restablecidos al default del rol ✓');
-  showTab('usuarios');
+  showTab('dashboard');
 }
 function usuGuardarPerms(userId) {
   if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede guardar permisos', 'err'); return; }
@@ -3030,7 +3023,7 @@ async function toggleUser(id, activo) {
   toast(`Usuario ${activo?'desactivado':'activado'} ✓`);
   const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
   if (data) allData.usuarios = data;
-  showTab('usuarios');
+  showTab('dashboard');
 }
 
 async function resetPwd(id) {
@@ -3041,7 +3034,7 @@ async function resetPwd(id) {
   toast('Se pedirá nueva contraseña en el próximo acceso ✓');
   const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
   if (data) allData.usuarios = data;
-  showTab('usuarios');
+  showTab('dashboard');
 }
 
 async function createUser() {
@@ -3062,7 +3055,7 @@ async function createUser() {
   toast(`Usuario ${usuario} creado ✓`);
   const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
   if (data) allData.usuarios = data;
-  showTab('usuarios');
+  showTab('dashboard');
 }
 
 /* ══════════════════════════════════════════
