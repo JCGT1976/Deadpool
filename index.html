@@ -6251,15 +6251,15 @@ const PERMS_MODULOS = [
 
 const PERMS_DEFAULT = {
   // admin_master: acceso total permanente (el canAccess ni siquiera consulta esto)
-  admin_master: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, true])),
+  'admin_master': Object.fromEntries(PERMS_MODULOS.map(m => [m.id, true])),
   // admin: TODO menos 'usuarios' y 'reset' (solo admin_master toca esos)
-  admin:  Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['usuarios','reset'].includes(m.id)])),
+  'admin':  Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['usuarios','reset'].includes(m.id)])),
   // cohost: operación normal, sin gestión de usuarios/reset/catálogo
-  cohost: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['reset','usuarios','catalogo'].includes(m.id)])),
+  'cohost': Object.fromEntries(PERMS_MODULOS.map(m => [m.id, !['reset','usuarios','catalogo'].includes(m.id)])),
   // view: solo lectura de dashboard/reporte/detalle de gastos
-  view:   Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','reporte','gastos_det'].includes(m.id)])),
+  'view':   Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','reporte','gastos_det'].includes(m.id)])),
   // income: solo dashboard + captura de entradas
-  income: Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','entradas'].includes(m.id)])),
+  'income': Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','entradas'].includes(m.id)])),
 };
 
 /* Marca de reset único de permisos: al subir esta versión, TODO usuario NO
