@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.06.2';
+const APP_VERSION = '2026.07.07.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -1474,7 +1474,6 @@ const I18N = {
   // ── Navegación ──
   'nav.dashboard':      { es:'📊 Dashboard',     en:'📊 Dashboard' },
   'nav.cxp':            { es:'💳 CxP',           en:'💳 A/P' },
-  'nav.usuarios':       { es:'👥 Usuarios',      en:'👥 Users' },
 
   // ── Sesión / topbar ──
   'session.active':     { es:'Sesión activa · expira en', en:'Session active · expires in' },
@@ -1991,11 +1990,6 @@ async function doLogout() {
 ══════════════════════════════════════════ */
 async function loadAllData() {
   try {
-    // Usuarios (solo admin_master)
-    if (currentUser.rol === 'admin_master') {
-      const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
-      if (data) allData.usuarios = data;
-    }
     // Entradas — cargar desde Supabase para que sean compartidas entre usuarios/dispositivos
     await entradasFetch(true);
   } catch(e) {
@@ -2783,279 +2777,6 @@ async function renderDashboard(c) {
     </div>
   `;
 
-  // Sección Gestión de Usuarios — exclusiva para admin_master, embebida en el dashboard
-  if (currentUser?.rol === 'admin_master') {
-    const usuSection = document.createElement('div');
-    usuSection.style.marginTop = '24px';
-    c.appendChild(usuSection);
-    renderUsuarios(usuSection);
-  }
-}
-
-
-
-
-/* ══════════════════════════════════════════
-   TAB: USUARIOS (solo admin_master)
-══════════════════════════════════════════ */
-function renderUsuarios(c) {
-  if (currentUser.rol !== 'admin_master') {
-    c.innerHTML = '<div class="loading-wrap">🔒 Solo el Admon Master puede gestionar usuarios.</div>'; return;
-  }
-  const users = allData.usuarios || [];
-  // Estado del panel de usuarios
-  if (!window._usuPanelState) window._usuPanelState = { selId: users[0]?.id || null, tab: 'permisos' };
-  const st = window._usuPanelState;
-  if (!users.find(u => String(u.id) === String(st.selId))) st.selId = users[0]?.id || null;
-  const selUser = users.find(u => String(u.id) === String(st.selId));
-
-  const ROLE_COLORS = {
-    admin_master: { bg:'rgba(255,215,0,.18)', border:'rgba(255,215,0,.5)', text:'#ffd700' },
-    admin:  { bg:'rgba(255,77,109,.15)', border:'rgba(255,77,109,.4)', text:'#ff4d6d' },
-    cohost: { bg:'rgba(139,92,246,.15)', border:'rgba(139,92,246,.4)', text:'#8b5cf6' },
-    view:   { bg:'rgba(0,194,255,.15)',  border:'rgba(0,194,255,.4)',  text:'#00c2ff' },
-    income: { bg:'rgba(63,185,80,.15)', border:'rgba(63,185,80,.4)',  text:'#3fb950' },
-  };
-  const ROLE_LABELS = { admin_master:'Admon Master', admin:'Admin', cohost:'Cohost', view:'View', income:'Income' };
-
-  function userCard(u) {
-    const rc = ROLE_COLORS[u.rol] || ROLE_COLORS.view;
-    const isSel = String(u.id) === String(st.selId);
-    return `<div onclick="usuSelectUser('${u.id}')" style="background:${isSel?'var(--surface)':'transparent'};border:1px solid ${isSel?rc.border:'var(--border)'};border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;opacity:${u.activo?1:.5};">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--text);">${u.nombre}</div>
-          <div style="font-size:11px;color:var(--muted);">@${u.username}</div>
-        </div>
-        <span style="background:${rc.bg};border:1px solid ${rc.border};color:${rc.text};border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">${ROLE_LABELS[u.rol] || u.rol}</span>
-      </div>
-      ${!u.activo ? '<div style="font-size:10px;color:var(--red);margin-top:3px;">● Inactivo</div>' : ''}
-    </div>`;
-  }
-
-  function permsGrid(u) {
-    const perms = permisosGet(u.id, u.rol);
-    const isFullAccess = u.rol === 'admin' || u.rol === 'admin_master';
-    return PERMS_MODULOS.map(m => {
-      const on = isFullAccess || !!perms[m.id];
-      return `<div onclick="${isFullAccess ? '' : `usuTogglePerm('${u.id}','${m.id}')`}"
-        style="background:${on?'rgba(63,185,80,.07)':'var(--surface)'};border:1px solid ${on?'rgba(63,185,80,.3)':'var(--border)'};border-radius:8px;padding:9px 12px;cursor:${isFullAccess?'not-allowed':'pointer'};display:flex;align-items:center;gap:10px;transition:all .15s;">
-        <div style="width:32px;height:18px;border-radius:9px;background:${on?'var(--green)':'var(--border)'};position:relative;flex-shrink:0;">
-          <div style="width:12px;height:12px;border-radius:50%;background:#fff;position:absolute;top:3px;left:${on?'17px':'3px'};transition:left .2s;"></div>
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:600;color:${on?'var(--text)':'var(--muted)'};">${m.label}</div>
-          <div style="font-size:10px;color:var(--muted);">${m.desc}</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  function rolSelector(u) {
-    // Un admin_master es intocable desde la UI (solo vía base de datos).
-    // Un admin normal SÍ puede reasignarse por un admin_master, pero no por otro admin.
-    const bloqueado = u.rol === 'admin_master' || (u.rol === 'admin' && currentUser.rol !== 'admin_master');
-    const rolesDisponibles = ['admin','cohost','view','income']; // admin_master no se ofrece desde la UI (protección)
-    return rolesDisponibles.map(r => {
-      const rc = ROLE_COLORS[r];
-      const sel = u.rol === r;
-      return `<div onclick="${bloqueado?'':`usuChangeRol('${u.id}','${r}')`}"
-        style="background:${sel?rc.bg:'transparent'};border:1px solid ${sel?rc.border:'var(--border)'};color:${sel?rc.text:'var(--muted)'};border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:${bloqueado?'not-allowed':'pointer'};">${r}</div>`;
-    }).join('');
-  }
-
-  c.innerHTML = `
-  <div class="usuarios-layout" style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
-
-    <!-- Columna izquierda: lista de usuarios -->
-    <div>
-      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Usuarios (${users.length})</div>
-      ${users.map(userCard).join('')}
-      <div style="border:1px dashed var(--border);border-radius:10px;padding:10px;text-align:center;color:var(--muted);font-size:12px;cursor:pointer;" onclick="usuShowCrearForm()">
-        ＋ Nuevo usuario
-      </div>
-    </div>
-
-    <!-- Panel derecho -->
-    <div id="usuPanelDer">
-    ${selUser ? `
-      <div style="background:var(--surface);border:1px solid ${(ROLE_COLORS[selUser.rol]||ROLE_COLORS.view).border};border-radius:14px;padding:20px;">
-
-        <!-- Header usuario -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
-          <div>
-            <div style="font-size:17px;font-weight:800;">${selUser.nombre}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px;">@${selUser.username}</div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            ${selUser.id !== currentUser.id && !(selUser.rol === 'admin_master' && currentUser.rol !== 'admin_master') ? `
-            <div onclick="toggleUser('${selUser.id}',${selUser.activo})" style="background:${selUser.activo?'rgba(63,185,80,.12)':'rgba(255,77,109,.12)'};border:1px solid ${selUser.activo?'rgba(63,185,80,.4)':'rgba(255,77,109,.4)'};color:${selUser.activo?'var(--green)':'var(--red)'};border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;">
-              ${selUser.activo ? '● Activo' : '○ Inactivo'}
-            </div>
-            <div onclick="resetPwd('${selUser.id}')" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;">🔑 Reset pwd</div>
-            ` : selUser.id === currentUser.id ? '<span style="font-size:11px;color:var(--muted);">(tú)</span>' : '<span style="font-size:11px;color:var(--muted);">🔒 Protegido</span>'}
-          </div>
-        </div>
-
-        <!-- Tabs -->
-        <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;">
-          ${['permisos','perfil','nuevo'].map(t => {
-            const labels = { permisos:'🔐 Permisos', perfil:'👤 Perfil', nuevo:'➕ Nuevo usuario' };
-            const sel = st.tab === t;
-            return `<div onclick="usuSetTab('${t}')" style="padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;color:${sel?'var(--accent)':'var(--muted)'};border-bottom:2px solid ${sel?'var(--accent)':'transparent'};margin-bottom:-1px;">${labels[t]}</div>`;
-          }).join('')}
-        </div>
-
-        ${st.tab === 'permisos' ? `
-          <!-- Rol base -->
-          <div style="margin-bottom:16px;">
-            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;">ROL BASE</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">${rolSelector(selUser)}</div>
-            ${selUser.rol === 'admin_master' ? '<div style="font-size:10px;color:#ffd700;margin-top:6px;">👑 Admon Master: acceso total permanente. Solo se puede modificar desde la base de datos.</div>' : selUser.rol === 'admin' ? '<div style="font-size:10px;color:var(--muted);margin-top:6px;">⚠️ El admin tiene acceso completo. No se puede restringir.</div>' : `
-            <div onclick="usuResetPerms('${selUser.id}')" style="margin-top:8px;font-size:11px;color:var(--accent);cursor:pointer;">↺ Restablecer permisos por defecto del rol</div>`}
-          </div>
-          <!-- Grid de permisos -->
-          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;">ACCESO POR MÓDULO</div>
-          <div class="usu-perms-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="permsGrid_${selUser.id}">
-            ${permsGrid(selUser)}
-          </div>
-          <div style="margin-top:16px;display:flex;gap:8px;">
-            <button class="btn-sm btn-accent" style="flex:1;" onclick="usuGuardarPerms('${selUser.id}')">💾 Guardar permisos</button>
-          </div>
-        ` : st.tab === 'perfil' ? `
-          <div style="display:flex;flex-direction:column;gap:12px;">
-            ${[['Nombre completo',selUser.nombre],['Usuario (login)',selUser.username],['Rol',ROLE_LABELS[selUser.rol] || selUser.rol]].map(([l,v])=>`
-            <div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;">${l}</div>
-              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;">${v}</div>
-            </div>`).join('')}
-            <div style="font-size:11px;color:var(--muted);font-style:italic;">Edición de perfil disponible próximamente.</div>
-          </div>
-        ` : `
-          <div id="usuCrearForm">
-            <div class="usu-form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
-              <div class="budget-field"><label>Usuario (login)</label><input id="nuUsuario" type="text" placeholder="juan.perez"></div>
-              <div class="budget-field"><label>Nombre completo</label><input id="nuNombre" type="text" placeholder="Juan Pérez"></div>
-              <div class="budget-field"><label>Rol</label>
-                <select id="nuRol"><option value="view">view</option><option value="income">income</option><option value="cohost">cohost</option><option value="admin">admin</option></select>
-              </div>
-              <div class="budget-field"><label>Contraseña inicial</label><input id="nuPwd" type="password" placeholder="Mínimo 8 caracteres"></div>
-            </div>
-            <button class="btn-sm btn-accent" onclick="createUser()">➕ Crear usuario</button>
-          </div>
-        `}
-      </div>
-    ` : '<div style="color:var(--muted);padding:32px;text-align:center;">Selecciona un usuario</div>'}
-    </div>
-  </div>`;
-}
-
-/* Helpers del panel de usuarios */
-function usuSelectUser(id) {
-  if (!window._usuPanelState) window._usuPanelState = {};
-  window._usuPanelState.selId = id;
-  showTab('dashboard');
-}
-function usuSetTab(tab) {
-  if (!window._usuPanelState) window._usuPanelState = {};
-  window._usuPanelState.tab = tab;
-  showTab('dashboard');
-}
-function usuShowCrearForm() { usuSetTab('nuevo'); }
-function usuChangeRol(userId, newRol) {
-  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede cambiar roles', 'err'); return; }
-  const users = allData.usuarios || [];
-  const u = users.find(x => String(x.id) === String(userId));
-  if (!u) return;
-  // Protección: nadie cambia el rol de un admin_master desde la UI (solo vía base de datos)
-  if (u.rol === 'admin_master') { toast('El Admon Master no se puede modificar desde aquí', 'err'); return; }
-  // Protección: un admin normal no puede cambiar el rol de otro admin (solo el Admon Master puede)
-  if (u.rol === 'admin' && currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede reasignar a un admin', 'err'); return; }
-  // Nunca se asigna admin_master desde la UI
-  if (newRol === 'admin_master') { toast('El rol Admon Master solo se asigna desde la base de datos', 'err'); return; }
-  // Actualizar rol en Supabase
-  sb.from('usuarios').update({ rol: newRol }).eq('id', userId).then(({ error }) => {
-    if (error) { toast('Error al cambiar rol', 'err'); return; }
-    // Restablecer permisos al default del nuevo rol
-    permisosSet(userId, { ...PERMS_DEFAULT[newRol] });
-    u.rol = newRol;
-    toast('Rol actualizado ✓');
-    showTab('dashboard');
-  });
-}
-function usuTogglePerm(userId, modId) {
-  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede cambiar permisos', 'err'); return; }
-  const users = allData.usuarios || [];
-  const u = users.find(x => String(x.id) === String(userId));
-  if (!u || u.rol === 'admin' || u.rol === 'admin_master') return;
-  const perms = permisosGet(userId, u.rol);
-  perms[modId] = !perms[modId];
-  permisosSet(userId, perms);
-  // Actualizar si es el usuario actual
-  if (currentUser && String(currentUser.id) === String(userId)) currentUser.permisos = perms;
-  showTab('dashboard');
-}
-function usuResetPerms(userId) {
-  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede restablecer permisos', 'err'); return; }
-  const users = allData.usuarios || [];
-  const u = users.find(x => String(x.id) === String(userId));
-  if (!u) return;
-  permisosSet(userId, { ...PERMS_DEFAULT[u.rol] });
-  if (currentUser && String(currentUser.id) === String(userId)) currentUser.permisos = { ...PERMS_DEFAULT[u.rol] };
-  toast('Permisos restablecidos al default del rol ✓');
-  showTab('dashboard');
-}
-function usuGuardarPerms(userId) {
-  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede guardar permisos', 'err'); return; }
-  toast('Permisos guardados ✓');
-  // Los permisos ya se guardan en localStorage en usuTogglePerm
-  // Si el usuario actual está editando sus propios permisos, recargar dashboard
-  if (currentUser && String(currentUser.id) === String(userId)) {
-    currentUser.permisos = permisosGet(userId, currentUser.rol);
-  }
-}
-
-
-async function toggleUser(id, activo) {
-  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede activar/desactivar usuarios', 'err'); return; }
-  const { error } = await sb.from('usuarios').update({ activo: !activo }).eq('id', id);
-  if (error) { toast('Error al actualizar', 'err'); return; }
-  toast(`Usuario ${activo?'desactivado':'activado'} ✓`);
-  const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
-  if (data) allData.usuarios = data;
-  showTab('dashboard');
-}
-
-async function resetPwd(id) {
-  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede resetear contraseñas', 'err'); return; }
-  if (!confirm('¿Forzar cambio de contraseña en el próximo acceso?')) return;
-  const { error } = await sb.from('usuarios').update({ debe_cambiar: true }).eq('id', id);
-  if (error) { toast('Error', 'err'); return; }
-  toast('Se pedirá nueva contraseña en el próximo acceso ✓');
-  const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
-  if (data) allData.usuarios = data;
-  showTab('dashboard');
-}
-
-async function createUser() {
-  if (currentUser.rol !== 'admin_master') { toast('Solo el Admon Master puede crear usuarios', 'err'); return; }
-  const usuario = document.getElementById('nuUsuario').value.trim();
-  const nombre  = document.getElementById('nuNombre').value.trim();
-  const rol     = document.getElementById('nuRol').value;
-  const pwd     = document.getElementById('nuPwd').value;
-
-  if (!usuario||!nombre||!pwd) { toast('Completa todos los campos', 'err'); return; }
-  if (pwd.length < 8) { toast('Contraseña mínimo 8 caracteres', 'err'); return; }
-
-  const hash = await sha256(pwd);
-  const { error } = await sb.from('usuarios').insert([{
-    username: usuario, nombre, rol, pwd_hash: hash, activo: true, debe_cambiar: false
-  }]);
-  if (error) { toast(`Error: ${error.message}`, 'err'); return; }
-  toast(`Usuario ${usuario} creado ✓`);
-  const { data } = await sb.from('usuarios').select('id,username,nombre,rol,activo,debe_cambiar');
-  if (data) allData.usuarios = data;
-  showTab('dashboard');
 }
 
 /* ══════════════════════════════════════════
@@ -6567,12 +6288,6 @@ function permisosGet(userId, rol) {
   return all[userId] || { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
 }
 
-/* Guarda permisos custom de un usuario */
-function permisosSet(userId, permisos) {
-  const all = JSON.parse(localStorage.getItem('mitech_permisos_v1') || '{}');
-  all[userId] = permisos;
-  localStorage.setItem('mitech_permisos_v1', JSON.stringify(all));
-}
 
 /* Verifica si el usuario actual puede acceder a un módulo.
    JERARQUÍA CORRECTA: admin_master (bypass total) → admin → cohost → income → view.
