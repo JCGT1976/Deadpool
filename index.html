@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.07.1';
+const APP_VERSION = '2026.07.07.2';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3899,12 +3899,22 @@ function planPagoRenderTabla() {
 
     const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
     const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
-    // Grupo/nivel — drag&drop removido del modal Plan de Pagos (el nivel se administra desde el catálogo)
-    const dragAttrs = '';
-    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:default;">
+    // Drag & drop en header de nivel: arrastrar el header mueve TODO el grupo,
+    // y soltar en el header mueve gastos hacia ese nivel. Solo si tiene permisos de catálogo.
+    const puedeArrastrar = canAccess('catalogo');
+    const dragAttrs = puedeArrastrar
+      ? `draggable="true" data-drop-nivel="${nivKey}"`
+        + ` ondragstart="dragStartGrupo(event, ${nivKey})"`
+        + ` ondragend="dragEndClear(event)"`
+        + ` ondragover="dragOverNivel(event)"`
+        + ` ondragleave="dragLeaveNivel(event)"`
+        + ` ondrop="dropEnNivel(event, ${nivKey})"`
+      : '';
+    const cursorGrupo = puedeArrastrar ? 'grab' : 'default';
+    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:${cursorGrupo};">
       <th colspan="99" style="border-left:3px solid ${colorNiv};padding-left:8px;">
         <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
-        ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>
+        ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>${puedeArrastrar ? ' <span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">↕ arrastra para mover</span>' : ''}
       </th>
     </tr>`;
     // Ordenar dentro del grupo por 'orden' (persistido en Supabase)
@@ -3935,9 +3945,19 @@ function planPagoRenderTabla() {
       const ajusteBadge = esAjuste
         ? `<span title="Gasto agregado durante la semana (no estaba en el plan inicial)" style="display:inline-block;background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.5);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">⚡ Ajuste</span>`
         : '';
-      // Fila estática — drag & drop removido del modal Plan de Pagos
-      const rowDragAttrs = '';
-      html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:default;">
+      // Drag & drop por fila: arrastrar UN gasto para reubicarlo dentro del mismo
+      // nivel (reordenar) o hacia otro nivel (con confirmación en el drop). Requiere
+      // permiso 'catalogo'. El botón 💳 tiene ondragstart bloqueado para no interferir.
+      const rowDragAttrs = puedeArrastrar
+        ? `draggable="true"`
+          + ` ondragstart="dragStartItem(event, ${rowKeyIdx})"`
+          + ` ondragend="dragEndClear(event)"`
+          + ` ondragover="dragOverRow(event)"`
+          + ` ondragleave="dragLeaveRow(event)"`
+          + ` ondrop="dropEnRow(event, ${rowKeyIdx})"`
+        : '';
+      const cursorRow = puedeArrastrar ? 'grab' : 'default';
+      html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:${cursorRow};">
         <td><span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
         <td>${r.concepto}${monedaBadge}${ajusteBadge}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
@@ -4284,12 +4304,14 @@ async function dropEnNivel(ev, nivelDestino) {
   if (!state) return;
   if (isNaN(nivelDestino) || nivelDestino < 1 || nivelDestino > 7) return;
   if (nivelDestino === state.nivelOrigen) {
-    // Drop en el header del mismo nivel — mueve las filas al FINAL del nivel
+    // Mismo nivel: drop en el header re-envía al FINAL del nivel (sin alerta)
     await planPagoMoverYReordenar(state.keys, nivelDestino, null);
     return;
   }
 
-  // Drop en header de nivel distinto — cambia nivel y coloca al final
+  // Cambio de nivel: pedir confirmación explícita (afecta prioridad de pago y KPI)
+  if (!confirmarCambioNivel(state, nivelDestino)) return;
+
   await planPagoMoverYReordenar(state.keys, nivelDestino, null);
 }
 
@@ -4324,7 +4346,30 @@ async function dropEnRow(ev, targetRowKeyIdx) {
   if (!targetRow) return;
   const nivelDestino = nivelEfectivo(targetRow);
 
+  // Si cambia de nivel, pedir confirmación. Reordenar en el mismo nivel es libre.
+  if (nivelDestino !== state.nivelOrigen) {
+    if (!confirmarCambioNivel(state, nivelDestino)) return;
+  }
+
   await planPagoMoverYReordenar(state.keys, nivelDestino, targetKey);
+}
+
+/* Confirmación explícita antes de cambiar de nivel un gasto (o grupo).
+   Se muestra solo cuando el nivel destino difiere del origen. Los movimientos
+   dentro del mismo nivel no requieren confirmación. */
+function confirmarCambioNivel(state, nivelDestino) {
+  const nOrigen = state.nivelOrigen === 999 ? 'Sin nivel' : ('L' + state.nivelOrigen);
+  const nDestino = nivelDestino === 999 ? 'Sin nivel' : ('L' + nivelDestino);
+  const labelOrigen = nivelLabel ? nivelLabel(state.nivelOrigen) : nOrigen;
+  const labelDestino = nivelLabel ? nivelLabel(nivelDestino) : nDestino;
+  const msg =
+    '⚠️  CAMBIO DE NIVEL DE PRIORIDAD\n\n' +
+    state.titulo + '\n\n' +
+    'De: ' + nOrigen + ' — ' + labelOrigen + '\n' +
+    'A:  ' + nDestino + ' — ' + labelDestino + '\n\n' +
+    'Esto reordena la prioridad de pago y refresca el KPI de Brecha.\n' +
+    '¿Confirmar el cambio?';
+  return confirm(msg);
 }
 
 /* Core: mueve filas a un nivel destino y las coloca en una posición específica.
