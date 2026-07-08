@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.08.1';
+const APP_VERSION = '2026.07.08.2';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2048,9 +2048,47 @@ function renderReporte(c) { if (c) c.innerHTML = ''; }
 ══════════════════════════════════════════ */
 /* ══════════════════════════════════════════
    PRESUPUESTO — estado global
+   FASE 2 (2026-07-08): migrado a Supabase (tabla presupuestos_semanales) para
+   sincronizar entre usuarios y dispositivos. localStorage queda como caché
+   offline y semilla inicial. Fallback silencioso si la tabla no existe.
 ══════════════════════════════════════════ */
 let budgetData   = JSON.parse(localStorage.getItem('mitech_budgets') || '[]');
 let budgetMoneda = localStorage.getItem('mitech_budget_moneda') || 'MXN';
+let budgetLoaded = false;
+
+async function budgetFetch(force) {
+  if (budgetLoaded && !force) return budgetData;
+  try {
+    if (typeof sb === 'undefined' || !sb) { budgetLoaded = true; return budgetData; }
+    const { data, error } = await sb.from('presupuestos_semanales')
+      .select('*').order('semana', { ascending: false });
+    if (error) {
+      if (String(error.message||'').includes('does not exist') || error.code === '42P01') {
+        console.info('ℹ️ Tabla presupuestos_semanales no existe aún. Usando localStorage local. Crea la tabla en Supabase para compartir entre usuarios.');
+        budgetLoaded = true;
+        return budgetData;
+      }
+      console.warn('budgetFetch:', error.message);
+      return budgetData;
+    }
+    if (Array.isArray(data)) {
+      budgetData = data.map(row => ({
+        id: row.id,
+        semana: row.semana,
+        moneda: row.moneda || 'MXN',
+        monto: parseFloat(row.monto) || 0,
+        alerta: parseFloat(row.alerta) || 80,
+        notas: row.notas || '',
+        label: row.label || '',
+        creado: row.creado,
+        capturado_por: row.capturado_por || ''
+      }));
+      localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
+      budgetLoaded = true;
+    }
+  } catch(e) { console.warn('budgetFetch exception:', e); }
+  return budgetData;
+}
 
 /* ══════════════════════════════════════════
    GASTOS EFECTUADOS — estado global
@@ -2086,8 +2124,10 @@ function fmtBudget(n, moneda) {
   return '$' + (n||0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' MXN';
 }
 
-function openBudgetModal() {
+async function openBudgetModal() {
   if (!requirePerm('cxp', 'Sin permisos para editar el presupuesto')) return;
+  // FASE 2: siempre traer versión fresca antes de abrir el modal
+  await budgetFetch(true);
   const weekKey   = getWeekKey();
   const weekLabel = getWeekLabel(weekKey);
   document.getElementById('budgetSemanaLabel').textContent = weekLabel;
@@ -2112,7 +2152,7 @@ function budgetSetMoneda(moneda, btn) {
   document.getElementById('budgetMontoLabel').textContent = 'Monto Presupuestado (' + moneda + ')';
 }
 
-function saveBudget() {
+async function saveBudget() {
   if (!requirePerm('cxp', 'Sin permisos para guardar el presupuesto')) return;
   const semana = getWeekKey();
   const monto  = parseMoney(document.getElementById('budgetMonto').value);
@@ -2120,21 +2160,52 @@ function saveBudget() {
   const notas  = document.getElementById('budgetNotas').value.trim();
   if (isNaN(monto) || monto <= 0) { toast('Ingresa un monto válido', 'err'); return; }
   const entry = {
-    id: Date.now(), semana, moneda: budgetMoneda,
+    semana, moneda: budgetMoneda,
     monto, alerta, notas,
     label: getWeekLabel(semana),
-    creado: new Date().toISOString(),
     capturado_por: currentUser?.nombre || 'Usuario'
   };
+  // FASE 2: upsert a Supabase (fallback silencioso a localStorage)
+  let supabaseOK = false;
+  try {
+    if (typeof sb !== 'undefined' && sb) {
+      const { data, error } = await sb.from('presupuestos_semanales')
+        .upsert(entry, { onConflict: 'semana' })
+        .select().single();
+      if (!error && data) {
+        entry.id = data.id;
+        entry.creado = data.creado || new Date().toISOString();
+        supabaseOK = true;
+      } else if (error && !String(error.message||'').includes('does not exist') && error.code !== '42P01') {
+        console.warn('saveBudget Supabase:', error.message);
+      }
+    }
+  } catch(e) { console.warn('saveBudget exception:', e); }
+  if (!supabaseOK) {
+    entry.id = Date.now();
+    entry.creado = new Date().toISOString();
+  }
   budgetData = budgetData.filter(b => b.semana !== semana);
   budgetData.push(entry);
   localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
-  toast('Presupuesto semanal guardado ✓');
+  toast(supabaseOK ? 'Presupuesto semanal guardado ✓' : 'Presupuesto guardado (local, pendiente sincronizar)');
   closeBudgetModal();
   if (document.querySelector('.nav-tab.active')?.dataset.tab === 'dashboard') showTab('dashboard');
 }
 
-function deleteBudget(id) {
+async function deleteBudget(id) {
+  const entry = budgetData.find(b => b.id === id);
+  // FASE 2: borrar también en Supabase (borrado por semana ya que es UNIQUE)
+  if (entry) {
+    try {
+      if (typeof sb !== 'undefined' && sb) {
+        const { error } = await sb.from('presupuestos_semanales').delete().eq('semana', entry.semana);
+        if (error && !String(error.message||'').includes('does not exist') && error.code !== '42P01') {
+          console.warn('deleteBudget Supabase:', error.message);
+        }
+      }
+    } catch(e) { console.warn('deleteBudget exception:', e); }
+  }
   budgetData = budgetData.filter(b => b.id !== id);
   localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
   budgetRenderList();
@@ -2538,6 +2609,7 @@ window.refreshDashboard = async function refreshDashboard() {
   cxpData = [];
   entradasLoaded = false;
   gastosEfectuadosLoaded = false;
+  budgetLoaded = false;
   try { localStorage.removeItem('mitech_plan_cache'); } catch(e){}
   try { toast('Refrescando desde Supabase…'); } catch(e){}
   const c = document.getElementById('mainContent');
@@ -2556,9 +2628,11 @@ async function renderDashboard(c) {
   // Asegura datos de plan (cxpData), gastos efectuados y entradas antes de calcular KPIs.
   // FASE 1 (2026-07-08): TODOS con force=true para reflejar cambios de otros usuarios/dispositivos
   // en cada render del dashboard (F5, cambio de tab, cierre semana, etc.).
+  // FASE 2 (2026-07-08): presupuesto semanal también se sincroniza desde Supabase.
   await cxpEnsureData(true);
   await gastosEfectuadosFetch(true);
   await entradasFetch(true);
+  await budgetFetch(true);
 
   const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
   const totalEntradasMXN = getEntradasTotal();
@@ -5844,6 +5918,15 @@ async function aplicarImpactoCierre(impacto) {
 
   // 2) Archivar y limpiar budget de la semana cerrada
   if (impacto.budgetSemana) {
+    // FASE 2: borrar también de Supabase (silencioso si tabla no existe)
+    try {
+      if (typeof sb !== 'undefined' && sb) {
+        const { error } = await sb.from('presupuestos_semanales').delete().eq('semana', impacto.semanaKey);
+        if (error && !String(error.message||'').includes('does not exist') && error.code !== '42P01') {
+          console.warn('[cierre] delete presupuestos_semanales:', error.message);
+        }
+      }
+    } catch(e) { console.warn('[cierre] presupuesto archive:', e); }
     budgetData = budgetData.filter(b => b.semana !== impacto.semanaKey);
     localStorage.setItem('mitech_budgets', JSON.stringify(budgetData));
   }
@@ -6065,7 +6148,17 @@ async function confirmarResetTotal() {
   localStorage.removeItem('mitech_cierres_hist');
   planPagoClear();
   budgetData = [];
+  budgetLoaded = false;
   localStorage.removeItem('mitech_budgets');
+  // FASE 2: vaciar también presupuestos_semanales en Supabase
+  try {
+    if (typeof sb !== 'undefined' && sb) {
+      const { error } = await sb.from('presupuestos_semanales').delete().neq('semana', '__nunca__');
+      if (error && !String(error.message||'').includes('does not exist') && error.code !== '42P01') {
+        console.warn('[reset] delete presupuestos_semanales:', error.message);
+      }
+    }
+  } catch(e) { console.warn('[reset] presupuestos wipe:', e); }
   // Limpiar estado esperado post-cierre (los descuentos acumulados de cierres previos)
   cxpEsperadoLimpiar();
 
