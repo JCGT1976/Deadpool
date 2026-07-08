@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.07.2';
+const APP_VERSION = '2026.07.08.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2527,14 +2527,37 @@ async function deleteEntrada(idOrIdxTag) {
   showTab('dashboard');
 }
 
+/* ══════════════════════════════════════════
+   REFRESH MANUAL DEL DASHBOARD (Fase 1 sync multi-usuario)
+   Limpia caches en memoria y localStorage para forzar recarga
+   completa desde Supabase. Útil cuando otro usuario acaba de
+   modificar algo y quieres verlo sin esperar al próximo render.
+══════════════════════════════════════════ */
+window.refreshDashboard = async function refreshDashboard() {
+  // Invalidar caches en memoria (los force=true del render harán la recarga)
+  cxpData = [];
+  entradasLoaded = false;
+  gastosEfectuadosLoaded = false;
+  try { localStorage.removeItem('mitech_plan_cache'); } catch(e){}
+  try { toast('Refrescando desde Supabase…'); } catch(e){}
+  const c = document.getElementById('mainContent');
+  if (!c) return;
+  await renderDashboard(c);
+  try { accordionApplySavedState(); } catch(e){}
+  const stamp = document.getElementById('lastRefreshStamp');
+  if (stamp) stamp.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  try { toast('Datos actualizados ✓'); } catch(e){}
+};
+
 async function renderDashboard(c) {
   const cat = allData.catalogo || [];
   const dat = allData.datos || [];
 
   // Asegura datos de plan (cxpData), gastos efectuados y entradas antes de calcular KPIs.
-  // entradasFetch(true) es intencional: garantiza ver capturas hechas por otros usuarios/dispositivos.
-  await cxpEnsureData();
-  await gastosEfectuadosFetch();
+  // FASE 1 (2026-07-08): TODOS con force=true para reflejar cambios de otros usuarios/dispositivos
+  // en cada render del dashboard (F5, cambio de tab, cierre semana, etc.).
+  await cxpEnsureData(true);
+  await gastosEfectuadosFetch(true);
   await entradasFetch(true);
 
   const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
@@ -2593,6 +2616,15 @@ async function renderDashboard(c) {
     : brecha >= 0 ? t('brecha.ok') : t('brecha.err');
 
   c.innerHTML = `
+    <!-- Barra de acciones dashboard -->
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
+      <span id="lastRefreshStamp" style="font-size:10px;color:var(--muted);"></span>
+      <button class="btn-sm" onclick="refreshDashboard()" title="Recargar datos desde Supabase"
+              style="background:var(--surface);border:1px solid var(--border);color:var(--text);
+                     padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">
+        🔄 Actualizar
+      </button>
+    </div>
     <!-- Dashboard: Budget izquierda | KPIs derecha -->
     <div id="dashboardGrid" style="display:grid;grid-template-columns:minmax(240px,290px) 1fr;gap:16px;align-items:start;">
 
