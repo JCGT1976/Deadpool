@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.08.2';
+const APP_VERSION = '2026.07.11.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2967,6 +2967,23 @@ let cxpSemanaSeleccionada = localStorage.getItem('cxpSemanaSeleccionada') || nul
 .cxp-group.dragging{opacity:.45;}
 .cxp-group.drag-over{outline:2px dashed var(--accent);outline-offset:-4px;background:rgba(0,194,255,.15)!important;}
 
+/* Drag handle: pequeño ícono ⋮⋮ que inicia el arrastre.
+   El resto de la fila queda libre para hacer scroll con el dedo en móvil.
+   touch-action:none reserva el toque sobre el handle exclusivamente para drag. */
+.drag-handle-cell,.drag-handle-group{
+  display:inline-block;padding:2px 5px;margin-right:4px;
+  color:var(--muted);font-size:13px;line-height:1;
+  cursor:grab;user-select:none;-webkit-user-select:none;
+  touch-action:none;-webkit-touch-callout:none;
+  vertical-align:middle;letter-spacing:-1px;
+}
+.drag-handle-cell:hover,.drag-handle-group:hover{color:var(--accent);}
+.drag-handle-cell:active,.drag-handle-group:active{cursor:grabbing;}
+@media(hover:none){
+  /* En móvil, hacer el handle un poco más grande para touch cómodo */
+  .drag-handle-cell,.drag-handle-group{padding:4px 7px;font-size:15px;}
+}
+
 /* Resumen panel */
 .cxp-resumen{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:16px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
@@ -4005,22 +4022,25 @@ function planPagoRenderTabla() {
 
     const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
     const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
-    // Drag & drop en header de nivel: arrastrar el header mueve TODO el grupo,
-    // y soltar en el header mueve gastos hacia ese nivel. Solo si tiene permisos de catálogo.
+    // Drag & drop en header de nivel: SOLO el handle ⋮⋮ inicia el arrastre (mobile-safe).
+    // El resto del header sigue siendo drop-target (ondragover/ondrop). Requiere permiso 'catalogo'.
     const puedeArrastrar = canAccess('catalogo');
-    const dragAttrs = puedeArrastrar
-      ? `draggable="true" data-drop-nivel="${nivKey}"`
-        + ` ondragstart="dragStartGrupo(event, ${nivKey})"`
-        + ` ondragend="dragEndClear(event)"`
+    const dropAttrs = puedeArrastrar
+      ? ` data-drop-nivel="${nivKey}"`
         + ` ondragover="dragOverNivel(event)"`
         + ` ondragleave="dragLeaveNivel(event)"`
         + ` ondrop="dropEnNivel(event, ${nivKey})"`
       : '';
-    const cursorGrupo = puedeArrastrar ? 'grab' : 'default';
-    html += `<tr class="cxp-group nivel-dropzone" ${dragAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);cursor:${cursorGrupo};">
+    const grupoHandle = puedeArrastrar
+      ? `<span class="drag-handle-group" draggable="true"`
+        + ` ondragstart="dragStartGrupo(event, ${nivKey})"`
+        + ` ondragend="dragEndClear(event)"`
+        + ` title="Arrastra para mover todo el grupo">⋮⋮</span>`
+      : '';
+    html += `<tr class="cxp-group nivel-dropzone"${dropAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);">
       <th colspan="99" style="border-left:3px solid ${colorNiv};padding-left:8px;">
-        <span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
-        ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>${puedeArrastrar ? ' <span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">↕ arrastra para mover</span>' : ''}
+        ${grupoHandle}<span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
+        ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>${puedeArrastrar ? ' <span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">↕ arrastra el ⋮⋮ para mover</span>' : ''}
       </th>
     </tr>`;
     // Ordenar dentro del grupo por 'orden' (persistido en Supabase)
@@ -4051,20 +4071,22 @@ function planPagoRenderTabla() {
       const ajusteBadge = esAjuste
         ? `<span title="Gasto agregado durante la semana (no estaba en el plan inicial)" style="display:inline-block;background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.5);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">⚡ Ajuste</span>`
         : '';
-      // Drag & drop por fila: arrastrar UN gasto para reubicarlo dentro del mismo
-      // nivel (reordenar) o hacia otro nivel (con confirmación en el drop). Requiere
-      // permiso 'catalogo'. El botón 💳 tiene ondragstart bloqueado para no interferir.
-      const rowDragAttrs = puedeArrastrar
-        ? `draggable="true"`
-          + ` ondragstart="dragStartItem(event, ${rowKeyIdx})"`
-          + ` ondragend="dragEndClear(event)"`
-          + ` ondragover="dragOverRow(event)"`
+      // Drag & drop por fila: SOLO el handle ⋮⋮ dentro de la celda Nivel inicia el
+      // arrastre. El resto de la fila queda libre para hacer scroll táctil en móvil.
+      // La fila sigue siendo drop-target (ondragover/ondrop) para reubicar.
+      const rowDropAttrs = puedeArrastrar
+        ? ` ondragover="dragOverRow(event)"`
           + ` ondragleave="dragLeaveRow(event)"`
           + ` ondrop="dropEnRow(event, ${rowKeyIdx})"`
         : '';
-      const cursorRow = puedeArrastrar ? 'grab' : 'default';
-      html += `<tr ${rowDragAttrs} class="plan-row-draggable" style="cursor:${cursorRow};">
-        <td><span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
+      const rowHandle = puedeArrastrar
+        ? `<span class="drag-handle-cell" draggable="true"`
+          + ` ondragstart="dragStartItem(event, ${rowKeyIdx})"`
+          + ` ondragend="dragEndClear(event)"`
+          + ` title="Arrastra para reordenar o cambiar de nivel">⋮⋮</span>`
+        : '';
+      html += `<tr class="plan-row-draggable"${rowDropAttrs}>
+        <td>${rowHandle}<span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
         <td>${r.concepto}${monedaBadge}${ajusteBadge}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
         <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
@@ -4355,7 +4377,10 @@ function dragStartItem(ev, rowKeyIdx) {
   };
   ev.dataTransfer.effectAllowed = 'move';
   ev.dataTransfer.setData('text/plain', 'item:' + clave);
-  ev.currentTarget.classList.add('dragging');
+  // El handle ⋮⋮ es el que inicia el drag; marcamos la fila padre visualmente.
+  const tr = ev.currentTarget.closest('tr');
+  if (tr) tr.classList.add('dragging');
+  ev.stopPropagation();
 }
 
 function dragStartGrupo(ev, nivKey) {
@@ -4371,13 +4396,16 @@ function dragStartGrupo(ev, nivKey) {
   };
   ev.dataTransfer.effectAllowed = 'move';
   ev.dataTransfer.setData('text/plain', 'grupo:' + nivKey);
-  ev.currentTarget.classList.add('dragging');
-  // No propagar al header de la tabla
+  // El handle ⋮⋮ inicia el drag; marcamos el header (tr.cxp-group) visualmente.
+  const tr = ev.currentTarget.closest('tr');
+  if (tr) tr.classList.add('dragging');
   ev.stopPropagation();
 }
 
 function dragEndClear(ev) {
-  ev.currentTarget.classList.remove('dragging');
+  // El handle es currentTarget; limpiar la clase en la fila padre.
+  const tr = ev.currentTarget.closest('tr');
+  if (tr) tr.classList.remove('dragging');
   // Limpiar cualquier drag-over (headers y filas)
   document.querySelectorAll('.drag-over,.drag-over-row').forEach(el => {
     el.classList.remove('drag-over');
