@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.13.1';
+const APP_VERSION = '2026.07.13.2';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3159,12 +3159,16 @@ async function cxpHandleFile(e) {
       .filter(r => {
         const c = (r.concepto || '').toString().trim();
         if (!c) return false;
-        // Excluir filas de resumen del Excel (ej. "SUMA DE IMPORTES") que además
-        // no tienen TIPO ni CATEGORIA — así un concepto legítimo como "Total nómina"
-        // con TIPO y CATEGORIA definidos NO se filtra aunque empiece por SUMA/TOTAL.
-        const sinClasif = !r.tipo?.toString().trim() &&
-                          (!r.categoria?.toString().trim() || r.categoria === 'General');
-        if (sinClasif && /^(SUMA|TOTAL|SUBTOTAL|GRAND\s*TOTAL)/i.test(c)) return false;
+        // ── FILTRO POR LEVEL VÁLIDO (única fuente de verdad) ──────
+        // Solo se cargan filas cuyo Level esté dentro de la tabla del Excel
+        // (L1, L2, ... L8, o superior). Todo lo que quede fuera de la tabla
+        // — la fila 'Total', las NOTAS al pie, la tabla resumen por TIPO,
+        // filas en blanco, sub-totales sueltos — NO tiene Level, así que
+        // se descarta automáticamente. Este es el criterio que pidió el
+        // usuario: "solo carga lo que está en la tabla".
+        // r.nivel ya fue normalizado por nivelDisplay() → '' si no era 'L#' válido.
+        const nivelStr = (r.nivel || '').toString().trim();
+        if (!nivelStr) return false;
         return true;
       });
 
@@ -3703,6 +3707,7 @@ const NIVEL_COLORS = {
   5: '#58a6ff',  // L5 azul — Convenios proveedores
   6: '#a78bfa',  // L6 morado — Rentas
   7: '#94a3b8',  // L7 gris — Proveedores
+  8: '#64748b',  // L8 gris oscuro — Proyectos
 };
 function nivelColor(nivel) {
   const n = nivelNumeric(nivel);
@@ -3718,6 +3723,7 @@ function nivelLabel(nivel) {
     5: 'L5 · Convenios prov.',
     6: 'L6 · Rentas',
     7: 'L7 · Proveedores',
+    8: 'L8 · Proyectos',
   };
   return labels[n] || (n === 999 ? 'Sin nivel' : ('L' + n));
 }
