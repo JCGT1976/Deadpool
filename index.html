@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.11.1';
+const APP_VERSION = '2026.07.13.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -6106,6 +6106,28 @@ async function confirmarCierreSemana() {
   // Limpiar plan activo (nueva semana, elegir plan de nuevo)
   planPagoClear();
 
+  // ── Auto-generar Excel del plan de la nueva semana ──
+  // Se ejecuta DESPUÉS de aplicarImpactoCierre (catálogo ya con pagos descontados)
+  // pero ANTES de cerrar modal, para que el toast sea visible.
+  try {
+    const wk = (typeof semanaKey === 'string' && semanaKey.includes('-W'))
+      ? semanaKey
+      : getWeekKey();
+    const [anioStr, wStr] = wk.split('-W');
+    const anioN   = parseInt(anioStr, 10);
+    const semanaN = parseInt(wStr, 10);
+    if (!isNaN(anioN) && !isNaN(semanaN)) {
+      const res = await window.exportarPlanSemanalExcel(anioN, semanaN);
+      if (res && res.ok) {
+        toast('📥 ' + res.fileName + ' descargado (' + res.rows + ' conceptos)', 'ok');
+      } else if (res && res.reason === 'empty_catalog') {
+        toast('⚠️ Catálogo vacío — no se generó Excel semanal', 'warn');
+      } else {
+        console.warn('Plan semanal Excel no generado:', res);
+      }
+    }
+  } catch(e) { console.warn('Error exportando plan semanal:', e); }
+
   closeCierreSemanaModal();
 
   // 2) Abrir automáticamente el REPORTE DE CIERRE
@@ -6804,6 +6826,112 @@ async function descargarHistoricoExcel() {
   XLSX.writeFile(wb, filename);
   toast(t('exec.export_ok') + ' · ' + filename);
 }
+
+
+/* ══════════════════════════════════════════
+   PLAN SEMANAL EXCEL — genera y descarga
+   "Cuentas por Pagar YYYY semana N.xlsx"
+   Se dispara automáticamente al cierre de semana.
+   Toma todo el catálogo actual (post-aplicación de impacto)
+   y replica la estructura de los archivos históricos.
+══════════════════════════════════════════ */
+window.exportarPlanSemanalExcel = async function exportarPlanSemanalExcel(anio, semanaN) {
+  if (typeof XLSX === 'undefined') {
+    console.warn('exportarPlanSemanalExcel: SheetJS no está cargado');
+    return { ok:false, reason:'no_xlsx' };
+  }
+  // Traer catálogo fresco si viene vacío
+  if (!cxpData || cxpData.length === 0) {
+    try { await cxpFetchFromSupabase(); } catch(e) { console.warn('fetch cxp:', e); }
+  }
+  if (!cxpData || cxpData.length === 0) {
+    console.warn('exportarPlanSemanalExcel: catálogo vacío — nada que exportar');
+    return { ok:false, reason:'empty_catalog' };
+  }
+
+  // Ordenar por nivel numérico → categoria → concepto
+  const rows = [...cxpData].sort((a, b) => {
+    const nA = nivelNumeric(a.nivel);
+    const nB = nivelNumeric(b.nivel);
+    if (nA !== nB) return nA - nB;
+    const cA = (a.categoria || '').toString();
+    const cB = (b.categoria || '').toString();
+    if (cA !== cB) return cA.localeCompare(cB, 'es');
+    return (a.concepto || '').toString().localeCompare((b.concepto || '').toString(), 'es');
+  });
+
+  // Estructura AoA:
+  //  Fila 1 (index 0): título A1:H1 merged + "Sem #N" en I1
+  //  Fila 2 (index 1): encabezados
+  //  Filas 3..(2+n): datos
+  //  Fila 3+n:        SUMA DE IMPORTES con SUM()
+  const aoa = [];
+  aoa.push(['MI TECHNOLOGIES - CUENTAS POR PAGAR - MXN','','','','','','','', 'Sem #' + semanaN]);
+  aoa.push(['TIPO','LEVEL','CATEGORIA','CONCEPTO','NOTA','TOTAL','RECOMENDADO','URGENTE','SUPERVIVENCIA']);
+  rows.forEach(r => {
+    aoa.push([
+      r.tipo || '',
+      nivelDisplay(r.nivel),
+      r.categoria || '',
+      r.concepto || '',
+      '', // NOTA vacía (se llena manual después)
+      Number(r.total) || 0,
+      Number(r.recomendado) || 0,
+      Number(r.urgente) || 0,
+      Number(r.supervivencia) || 0,
+    ]);
+  });
+  const dataStartRow = 3;                    // Excel row (1-indexed) primer dato
+  const dataEndRow   = 2 + rows.length;      // Excel row última con datos
+  aoa.push([
+    '','','',
+    'SUMA DE IMPORTES','',
+    { f: 'SUM(F' + dataStartRow + ':F' + dataEndRow + ')' },
+    { f: 'SUM(G' + dataStartRow + ':G' + dataEndRow + ')' },
+    { f: 'SUM(H' + dataStartRow + ':H' + dataEndRow + ')' },
+    { f: 'SUM(I' + dataStartRow + ':I' + dataEndRow + ')' },
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Merge del título (A1:H1) — deja I1 con "Sem #N"
+  ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:7} }];
+
+  // Anchos de columna (matching archivos históricos)
+  ws['!cols'] = [
+    { wch: 10 },  // A TIPO
+    { wch: 7  },  // B LEVEL
+    { wch: 22 },  // C CATEGORIA
+    { wch: 45 },  // D CONCEPTO
+    { wch: 6  },  // E NOTA
+    { wch: 14 },  // F TOTAL
+    { wch: 16 },  // G RECOMENDADO
+    { wch: 13 },  // H URGENTE
+    { wch: 16 },  // I SUPERVIVENCIA
+  ];
+
+  // Formato contabilidad en columnas F..I para todas las filas de datos + total
+  const fmtContab = '_(* #,##0_);_(* \\(#,##0\\);_(* "-"??_);_(@_)';
+  const totalRowIdx = 2 + rows.length;   // 0-indexed
+  for (let R = 2; R <= totalRowIdx; R++) {
+    for (let C = 5; C <= 8; C++) {
+      const addr = XLSX.utils.encode_cell({ r:R, c:C });
+      if (ws[addr]) ws[addr].z = fmtContab;
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+  const fileName = 'Cuentas por Pagar ' + anio + ' semana ' + semanaN + '.xlsx';
+  try {
+    XLSX.writeFile(wb, fileName);
+    return { ok:true, fileName: fileName, rows: rows.length };
+  } catch(e) {
+    console.error('exportarPlanSemanalExcel: error escribiendo Excel', e);
+    return { ok:false, reason:'write_error', error:String(e) };
+  }
+};
 
 
 /* ══════════════════════════════════════════
