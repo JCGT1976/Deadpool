@@ -1446,7 +1446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.13.2';
+const APP_VERSION = '2026.07.13.3';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3152,6 +3152,9 @@ async function cxpHandleFile(e) {
           recomendado:  parseFloat(find(['RECOM']) || 0),
           urgente:      parseFloat(find(['URG']) || 0),
           supervivencia:parseFloat(find(['SUPERV','SURV','SOB']) || 0),
+          // Columna AJUSTE del Excel: se lee tal cual (parseFloat maneja NaN → 0).
+          // Se guarda en Supabase pero no se muestra en la UI (por decisión del usuario).
+          ajuste:       parseFloat(find(['AJUSTE','AJUST','ADJUST'])) || 0,
           moneda:       (find(['MONEDA','CURRENCY','DIVISA']) || 'MXN').toString().toUpperCase() === 'USD' ? 'USD' : 'MXN',
           tc_ref:       parseFloat(find(['TC','TCREF','TIPO_CAMBIO','TIPOCAMBIO','EXCHANGE'])) || null,
         };
@@ -3313,10 +3316,14 @@ async function cxpSyncToSupabase(rows) {
       recomendado:   parseFloat(r.recomendado) || 0,
       urgente:       parseFloat(r.urgente) || 0,
       supervivencia: parseFloat(r.supervivencia) || 0,
+      ajuste:        parseFloat(r.ajuste) || 0,
       moneda:        r.moneda || 'MXN',
       tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
     }));
     const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rows[i]._semana || null }));
+    // Fallback si la columna 'ajuste' aún no existe en Supabase: mismo payload sin ella.
+    const payloadSinAjuste = payloadBase.map(({ajuste, ...r}) => r);
+    const payloadSinAjusteConSemana = payloadConSemana.map(({ajuste, ...r}) => r);
 
     // ── ESTRATEGIA A PRUEBA DE TABLA VACÍA ──
     // Problema anterior: purgábamos y luego el INSERT fallaba en silencio → tabla en 0.
@@ -3339,13 +3346,17 @@ async function cxpSyncToSupabase(rows) {
 
     // Paso 2: INSERT con variantes en cascada. Cada variante quita algo que podría
     // no existir en el schema. Probamos en orden de más completo a más mínimo.
+    // Primero probamos CON ajuste (columna nueva); si no existe, caemos a la variante
+    // SIN ajuste para no romper la carga.
     const variantes = [
-      { nombre: 'con semana',        payload: payloadConSemana },
-      { nombre: 'sin semana',        payload: payloadBase },
-      { nombre: 'sin moneda',        payload: payloadBase.map(({moneda, tc_ref, ...r}) => r) },
-      { nombre: 'sin semana ni nota',payload: payloadBase.map(({nota, moneda, tc_ref, ...r}) => r) },
-      { nombre: 'sin clave',         payload: payloadBase.map(({clave, moneda, tc_ref, ...r}) => r) },
-      { nombre: 'mínimo',            payload: payloadBase.map(r => ({
+      { nombre: 'con semana + ajuste',   payload: payloadConSemana },
+      { nombre: 'con semana',            payload: payloadSinAjusteConSemana },
+      { nombre: 'con ajuste',            payload: payloadBase },
+      { nombre: 'sin semana',            payload: payloadSinAjuste },
+      { nombre: 'sin moneda',            payload: payloadSinAjuste.map(({moneda, tc_ref, ...r}) => r) },
+      { nombre: 'sin semana ni nota',    payload: payloadSinAjuste.map(({nota, moneda, tc_ref, ...r}) => r) },
+      { nombre: 'sin clave',             payload: payloadSinAjuste.map(({clave, moneda, tc_ref, ...r}) => r) },
+      { nombre: 'mínimo',                payload: payloadSinAjuste.map(r => ({
           categoria: r.categoria, concepto: r.concepto,
           total: r.total, recomendado: r.recomendado,
           urgente: r.urgente, supervivencia: r.supervivencia
@@ -3420,6 +3431,7 @@ async function cxpFetchSupabaseData() {
       recomendado:   parseFloat(r.recomendado ?? 0),
       urgente:       parseFloat(r.urgente ?? 0),
       supervivencia: parseFloat(r.supervivencia ?? r.sobrevivencia ?? 0),
+      ajuste:        parseFloat(r.ajuste ?? 0),
       moneda:        r.moneda || 'MXN',
       tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
       _semana:       r.semana || null,
