@@ -4145,6 +4145,7 @@ function planPagoRenderTabla() {
         <td style="text-align:center;white-space:nowrap;">
           <span style="margin-right:4px;">${liquidado ? '✅' : (pagado>0 ? '🟡' : '⏳')}</span>
           ${!liquidado && canAccess('reg_pago') ? `<button onclick="abrirRegistroPagoFila(${rowKeyIdx})" title="Registrar pago de este gasto" style="background:transparent;color:var(--accent);border:none;font-size:14px;cursor:pointer;padding:1px 3px;" ondragstart="event.preventDefault();event.stopPropagation();">💳</button>` : ''}
+          ${pagado === 0 && canAccess('cxp') ? `<button onclick="planPagoBorrarConcepto(${rowKeyIdx})" title="Quitar del plan (sin pagos registrados)" style="background:transparent;color:var(--red);border:none;font-size:13px;cursor:pointer;padding:1px 3px;" ondragstart="event.preventDefault();event.stopPropagation();">🗑️</button>` : ''}
         </td>
       </tr>`;
     });
@@ -5982,18 +5983,15 @@ function renderGastosDetalleModal() {
   const esAdminGastos = currentUser?.rol === 'admin_master' || currentUser?.rol === 'admin';
   const colAcciones = esAdminGastos ? '<th style="text-align:center;">Acciones</th>' : '';
 
-  let html = `<table class="cxp-table" style="min-width:${esAdminGastos?'660px':'560px'};">
-    <thead><tr>
-      <th style="text-align:left;">Fecha</th>
-      <th style="text-align:left;">Concepto</th>
-      <th style="text-align:left;">Categoría</th>
-      <th>Moneda</th>
-      <th>Monto</th>
-      <th>Equiv. MXN</th>
-      <th>Tipo</th>
-      <th style="text-align:left;">Usuario</th>
-      ${colAcciones}
-    </tr></thead><tbody>`;
+  let html = '<table class="cxp-table" style="width:100%;table-layout:auto;">'
+    + '<thead><tr>'
+    + '<th style="text-align:left;white-space:nowrap;width:88px">Fecha</th>'
+    + '<th style="text-align:left">Concepto</th>'
+    + '<th style="text-align:right;white-space:nowrap">Monto</th>'
+    + '<th style="text-align:center;width:56px">Tipo</th>'
+    + '<th style="text-align:left;width:76px">Usuario</th>'
+    + (esAdminGastos ? '<th style="text-align:center;width:64px">Acciones</th>' : '')
+    + '</tr></thead><tbody>';
 
   data.forEach(g => {
     const moneda = g.moneda || 'MXN';
@@ -6015,14 +6013,16 @@ function renderGastosDetalleModal() {
         + '</td>'
       : '';
     html += '<tr>'
-      + '<td style="font-size:11px;color:var(--muted);">' + fecha + '</td>'
-      + '<td>' + (g.concepto || '—') + '</td>'
-      + '<td style="font-size:11px;color:var(--muted);">' + (g.categoria || '—') + '</td>'
-      + '<td style="text-align:center;"><span style="background:var(--surface);border:1px solid ' + monedaColor + '33;border-radius:4px;padding:2px 6px;font-size:10px;color:' + monedaColor + ';font-weight:700;">' + moneda + '</span></td>'
-      + '<td style="text-align:right;font-weight:700;color:var(--red);">-' + (moneda==='USD'?'$'+monto.toFixed(2)+' USD':fmt(monto)) + '</td>'
-      + '<td style="text-align:right;color:var(--muted);font-size:11px;">' + (moneda==='USD'?fmt(equivMXN):'—') + '</td>'
-      + '<td style="text-align:center;"><span style="color:' + tipoColor + ';font-size:11px;font-weight:700;">' + (g.tipo_pago||'—') + '</span></td>'
-      + '<td style="font-size:11px;color:var(--muted);">' + (g.usuario||'—') + '</td>'
+      + '<td style="font-size:11px;color:var(--muted);white-space:nowrap">' + fecha + '</td>'
+      + '<td><div style="word-break:break-word">' + (g.concepto || '—') + '</div>'
+        + (g.categoria ? '<div style="font-size:10px;color:var(--muted);margin-top:1px">' + g.categoria + '</div>' : '')
+        + '</td>'
+      + '<td style="text-align:right;font-weight:700;color:var(--red);white-space:nowrap">-'
+        + (moneda==='USD' ? '$'+monto.toFixed(2)+' USD' : fmt(monto))
+        + (moneda==='USD' && equivMXN>0 ? '<div style="font-size:10px;color:var(--muted);font-weight:400">~'+fmt(equivMXN)+'</div>' : '')
+        + '</td>'
+      + '<td style="text-align:center"><span style="color:' + tipoColor + ';font-size:10px;font-weight:700;background:var(--surface);border:1px solid ' + tipoColor + '44;border-radius:4px;padding:1px 5px">' + (g.tipo_pago||'—') + '</span></td>'
+      + '<td style="font-size:11px;color:var(--muted)">' + (g.usuario||'—') + '</td>'
       + accionesCell
       + '</tr>';
   });
@@ -7340,6 +7340,27 @@ async function applyUpdate() {
   });
   window.addEventListener('focus', checkForUpdates);
 })();
+
+/* ══════════════════════════════════════════
+   BORRAR CONCEPTO DEL PLAN DE PAGOS
+   Solo disponible si pagado===0 (sin ningún pago registrado).
+   Elimina la fila de catalogo_cxp sin tocar gastos_efectuados.
+   Solo admin y admin_master (canAccess('cxp')).
+══════════════════════════════════════════ */
+window.planPagoBorrarConcepto = async function planPagoBorrarConcepto(rowKeyIdx) {
+  const clave = window._planPagoClaves && window._planPagoClaves[rowKeyIdx];
+  if (!clave) { toast('No se pudo identificar el concepto', 'err'); return; }
+  const row = (window._planPagoState && window._planPagoState.rows || []).find(r => r._key === clave);
+  const nombre = row ? (row.concepto || clave) : clave;
+  if (!confirm('🗑️ ¿Quitar este concepto del plan?\n\n"' + nombre + '"\n\nSolo se puede quitar si no tiene pagos registrados.\nEsta acción no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('catalogo_cxp').delete().eq('clave', clave);
+    if (error) { toast('Error al eliminar: ' + (error.message || 'ver consola'), 'err'); console.error(error); return; }
+    await cxpFetchSupabaseData();
+    planPagoRenderTabla();
+    toast('✅ Concepto eliminado del plan', 'ok');
+  } catch(e) { toast('Error inesperado al eliminar', 'err'); console.error(e); }
+};
 </script>
 <script>
 (function(){
