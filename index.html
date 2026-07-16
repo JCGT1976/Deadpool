@@ -827,7 +827,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
   <!-- session bar -->
   <div id="sessionBar">
-    <span data-i18n="session.active">Sesión activa · expira en</span> <span id="sessionTimer">10:00</span>
+    <span data-i18n="session.active">Sesión activa · expira en</span> <span id="sessionTimer">60:00</span>
     <button class="btn-icon" onclick="resetTimer()" style="padding:2px 8px;font-size:10px" data-i18n="session.renew">Renovar</button>
   </div>
 
@@ -1792,8 +1792,10 @@ document.documentElement.setAttribute('lang',       window.APP_LANG);
    STATE
 ══════════════════════════════════════════ */
 let currentUser = null;
-let sessionSeconds = 600;
+const SESSION_TOTAL = 3600;   // 60 minutos
+let sessionSeconds = SESSION_TOTAL;
 let sessionInterval = null;
+let _resetThrottle = null;    // throttle para eventos de alta frecuencia
 let allData = {};   // cache de datos cargados
 
 /* ══════════════════════════════════════════
@@ -1831,23 +1833,34 @@ function setErr(msg) {
    SESSION
 ══════════════════════════════════════════ */
 function startTimer() {
-  sessionSeconds = 600;
+  sessionSeconds = SESSION_TOTAL;
   clearInterval(sessionInterval);
   sessionInterval = setInterval(() => {
     sessionSeconds--;
     const m = Math.floor(sessionSeconds/60).toString().padStart(2,'0');
     const s = (sessionSeconds%60).toString().padStart(2,'0');
-    document.getElementById('sessionTimer').textContent = `${m}:${s}`;
-    if (sessionSeconds <= 60) document.getElementById('sessionTimer').style.color = 'var(--red)';
+    const el = document.getElementById('sessionTimer');
+    if (el) {
+      el.textContent = m + ':' + s;
+      if (sessionSeconds <= 300) el.style.color = 'var(--red)';       // rojo en últimos 5 min
+      else if (sessionSeconds <= 600) el.style.color = 'var(--yellow)'; // amarillo en últimos 10 min
+      else el.style.color = 'var(--yellow)';
+    }
     if (sessionSeconds <= 0) doLogout();
   }, 1000);
-  document.addEventListener('click', resetTimer);
-  document.addEventListener('keydown', resetTimer);
+
+  // Registrar TODOS los eventos de actividad
+  const evts = ['click','keydown','keypress','input','touchstart','touchmove','scroll','mousemove','pointerdown','pointermove'];
+  evts.forEach(ev => document.addEventListener(ev, resetTimer, { passive: true }));
 }
 
 function resetTimer() {
-  sessionSeconds = 600;
-  document.getElementById('sessionTimer').style.color = 'var(--yellow)';
+  // Throttle: no ejecutar más de una vez por segundo
+  if (_resetThrottle) return;
+  _resetThrottle = setTimeout(() => { _resetThrottle = null; }, 1000);
+  sessionSeconds = SESSION_TOTAL;
+  const el = document.getElementById('sessionTimer');
+  if (el) el.style.color = 'var(--yellow)';
 }
 
 /* ══════════════════════════════════════════
