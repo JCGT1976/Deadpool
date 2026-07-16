@@ -571,6 +571,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   padding:7px 14px;font-size:10.5px;font-weight:800;
   letter-spacing:.4px;text-transform:uppercase;
 }
+/* Drag-and-drop en modal flujo */
+.flujo-nivel-sep.flujo-drop-over td{
+  background:rgba(0,194,255,.18)!important;
+  outline:2px dashed var(--accent);outline-offset:-3px;
+  cursor:copy;
+}
+.flujo-row-drag{cursor:grab;}
+.flujo-row-drag:active{cursor:grabbing;}
+.flujo-row-drag.flujo-dragging{opacity:.4;background:rgba(0,194,255,.06)!important;}
+.flujo-row-drag.flujo-drop-over-row{outline:2px dashed var(--accent);outline-offset:-2px;}
+.flujo-drag-handle{
+  display:inline-block;color:var(--muted);font-size:12px;
+  margin-right:7px;cursor:grab;vertical-align:middle;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.flujo-drag-handle:hover{color:var(--accent);}
+.flujo-drag-handle:active{cursor:grabbing;}
 .flujo-nivel-badge{
   display:inline-block;color:#fff;padding:2px 9px;
   border-radius:6px;margin-right:10px;font-weight:800;font-size:10px;
@@ -4969,10 +4986,76 @@ function flujoNivEfectivo(r) {
   if (r._key && ov[r._key] !== undefined) return ov[r._key];
   return nivelEfectivo(r);
 }
+var _flujoDragClave = null;  // clave del concepto que se está arrastrando
+
+window.flujoDragStart = function flujoDragStart(ev, clave) {
+  _flujoDragClave = clave;
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', 'flujo:' + clave);
+  var tr = ev.currentTarget;
+  if (tr) { setTimeout(function(){ tr.classList.add('flujo-dragging'); }, 0); }
+};
+
+window.flujoDragEnd = function flujoDragEnd(ev) {
+  _flujoDragClave = null;
+  var tr = ev.currentTarget;
+  if (tr) tr.classList.remove('flujo-dragging');
+  document.querySelectorAll('.flujo-drop-over,.flujo-drop-over-row').forEach(function(el){ el.classList.remove('flujo-drop-over','flujo-drop-over-row'); });
+};
+
+window.flujoDragOverNivel = function flujoDragOverNivel(ev, nivel) {
+  if (!_flujoDragClave) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
+  if (tr) tr.classList.add('flujo-drop-over');
+};
+
+window.flujoDragLeaveNivel = function flujoDragLeaveNivel(ev) {
+  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
+  if (tr) tr.classList.remove('flujo-drop-over');
+};
+
+window.flujoDropEnNivel = function flujoDropEnNivel(ev, nivelDestino) {
+  ev.preventDefault();
+  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
+  if (tr) tr.classList.remove('flujo-drop-over');
+  if (!_flujoDragClave) return;
+  var clave = _flujoDragClave;
+  _flujoDragClave = null;
+  flujoNivOverrideSet(clave, nivelDestino);
+  flujoRenderTabla();
+  toast('✅ Movido a L' + nivelDestino, 'ok');
+};
+
+window.flujoDragOverRow = function flujoDragOverRow(ev, nivel) {
+  if (!_flujoDragClave) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
+  if (tr) tr.classList.add('flujo-drop-over-row');
+};
+
+window.flujoDragLeaveRow = function flujoDragLeaveRow(ev) {
+  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
+  if (tr) tr.classList.remove('flujo-drop-over-row');
+};
+
+window.flujoDropEnRow = function flujoDropEnRow(ev, claveDestino, nivelDestino) {
+  ev.preventDefault();
+  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
+  if (tr) tr.classList.remove('flujo-drop-over-row');
+  if (!_flujoDragClave || _flujoDragClave === claveDestino) return;
+  var clave = _flujoDragClave;
+  _flujoDragClave = null;
+  flujoNivOverrideSet(clave, nivelDestino);
+  flujoRenderTabla();
+  toast('✅ Movido a L' + nivelDestino, 'ok');
+};
+
+/* Queda como stub para compatibilidad — ya no se llama desde HTML */
 window.flujoNivAjustar = function flujoNivAjustar(clave, nivelActual, delta) {
-  var nuevo = nivelActual + delta;
-  if (nuevo < 1) nuevo = 1;
-  if (nuevo > 3) nuevo = 3;
+  var nuevo = Math.max(1, Math.min(3, nivelActual + delta));
   flujoNivOverrideSet(clave, nuevo);
   flujoRenderTabla();
 };
@@ -5030,23 +5113,27 @@ function flujoRenderTabla() {
 
   // Render con running balance
   let running = totalDisponible;
-  let cruceCubierto = null; // índice donde el balance cruza a negativo
+  let cruceCubierto = null;
   let bodyHtml = '';
   let totalGastos = 0;
   let ultimoNivel = null;
-  const colSpanTotal = puedeAjustarNivel ? 4 : 3;
 
   filtradas.forEach((r, i) => {
     const nivKey = flujoNivEfectivo(r);
     const nivDisp = nivKey === 999 ? '—' : ('L' + nivKey);
     const nivCol = nivelColor(nivKey);
+    const claveEsc = (r._key || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-    // Insertar separador de nivel cuando cambia
+    // Separador de nivel — también es zona drop (admin/cohost)
     if (nivKey !== ultimoNivel) {
-      bodyHtml += '<tr class="flujo-nivel-sep" style="background:' + nivCol + '14;">'
-        + '<td colspan="' + colSpanTotal + '" style="color:' + nivCol + ';border-top:1px solid ' + nivCol + '55;">'
+      const dropAttrs = (puedeAjustarNivel && nivKey !== 999)
+        ? ' ondragover="flujoDragOverNivel(event,' + nivKey + ')" ondragleave="flujoDragLeaveNivel(event)" ondrop="flujoDropEnNivel(event,' + nivKey + ')"'
+        : '';
+      bodyHtml += '<tr class="flujo-nivel-sep"' + dropAttrs + ' style="background:' + nivCol + '14;">'
+        + '<td colspan="3" style="color:' + nivCol + ';border-top:1px solid ' + nivCol + '55;">'
         + '<span class="flujo-nivel-badge" style="background:' + nivCol + ';">' + nivDisp + '</span>'
         + nivelLabel(nivKey)
+        + (puedeAjustarNivel && nivKey !== 999 ? ' <span style="font-size:9px;opacity:.55;font-weight:400;text-transform:none;letter-spacing:0">· suelta aquí para mover a este nivel</span>' : '')
         + '</td></tr>';
       ultimoNivel = nivKey;
     }
@@ -5057,58 +5144,50 @@ function flujoRenderTabla() {
     const seCruza = prevRunning >= 0 && running < 0;
     if (seCruza && cruceCubierto === null) cruceCubierto = i;
 
-    // Colores del running balance
     const runningClass = running >= 0 ? 'flujo-running-pos' : 'flujo-running-neg';
     const runningTxt = running >= 0 ? fmt(running) : '(' + fmt(Math.abs(running)) + ')';
+    const rowBase = running < 0 ? 'data-row negativo' : 'data-row';
 
-    // Estilo de fila: si running ya negativo, marca como negativo
-    const rowClass = running < 0 ? 'data-row negativo' : 'data-row';
-
-    // Indicador visual de la línea de corte con label integrado
     const cutoffMark = seCruza
-      ? '<tr class="flujo-cutoff"><td colspan="' + colSpanTotal + '" style="text-align:center;"><span class="flujo-cutoff-label">\uD83D\uDD3B Línea de corte</span></td></tr>'
+      ? '<tr class="flujo-cutoff"><td colspan="3" style="text-align:center;"><span class="flujo-cutoff-label">\uD83D\uDD3B Línea de corte</span></td></tr>'
       : '';
 
-    // Botones de nivel (solo admin/cohost, niveles 1-3)
-    var btnNivel = '';
-    if (puedeAjustarNivel && nivKey !== 999) {
-      const ckUp = nivKey > 1 ? '' : ' disabled style="opacity:.3;"';
-      const ckDn = nivKey < 3 ? '' : ' disabled style="opacity:.3;"';
-      const claveEsc = (r._key || '').replace(/'/g, "\\'");
-      btnNivel = '<td style="text-align:center;white-space:nowrap;padding:2px 6px;">'
-        + '<button onclick="flujoNivAjustar(\'' + claveEsc + '\',' + nivKey + ',-1)"' + ckUp
-        + ' title="Subir a nivel anterior" style="background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.3);color:#58a6ff;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;margin-right:3px;">⬆</button>'
-        + '<button onclick="flujoNivAjustar(\'' + claveEsc + '\',' + nivKey + ',1)"' + ckDn
-        + ' title="Bajar a nivel siguiente" style="background:rgba(248,131,62,.12);border:1px solid rgba(248,131,62,.3);color:#f0883e;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;">⬇</button>'
-        + '</td>';
-    }
+    // Fila draggable (admin/cohost) o estática (view/income)
+    const rowAttrs = (puedeAjustarNivel && nivKey !== 999)
+      ? ' draggable="true" class="' + rowBase + ' flujo-row-drag"'
+        + ' ondragstart="flujoDragStart(event,\'' + claveEsc + '\')"'
+        + ' ondragend="flujoDragEnd(event)"'
+        + ' ondragover="flujoDragOverRow(event,' + nivKey + ')" ondragleave="flujoDragLeaveRow(event)" ondrop="flujoDropEnRow(event,\'' + claveEsc + '\',' + nivKey + ')"'
+      : ' class="' + rowBase + '"';
 
-    bodyHtml += '<tr class="' + rowClass + '">'
-      + '<td style="color:var(--text);">' + r.concepto + (r.nota?' <span style="color:var(--muted);font-size:10.5px;">(' + r.nota + ')</span>':'') + '</td>'
+    const handle = (puedeAjustarNivel && nivKey !== 999)
+      ? '<span class="flujo-drag-handle" title="Arrastra a otro nivel">⋮⋮</span>'
+      : '';
+
+    bodyHtml += '<tr' + rowAttrs + '>'
+      + '<td style="color:var(--text);">' + handle + r.concepto
+        + (r.nota ? ' <span style="color:var(--muted);font-size:10.5px;">(' + r.nota + ')</span>' : '')
+        + '</td>'
       + '<td style="text-align:right;font-weight:600;color:var(--text);white-space:nowrap;">' + fmt(r._pendiente) + '</td>'
       + '<td class="' + runningClass + '" style="text-align:right;white-space:nowrap;">' + runningTxt + '</td>'
-      + btnNivel
       + '</tr>' + cutoffMark;
   });
 
   if (filtradas.length === 0) {
-    bodyHtml = `<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">🎉 No hay gastos pendientes en este plan.</td></tr>`;
+    bodyHtml = '<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">\uD83C\uDF89 No hay gastos pendientes en este plan.</td></tr>';
   }
 
-  // Actualizar thead con columna nivel si corresponde
+  // Thead — siempre 3 columnas
   var thead = document.querySelector('#flujoTabla thead tr');
   if (thead) {
-    thead.innerHTML = '<th>Concepto</th><th class="num">Monto</th><th class="num">Saldo tras pago</th>'
-      + (puedeAjustarNivel ? '<th style="text-align:center;font-size:10px;color:var(--muted);">Nivel</th>' : '');
+    thead.innerHTML = '<th>Concepto</th><th class="num">Monto</th><th class="num">Saldo tras pago</th>';
   }
 
   document.getElementById('flujoTablaBody').innerHTML = bodyHtml;
-  var tfootExtra = puedeAjustarNivel ? '<td></td>' : '';
   document.getElementById('flujoTablaFoot').innerHTML = '<tr>'
     + '<td>Total</td>'
     + '<td style="text-align:right;">' + fmt(totalGastos) + '</td>'
     + '<td style="text-align:right;">' + (totalGastos > totalDisponible ? '(' + fmt(totalGastos - totalDisponible) + ')' : fmt(totalDisponible - totalGastos)) + '</td>'
-    + tfootExtra
     + '</tr>';
 
   // Actualizar sección total
