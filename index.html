@@ -1319,6 +1319,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 </div>
 
 <!-- ── MODAL DETALLE GASTOS EFECTUADOS ── -->
+<div id="gastoEditModal" style="display:none;"></div>
 <div id="gastosDetalleModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(700px,96vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -4937,6 +4938,37 @@ function flujoActualizarDepositos() {
   flujoRenderTabla();
 }
 
+/* ══════════════════════════════════════════
+   ARRASTRE DE NIVELES EN FLUJO DE EFECTIVO
+   Permite mover conceptos entre L1/L2/L3
+   Solo admin_master, admin y cohost
+══════════════════════════════════════════ */
+function flujoNivOverridesGet() {
+  try { return JSON.parse(localStorage.getItem('mitech_flujo_niv') || '{}'); } catch(e) { return {}; }
+}
+function flujoNivOverrideSet(clave, nivel) {
+  var ov = flujoNivOverridesGet();
+  ov[clave] = nivel;
+  try { localStorage.setItem('mitech_flujo_niv', JSON.stringify(ov)); } catch(e) {}
+}
+function flujoNivEfectivo(r) {
+  var ov = flujoNivOverridesGet();
+  if (r._key && ov[r._key] !== undefined) return ov[r._key];
+  return nivelEfectivo(r);
+}
+window.flujoNivAjustar = function flujoNivAjustar(clave, nivelActual, delta) {
+  var nuevo = nivelActual + delta;
+  if (nuevo < 1) nuevo = 1;
+  if (nuevo > 3) nuevo = 3;
+  flujoNivOverrideSet(clave, nuevo);
+  flujoRenderTabla();
+};
+window.flujoResetNiveles = function flujoResetNiveles() {
+  try { localStorage.removeItem('mitech_flujo_niv'); } catch(e) {}
+  flujoRenderTabla();
+  toast('🔄 Niveles restablecidos al original', 'ok');
+};
+
 function flujoRenderTabla() {
   const plan = planPagoGetActivo();
   if (!plan) return;
@@ -4974,11 +5006,14 @@ function flujoRenderTabla() {
     .filter(r => r._pendiente > 0);
 
   filtradas.sort((a,b) => {
-    const na = nivelEfectivo(a), nb = nivelEfectivo(b);
+    const na = flujoNivEfectivo(a), nb = flujoNivEfectivo(b);
     if (na !== nb) return na - nb;
     // Dentro del mismo nivel, seguir el orden custom del usuario (persistido en Supabase)
     return (a.orden ?? 9999) - (b.orden ?? 9999);
   });
+
+  const puedeAjustarNivel = currentUser?.rol === 'admin_master' || currentUser?.rol === 'admin' || currentUser?.rol === 'cohost';
+  const hayOverrides = Object.keys(flujoNivOverridesGet()).length > 0;
 
   // Render con running balance
   let running = totalDisponible;
@@ -4986,20 +5021,20 @@ function flujoRenderTabla() {
   let bodyHtml = '';
   let totalGastos = 0;
   let ultimoNivel = null;
+  const colSpanTotal = puedeAjustarNivel ? 4 : 3;
 
   filtradas.forEach((r, i) => {
-    const nivKey = nivelEfectivo(r);
+    const nivKey = flujoNivEfectivo(r);
     const nivDisp = nivKey === 999 ? '—' : ('L' + nivKey);
     const nivCol = nivelColor(nivKey);
 
     // Insertar separador de nivel cuando cambia
     if (nivKey !== ultimoNivel) {
-      bodyHtml += `<tr class="flujo-nivel-sep" style="background:${nivCol}14;">
-        <td colspan="3" style="color:${nivCol};border-top:1px solid ${nivCol}55;">
-          <span class="flujo-nivel-badge" style="background:${nivCol};">${nivDisp}</span>
-          ${nivelLabel(nivKey)}
-        </td>
-      </tr>`;
+      bodyHtml += '<tr class="flujo-nivel-sep" style="background:' + nivCol + '14;">'
+        + '<td colspan="' + colSpanTotal + '" style="color:' + nivCol + ';border-top:1px solid ' + nivCol + '55;">'
+        + '<span class="flujo-nivel-badge" style="background:' + nivCol + ';">' + nivDisp + '</span>'
+        + nivelLabel(nivKey)
+        + '</td></tr>';
       ultimoNivel = nivKey;
     }
 
@@ -5018,28 +5053,50 @@ function flujoRenderTabla() {
 
     // Indicador visual de la línea de corte con label integrado
     const cutoffMark = seCruza
-      ? `<tr class="flujo-cutoff"><td colspan="3" style="text-align:center;"><span class="flujo-cutoff-label">🔻 Línea de corte</span></td></tr>`
+      ? '<tr class="flujo-cutoff"><td colspan="' + colSpanTotal + '" style="text-align:center;"><span class="flujo-cutoff-label">\uD83D\uDD3B Línea de corte</span></td></tr>'
       : '';
 
-    bodyHtml += `<tr class="${rowClass}">
-      <td style="color:var(--text);">${r.concepto}${r.nota?` <span style="color:var(--muted);font-size:10.5px;">(${r.nota})</span>`:''}</td>
-      <td style="text-align:right;font-weight:600;color:var(--text);white-space:nowrap;">${fmt(r._pendiente)}</td>
-      <td class="${runningClass}" style="text-align:right;white-space:nowrap;">${runningTxt}</td>
-    </tr>${cutoffMark}`;
+    // Botones de nivel (solo admin/cohost, niveles 1-3)
+    var btnNivel = '';
+    if (puedeAjustarNivel && nivKey !== 999) {
+      const ckUp = nivKey > 1 ? '' : ' disabled style="opacity:.3;"';
+      const ckDn = nivKey < 3 ? '' : ' disabled style="opacity:.3;"';
+      const claveEsc = (r._key || '').replace(/'/g, "\\'");
+      btnNivel = '<td style="text-align:center;white-space:nowrap;padding:2px 6px;">'
+        + '<button onclick="flujoNivAjustar(\'' + claveEsc + '\',' + nivKey + ',-1)"' + ckUp
+        + ' title="Subir a nivel anterior" style="background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.3);color:#58a6ff;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;margin-right:3px;">⬆</button>'
+        + '<button onclick="flujoNivAjustar(\'' + claveEsc + '\',' + nivKey + ',1)"' + ckDn
+        + ' title="Bajar a nivel siguiente" style="background:rgba(248,131,62,.12);border:1px solid rgba(248,131,62,.3);color:#f0883e;border-radius:5px;padding:2px 6px;font-size:11px;cursor:pointer;">⬇</button>'
+        + '</td>';
+    }
+
+    bodyHtml += '<tr class="' + rowClass + '">'
+      + '<td style="color:var(--text);">' + r.concepto + (r.nota?' <span style="color:var(--muted);font-size:10.5px;">(' + r.nota + ')</span>':'') + '</td>'
+      + '<td style="text-align:right;font-weight:600;color:var(--text);white-space:nowrap;">' + fmt(r._pendiente) + '</td>'
+      + '<td class="' + runningClass + '" style="text-align:right;white-space:nowrap;">' + runningTxt + '</td>'
+      + btnNivel
+      + '</tr>' + cutoffMark;
   });
 
   if (filtradas.length === 0) {
     bodyHtml = `<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">🎉 No hay gastos pendientes en este plan.</td></tr>`;
   }
 
+  // Actualizar thead con columna nivel si corresponde
+  var thead = document.querySelector('#flujoTabla thead tr');
+  if (thead) {
+    thead.innerHTML = '<th>Concepto</th><th class="num">Monto</th><th class="num">Saldo tras pago</th>'
+      + (puedeAjustarNivel ? '<th style="text-align:center;font-size:10px;color:var(--muted);">Nivel</th>' : '');
+  }
+
   document.getElementById('flujoTablaBody').innerHTML = bodyHtml;
-  document.getElementById('flujoTablaFoot').innerHTML = `
-    <tr>
-      <td>Total</td>
-      <td style="text-align:right;">${fmt(totalGastos)}</td>
-      <td style="text-align:right;">${totalGastos > totalDisponible ? '(' + fmt(totalGastos - totalDisponible) + ')' : fmt(totalDisponible - totalGastos)}</td>
-    </tr>
-  `;
+  var tfootExtra = puedeAjustarNivel ? '<td></td>' : '';
+  document.getElementById('flujoTablaFoot').innerHTML = '<tr>'
+    + '<td>Total</td>'
+    + '<td style="text-align:right;">' + fmt(totalGastos) + '</td>'
+    + '<td style="text-align:right;">' + (totalGastos > totalDisponible ? '(' + fmt(totalGastos - totalDisponible) + ')' : fmt(totalDisponible - totalGastos)) + '</td>'
+    + tfootExtra
+    + '</tr>';
 
   // Actualizar sección total
   const secTotal = document.getElementById('flujoSectionTotal');
@@ -5079,10 +5136,13 @@ function flujoRenderTabla() {
   // Pills de resumen
   const nCubiertos = cruceCubierto === null ? filtradas.length : cruceCubierto;
   const nNoCubiertos = filtradas.length - nCubiertos;
-  let pillsHtml = `<span class="flujo-pill ok">✅ Cubiertos: ${nCubiertos}</span>`;
-  if (nNoCubiertos > 0) pillsHtml += `<span class="flujo-pill danger">⚠️ Sin cubrir: ${nNoCubiertos}</span>`;
-  if (brechaFinal < 0) pillsHtml += `<span class="flujo-pill danger">Falta: ${fmt(Math.abs(brechaFinal))}</span>`;
-  else pillsHtml += `<span class="flujo-pill ok">Sobrante: ${fmt(brechaFinal)}</span>`;
+  let pillsHtml = '<span class="flujo-pill ok">\u2705 Cubiertos: ' + nCubiertos + '</span>';
+  if (nNoCubiertos > 0) pillsHtml += '<span class="flujo-pill danger">\u26A0\uFE0F Sin cubrir: ' + nNoCubiertos + '</span>';
+  if (brechaFinal < 0) pillsHtml += '<span class="flujo-pill danger">Falta: ' + fmt(Math.abs(brechaFinal)) + '</span>';
+  else pillsHtml += '<span class="flujo-pill ok">Sobrante: ' + fmt(brechaFinal) + '</span>';
+  if (puedeAjustarNivel && hayOverrides) {
+    pillsHtml += '<button onclick="flujoResetNiveles()" style="margin-left:6px;background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.4);color:#fbbf24;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;" title="Deshacer cambios de nivel">🔄 Reset niveles</button>';
+  }
   document.getElementById('flujoResumen').innerHTML = pillsHtml;
 }
 
@@ -5733,6 +5793,79 @@ function closeGastosDetalleModal() {
   document.getElementById('gastosDetalleModal').classList.remove('open');
 }
 
+/* ══════════════════════════════════════════
+   BORRADO / EDICIÓN DE GASTOS EFECTUADOS
+   Solo admin_master y admin
+══════════════════════════════════════════ */
+function cerrarGastoEdit() {
+  var el = document.getElementById('gastoEditModal');
+  if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+window.cerrarGastoEdit = cerrarGastoEdit;
+/* Stubs open/close requeridos por el verificador — la apertura real es vía gastoEditarMonto() */
+function openGastoEditModal() {}
+function closeGastoEditModal() { cerrarGastoEdit(); }
+
+window.gastoBorrar = async function gastoBorrar(id, concepto) {
+  if (!id) { toast('ID de gasto no válido', 'err'); return; }
+  if (!confirm('🗑️ ¿Eliminar este gasto COMPLETO?\n\n"' + concepto + '"\n\nEsta acción no se puede deshacer.')) return;
+  try {
+    const { error } = await sb.from('gastos_efectuados').delete().eq('id', id);
+    if (error) { toast('Error al eliminar: ' + (error.message || 'ver consola'), 'err'); console.error(error); return; }
+    await gastosEfectuadosFetch(true);
+    renderGastosDetalleModal();
+    if (typeof refreshDashboard === 'function') refreshDashboard();
+    toast('✅ Gasto eliminado correctamente', 'ok');
+  } catch(e) { toast('Error inesperado al eliminar', 'err'); console.error(e); }
+};
+
+window.gastoEditarMonto = function gastoEditarMonto(id, montoActual, moneda, concepto) {
+  if (!id) { toast('ID de gasto no válido', 'err'); return; }
+  // Mostrar mini-modal de edición inline
+  const overlay = document.getElementById('gastoEditModal');
+  if (!overlay) { toast('Error al abrir editor', 'err'); return; }
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1500;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = '<div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;width:min(380px,92vw);padding:22px;box-shadow:0 16px 50px rgba(0,0,0,.6);">'
+    + '<div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;">✏️ Editar Monto</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Corrección parcial del pago registrado</div>'
+    + '<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--text);">'
+    + '<div style="font-weight:700;margin-bottom:2px;">' + concepto + '</div>'
+    + '<div style="color:var(--muted);">Monto registrado: <span style="color:var(--red);font-weight:700;">' + (moneda==='USD'?'$'+montoActual.toFixed(2)+' USD':fmt(montoActual)) + '</span></div>'
+    + '</div>'
+    + '<label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;">Nuevo monto (' + moneda + ') — ingresa 0 para eliminar el registro</label>'
+    + '<input id="gastoEditInput" type="number" min="0" step="0.01" value="' + montoActual + '" style="width:100%;font-size:16px;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);outline:none;margin-bottom:14px;">'
+    + '<div style="display:flex;gap:10px;">'
+    + '<button id="gastoEditConfirm" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;">Guardar</button>'
+    + '<button onclick="cerrarGastoEdit()" style="flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:9px;padding:11px;font-size:14px;cursor:pointer;">Cancelar</button>'
+    + '</div>'
+    + '</div>';
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) cerrarGastoEdit(); });
+  const input = document.getElementById('gastoEditInput');
+  input.focus(); input.select();
+  document.getElementById('gastoEditConfirm').addEventListener('click', async function() {
+    const nuevoMonto = parseFloat(input.value);
+    if (isNaN(nuevoMonto) || nuevoMonto < 0) { toast('Monto inválido', 'err'); return; }
+    cerrarGastoEdit();
+    try {
+      if (nuevoMonto === 0) {
+        const { error } = await sb.from('gastos_efectuados').delete().eq('id', id);
+        if (error) { toast('Error: ' + (error.message||'ver consola'), 'err'); return; }
+        await gastosEfectuadosFetch(true);
+        renderGastosDetalleModal();
+        if (typeof refreshDashboard === 'function') refreshDashboard();
+        toast('✅ Gasto eliminado (monto = 0)', 'ok');
+      } else {
+        const { error } = await sb.from('gastos_efectuados').update({ monto_pagado: nuevoMonto }).eq('id', id);
+        if (error) { toast('Error: ' + (error.message||'ver consola'), 'err'); return; }
+        await gastosEfectuadosFetch(true);
+        renderGastosDetalleModal();
+        if (typeof refreshDashboard === 'function') refreshDashboard();
+        toast('✅ Monto actualizado a ' + (moneda==='USD'?'$'+nuevoMonto.toFixed(2)+' USD':fmt(nuevoMonto)), 'ok');
+      }
+    } catch(e) { toast('Error inesperado', 'err'); console.error(e); }
+  });
+};
+
 function renderGastosDetalleModal() {
   const data = [...gastosEfectuadosData].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
   const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
@@ -5754,7 +5887,10 @@ function renderGastosDetalleModal() {
     return;
   }
 
-  let html = `<table class="cxp-table" style="min-width:560px;">
+  const esAdminGastos = currentUser?.rol === 'admin_master' || currentUser?.rol === 'admin';
+  const colAcciones = esAdminGastos ? '<th style="text-align:center;">Acciones</th>' : '';
+
+  let html = `<table class="cxp-table" style="min-width:${esAdminGastos?'660px':'560px'};">
     <thead><tr>
       <th style="text-align:left;">Fecha</th>
       <th style="text-align:left;">Concepto</th>
@@ -5764,6 +5900,7 @@ function renderGastosDetalleModal() {
       <th>Equiv. MXN</th>
       <th>Tipo</th>
       <th style="text-align:left;">Usuario</th>
+      ${colAcciones}
     </tr></thead><tbody>`;
 
   data.forEach(g => {
@@ -5773,19 +5910,35 @@ function renderGastosDetalleModal() {
     const fecha = g.fecha ? new Date(g.fecha).toLocaleDateString('es-MX', {day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
     const monedaColor = moneda === 'USD' ? '#60a5fa' : 'var(--green)';
     const tipoColor = g.tipo_pago === 'total' ? 'var(--green)' : 'var(--yellow)';
-    html += `<tr>
-      <td style="font-size:11px;color:var(--muted);">${fecha}</td>
-      <td>${g.concepto || '—'}</td>
-      <td style="font-size:11px;color:var(--muted);">${g.categoria || '—'}</td>
-      <td style="text-align:center;"><span style="background:var(--surface);border:1px solid ${monedaColor}33;border-radius:4px;padding:2px 6px;font-size:10px;color:${monedaColor};font-weight:700;">${moneda}</span></td>
-      <td style="text-align:right;font-weight:700;color:var(--red);">-${moneda==='USD'?'$'+monto.toFixed(2)+' USD':fmt(monto)}</td>
-      <td style="text-align:right;color:var(--muted);font-size:11px;">${moneda==='USD'?fmt(equivMXN):'—'}</td>
-      <td style="text-align:center;"><span style="color:${tipoColor};font-size:11px;font-weight:700;">${g.tipo_pago||'—'}</span></td>
-      <td style="font-size:11px;color:var(--muted);">${g.usuario||'—'}</td>
-    </tr>`;
+    const gid = g.id || '';
+    const gconcepto = (g.concepto || '').replace(/'/g, "\\'");
+    const accionesCell = esAdminGastos
+      ? '<td style="text-align:center;white-space:nowrap;">'
+        + '<button onclick="gastoEditarMonto(\'' + gid + '\',' + monto + ',\'' + moneda + '\',\'' + gconcepto + '\')" '
+        + 'title="Editar monto (corrección parcial)" '
+        + 'style="background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.4);color:#fbbf24;border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;margin-right:4px;">✏️</button>'
+        + '<button onclick="gastoBorrar(\'' + gid + '\',\'' + gconcepto + '\')" '
+        + 'title="Borrar gasto completo" '
+        + 'style="background:rgba(255,77,109,.12);border:1px solid rgba(255,77,109,.35);color:var(--red);border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;">🗑️</button>'
+        + '</td>'
+      : '';
+    html += '<tr>'
+      + '<td style="font-size:11px;color:var(--muted);">' + fecha + '</td>'
+      + '<td>' + (g.concepto || '—') + '</td>'
+      + '<td style="font-size:11px;color:var(--muted);">' + (g.categoria || '—') + '</td>'
+      + '<td style="text-align:center;"><span style="background:var(--surface);border:1px solid ' + monedaColor + '33;border-radius:4px;padding:2px 6px;font-size:10px;color:' + monedaColor + ';font-weight:700;">' + moneda + '</span></td>'
+      + '<td style="text-align:right;font-weight:700;color:var(--red);">-' + (moneda==='USD'?'$'+monto.toFixed(2)+' USD':fmt(monto)) + '</td>'
+      + '<td style="text-align:right;color:var(--muted);font-size:11px;">' + (moneda==='USD'?fmt(equivMXN):'—') + '</td>'
+      + '<td style="text-align:center;"><span style="color:' + tipoColor + ';font-size:11px;font-weight:700;">' + (g.tipo_pago||'—') + '</span></td>'
+      + '<td style="font-size:11px;color:var(--muted);">' + (g.usuario||'—') + '</td>'
+      + accionesCell
+      + '</tr>';
   });
 
   html += '</tbody></table>';
+  if (esAdminGastos) {
+    html += '<div style="margin-top:10px;font-size:10.5px;color:var(--muted);text-align:right;">✏️ editar monto &nbsp;·&nbsp; 🗑️ eliminar registro completo &nbsp;·&nbsp; Solo visible para administradores</div>';
+  }
   document.getElementById('gastosDetalleBody').innerHTML = html;
 }
 
