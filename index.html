@@ -616,20 +616,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 /* Input de monto editable en modal flujo */
 .flujo-monto-input{
   width:110px;text-align:right;font-weight:600;
-  background:transparent;border:1px solid transparent;
-  color:var(--text);padding:4px 6px;border-radius:5px;
+  background:rgba(96,165,250,.06);border:1px solid var(--border);
+  color:var(--text);padding:5px 8px;border-radius:6px;
   font-size:13px;font-variant-numeric:tabular-nums;
-  font-family:inherit;transition:border .12s, background .12s;
+  font-family:inherit;transition:border .12s, background .12s, box-shadow .12s;
+  cursor:text;
 }
-.flujo-monto-input:hover{border-color:var(--border);background:rgba(96,165,250,.04);}
+.flujo-monto-input:hover{border-color:var(--accent);background:rgba(96,165,250,.12);}
 .flujo-monto-input:focus{
   outline:none;border-color:var(--accent);
-  background:rgba(0,194,255,.08);
-  box-shadow:0 0 0 3px rgba(0,194,255,.15);
+  background:rgba(0,194,255,.12);
+  box-shadow:0 0 0 3px rgba(0,194,255,.2);
 }
 .flujo-monto-input.ajustado{
   color:var(--accent);font-weight:800;
-  border-color:rgba(0,194,255,.4);background:rgba(0,194,255,.06);
+  border-color:var(--accent);background:rgba(0,194,255,.15);
 }
 .flujo-monto-input.saving{opacity:.5;pointer-events:none;}
 .flujo-ajuste-badge{
@@ -1549,7 +1550,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.17.3';
+const APP_VERSION = '2026.07.17.4';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
