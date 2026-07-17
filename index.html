@@ -1549,7 +1549,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.17.2';
+const APP_VERSION = '2026.07.17.3';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5476,9 +5476,6 @@ function flujoRenderTabla() {
   if (nNoCubiertos > 0) pillsHtml += '<span class="flujo-pill danger">\u26A0\uFE0F Sin cubrir: ' + nNoCubiertos + '</span>';
   if (brechaFinal < 0) pillsHtml += '<span class="flujo-pill danger">Falta: ' + fmt(Math.abs(brechaFinal)) + '</span>';
   else pillsHtml += '<span class="flujo-pill ok">Sobrante: ' + fmt(brechaFinal) + '</span>';
-  if (puedeAjustarNivel && hayOverrides) {
-    pillsHtml += '<button onclick="flujoResetNiveles()" style="margin-left:6px;background:rgba(255,193,7,.15);border:1px solid rgba(255,193,7,.4);color:#fbbf24;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;" title="Deshacer cambios de nivel">🔄 Reset niveles</button>';
-  }
   document.getElementById('flujoResumen').innerHTML = pillsHtml;
 }
 
