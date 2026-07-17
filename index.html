@@ -581,6 +581,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 .flujo-row-drag:active{cursor:grabbing;}
 .flujo-row-drag.flujo-dragging{opacity:.4;background:rgba(0,194,255,.06)!important;}
 .flujo-row-drag.flujo-drop-over-row{outline:2px dashed var(--accent);outline-offset:-2px;}
+.flujo-row-drag.flujo-drop-before td{box-shadow:inset 0 3px 0 0 var(--accent);}
+.flujo-row-drag.flujo-drop-after td{box-shadow:inset 0 -3px 0 0 var(--accent);}
 .flujo-drag-handle{
   display:inline-block;color:var(--muted);font-size:12px;
   margin-right:7px;cursor:grab;vertical-align:middle;
@@ -1550,7 +1552,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.17.5';
+const APP_VERSION = '2026.07.17.6';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -4645,8 +4647,11 @@ function confirmarCambioNivel(state, nivelDestino) {
 /* Core: mueve filas a un nivel destino y las coloca en una posición específica.
    - keys: claves de las filas a mover
    - nivelDestino: 1..7 (o 999 sin nivel)
-   - targetKey: si se especifica, insertar DESPUÉS de esta fila; si null, al final del nivel */
-async function planPagoMoverYReordenar(keys, nivelDestino, targetKey) {
+   - targetKey: si se especifica, insertar cerca de esta fila; si null, al final del nivel
+   - insertBefore: si true, inserta ANTES de targetKey; si false (default), DESPUÉS.
+     Permite mover algo a la primera posición absoluta soltando en la mitad
+     superior de la fila más arriba. */
+async function planPagoMoverYReordenar(keys, nivelDestino, targetKey, insertBefore) {
   const movedRows = keys.map(k => cxpData.find(r => r._key === k)).filter(Boolean);
   if (movedRows.length === 0) return;
 
@@ -4671,7 +4676,8 @@ async function planPagoMoverYReordenar(keys, nivelDestino, targetKey) {
   if (targetKey) {
     const targetIdx = cxpData.findIndex(r => r._key === targetKey);
     if (targetIdx >= 0) {
-      cxpData.splice(targetIdx + 1, 0, ...movedRows);
+      const insertAt = insertBefore ? targetIdx : targetIdx + 1;
+      cxpData.splice(insertAt, 0, ...movedRows);
     } else {
       cxpData.push(...movedRows);
     }
@@ -5132,55 +5138,45 @@ window.flujoDragEnd = function flujoDragEnd(ev) {
   document.querySelectorAll('.flujo-drop-over,.flujo-drop-over-row').forEach(function(el){ el.classList.remove('flujo-drop-over','flujo-drop-over-row'); });
 };
 
-window.flujoDragOverNivel = function flujoDragOverNivel(ev, nivel) {
-  if (!_flujoDragClave) return;
-  ev.preventDefault();
-  ev.dataTransfer.dropEffect = 'move';
-  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
-  if (tr) tr.classList.add('flujo-drop-over');
-};
-
-window.flujoDragLeaveNivel = function flujoDragLeaveNivel(ev) {
-  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
-  if (tr) tr.classList.remove('flujo-drop-over');
-};
-
-window.flujoDropEnNivel = function flujoDropEnNivel(ev, nivelDestino) {
-  ev.preventDefault();
-  var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
-  if (tr) tr.classList.remove('flujo-drop-over');
-  if (!_flujoDragClave) return;
-  var clave = _flujoDragClave;
-  _flujoDragClave = null;
-  flujoNivOverrideSet(clave, nivelDestino);
-  flujoRenderTabla();
-  toast('✅ Movido a L' + nivelDestino, 'ok');
-};
+/* NOTA: las funciones de drop-por-nivel (flujoDragOverNivel, flujoDropEnNivel, etc.)
+   se eliminaron — ya no hay separadores de nivel visuales en esta tabla; el
+   reordenamiento ahora es por fila (flujoDragOverRow/flujoDropEnRow) con
+   soporte de insertar antes/después según la mitad de la fila. */
 
 window.flujoDragOverRow = function flujoDragOverRow(ev, nivel) {
   if (!_flujoDragClave) return;
   ev.preventDefault();
   ev.dataTransfer.dropEffect = 'move';
   var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
-  if (tr) tr.classList.add('flujo-drop-over-row');
+  if (!tr) return;
+  var rect = tr.getBoundingClientRect();
+  var mitad = rect.top + rect.height / 2;
+  var antes = ev.clientY < mitad;
+  tr.classList.add('flujo-drop-over-row');
+  tr.classList.toggle('flujo-drop-before', antes);
+  tr.classList.toggle('flujo-drop-after', !antes);
+  tr.dataset.dropBefore = antes ? '1' : '0';
 };
 
 window.flujoDragLeaveRow = function flujoDragLeaveRow(ev) {
   var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
-  if (tr) tr.classList.remove('flujo-drop-over-row');
+  if (tr) { tr.classList.remove('flujo-drop-over-row','flujo-drop-before','flujo-drop-after'); delete tr.dataset.dropBefore; }
 };
 
 window.flujoDropEnRow = function flujoDropEnRow(ev, claveDestino, nivelDestino) {
   ev.preventDefault();
   var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
-  if (tr) tr.classList.remove('flujo-drop-over-row');
+  var insertBefore = tr && tr.dataset.dropBefore === '1';
+  if (tr) { tr.classList.remove('flujo-drop-over-row','flujo-drop-before','flujo-drop-after'); delete tr.dataset.dropBefore; }
   if (!_flujoDragClave || _flujoDragClave === claveDestino) return;
   var clave = _flujoDragClave;
   _flujoDragClave = null;
-  // Reordenar: mover la fila arrastrada DESPUÉS de la fila destino.
-  // El nivel se mantiene igual al de la fila destino (que es igual al efectivo actual).
+  // Reordenar: mover la fila arrastrada antes o después de la fila destino,
+  // según en qué mitad de la fila se soltó. Así SÍ se puede llevar algo
+  // hasta la primera posición absoluta (soltando en la mitad superior de
+  // la fila más arriba).
   if (typeof planPagoMoverYReordenar === 'function') {
-    planPagoMoverYReordenar([clave], nivelDestino, claveDestino).then(function(){
+    planPagoMoverYReordenar([clave], nivelDestino, claveDestino, insertBefore).then(function(){
       flujoRenderTabla();
       toast('✅ Reordenado', 'ok');
     }).catch(function(e){
@@ -5352,14 +5348,14 @@ function flujoRenderTabla() {
     totalGastos += r._pendiente;
     const seCruza = prevRunning >= 0 && running < 0;
     if (seCruza && cruceCubierto === null) cruceCubierto = i;
+    // NOTA: se quitó la fila visual "Línea de corte" — la columna
+    // "Saldo tras pago" ya muestra claramente cuándo se vuelve negativo.
 
     const runningClass = running >= 0 ? 'flujo-running-pos' : 'flujo-running-neg';
     const runningTxt = running >= 0 ? fmt(running) : '(' + fmt(Math.abs(running)) + ')';
     const rowBase = running < 0 ? 'data-row negativo' : 'data-row';
 
-    const cutoffMark = seCruza
-      ? '<tr class="flujo-cutoff"><td colspan="4" style="text-align:center;"><span class="flujo-cutoff-label">\uD83D\uDD3B Línea de corte</span></td></tr>'
-      : '';
+    const cutoffMark = '';
 
     // Fila draggable — TODAS las filas se pueden reordenar (incluso nivel 999)
     // El nivel destino se toma de la fila donde se suelta
