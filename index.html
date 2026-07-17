@@ -613,6 +613,41 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 }
 .flujo-running-pos{color:#16a34a;font-weight:700;}
 .flujo-running-neg{color:#dc2626;font-weight:700;}
+/* Input de monto editable en modal flujo */
+.flujo-monto-input{
+  width:110px;text-align:right;font-weight:600;
+  background:transparent;border:1px solid transparent;
+  color:var(--text);padding:4px 6px;border-radius:5px;
+  font-size:13px;font-variant-numeric:tabular-nums;
+  font-family:inherit;transition:border .12s, background .12s;
+}
+.flujo-monto-input:hover{border-color:var(--border);background:rgba(96,165,250,.04);}
+.flujo-monto-input:focus{
+  outline:none;border-color:var(--accent);
+  background:rgba(0,194,255,.08);
+  box-shadow:0 0 0 3px rgba(0,194,255,.15);
+}
+.flujo-monto-input.ajustado{
+  color:var(--accent);font-weight:800;
+  border-color:rgba(0,194,255,.4);background:rgba(0,194,255,.06);
+}
+.flujo-monto-input.saving{opacity:.5;pointer-events:none;}
+.flujo-ajuste-badge{
+  display:inline-block;background:rgba(0,194,255,.15);
+  color:var(--accent);font-size:9px;padding:2px 6px;
+  border-radius:4px;font-weight:800;letter-spacing:.3px;
+  text-transform:uppercase;margin-left:6px;vertical-align:middle;
+}
+.flujo-undo-btn{
+  background:transparent;border:1px solid var(--border);
+  color:var(--muted);width:24px;height:24px;border-radius:5px;
+  cursor:pointer;font-size:11px;padding:0;transition:all .12s;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.flujo-undo-btn:hover{
+  color:var(--accent);border-color:var(--accent);
+  background:rgba(0,194,255,.08);
+}
 
 /* Footer */
 .flujo-footer{
@@ -1286,6 +1321,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
               <th>Concepto</th>
               <th class="num">Monto</th>
               <th class="num">Saldo tras pago</th>
+              <th style="width:40px;"></th>
             </tr>
           </thead>
           <tbody id="flujoTablaBody"></tbody>
@@ -1513,7 +1549,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.17.1';
+const APP_VERSION = '2026.07.17.2';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5004,6 +5040,48 @@ async function openFlujoEfectivoModal() {
   const depInput = document.getElementById('flujoDepositosInput');
   if (depInput) depInput.value = dep > 0 ? Math.round(dep).toLocaleString('es-MX') : '';
 
+  // AUTO-ASIGNACIÓN de niveles: para conceptos con nivel=999 (Sin nivel)
+  // pero que tienen monto pendiente en el plan activo, aplicar inferirNivelDeConcepto
+  // y persistir a Supabase de una vez. Solo lo hace admin/cohost.
+  const puedeAjustar = currentUser?.rol === 'admin_master' || currentUser?.rol === 'admin' || currentUser?.rol === 'cohost';
+  if (puedeAjustar) {
+    const colPlan = plan === 'all' ? 'total' : plan;
+    const sinNivel = cxpData.filter(r => {
+      if (!r.concepto || r.total === undefined) return false;
+      const nivExpl = nivelNumeric(r.nivel);
+      if (nivExpl !== 999) return false; // ya tiene nivel explícito
+      const inferido = inferirNivelDeConcepto(r);
+      if (inferido === 999) return false; // no se puede inferir
+      const mp = cxpMontoMXN(r, colPlan);
+      const pag = gastosEfectuadosTotalPorClave(r._key);
+      return (mp - pag) > 0; // solo si tiene pendiente
+    });
+    if (sinNivel.length > 0) {
+      // Agrupar por nivel inferido para hacer UPDATEs por lote
+      const porNivel = {};
+      sinNivel.forEach(r => {
+        const niv = inferirNivelDeConcepto(r);
+        if (!porNivel[niv]) porNivel[niv] = [];
+        porNivel[niv].push(r._key);
+      });
+      let asignados = 0;
+      for (const niv of Object.keys(porNivel)) {
+        const claves = porNivel[niv];
+        try {
+          const { error } = await sb.from('catalogo_cxp').update({ nivel: parseInt(niv,10) }).in('clave', claves);
+          if (!error) {
+            asignados += claves.length;
+            // Actualizar cxpData local
+            cxpData.forEach(r => { if (claves.indexOf(r._key) !== -1) r.nivel = parseInt(niv,10); });
+          }
+        } catch(e) { console.warn('auto-niv err:', e); }
+      }
+      if (asignados > 0) {
+        toast('🎯 ' + asignados + ' concepto(s) recibieron nivel automático', 'ok');
+      }
+    }
+  }
+
   flujoRenderTabla();
   document.getElementById('flujoEfectivoModal').classList.add('open');
 }
@@ -5098,9 +5176,21 @@ window.flujoDropEnRow = function flujoDropEnRow(ev, claveDestino, nivelDestino) 
   if (!_flujoDragClave || _flujoDragClave === claveDestino) return;
   var clave = _flujoDragClave;
   _flujoDragClave = null;
-  flujoNivOverrideSet(clave, nivelDestino);
-  flujoRenderTabla();
-  toast('✅ Movido a L' + nivelDestino, 'ok');
+  // Reordenar: mover la fila arrastrada DESPUÉS de la fila destino.
+  // El nivel se mantiene igual al de la fila destino (que es igual al efectivo actual).
+  if (typeof planPagoMoverYReordenar === 'function') {
+    planPagoMoverYReordenar([clave], nivelDestino, claveDestino).then(function(){
+      flujoRenderTabla();
+      toast('✅ Reordenado', 'ok');
+    }).catch(function(e){
+      console.error('flujo reorden:', e);
+      toast('Error al reordenar: ' + (e.message || e), 'err');
+    });
+  } else {
+    flujoNivOverrideSet(clave, nivelDestino);
+    flujoRenderTabla();
+    toast('✅ Movido', 'ok');
+  }
 };
 
 /* Queda como stub para compatibilidad — ya no se llama desde HTML */
@@ -5113,6 +5203,91 @@ window.flujoResetNiveles = function flujoResetNiveles() {
   try { localStorage.removeItem('mitech_flujo_niv'); } catch(e) {}
   flujoRenderTabla();
   toast('🔄 Niveles restablecidos al original', 'ok');
+};
+
+/* ══════════════════════════════════════════
+   EDICIÓN DE MONTOS INLINE EN FLUJO DE EFECTIVO
+   Al editar → UPDATE al catalogo_cxp en la columna del plan activo.
+   Guarda el "monto original" en un backup por-clave para poder deshacer.
+   Solo admin_master, admin y cohost.
+══════════════════════════════════════════ */
+function flujoMontoOriginalesGet() {
+  try { return JSON.parse(localStorage.getItem('mitech_flujo_monto_orig') || '{}'); } catch(e) { return {}; }
+}
+function flujoMontoOriginalSet(clave, colPlan, valor) {
+  var backup = flujoMontoOriginalesGet();
+  var k = clave + '::' + colPlan;
+  // Solo guardar la primera vez (el "verdadero" original antes del primer ajuste)
+  if (backup[k] === undefined) {
+    backup[k] = valor;
+    try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
+  }
+}
+function flujoMontoOriginalGet(clave, colPlan) {
+  var backup = flujoMontoOriginalesGet();
+  return backup[clave + '::' + colPlan];
+}
+function flujoMontoOriginalClear(clave, colPlan) {
+  var backup = flujoMontoOriginalesGet();
+  delete backup[clave + '::' + colPlan];
+  try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
+}
+
+/* Guarda un nuevo monto en Supabase para la columna del plan activo */
+window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inputEl) {
+  const raw = parseMoney(inputEl.value);
+  if (isNaN(raw) || raw < 0) { toast('Monto inválido', 'err'); return; }
+
+  const fila = cxpData.find(r => r._key === clave);
+  if (!fila) { toast('Concepto no encontrado', 'err'); return; }
+
+  const valorActual = parseFloat(fila[colPlan]) || 0;
+  if (Math.abs(raw - valorActual) < 0.01) return; // sin cambio real
+
+  // Backup del original (solo la primera vez)
+  flujoMontoOriginalSet(clave, colPlan, valorActual);
+
+  inputEl.classList.add('saving');
+  try {
+    const upd = {};
+    upd[colPlan] = raw;
+    const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
+    if (error) throw error;
+    // Actualizar local
+    fila[colPlan] = raw;
+    toast('💾 Monto actualizado en el plan', 'ok');
+    flujoRenderTabla();
+    // Refrescar KPI de brecha del dashboard
+    if (typeof renderDashboard === 'function') renderDashboard();
+  } catch(e) {
+    console.error('flujoMontoGuardar:', e);
+    toast('Error al guardar: ' + (e.message || e), 'err');
+    inputEl.classList.remove('saving');
+  }
+};
+
+/* Deshacer ajuste: vuelve al monto original guardado en backup */
+window.flujoMontoDeshacer = async function flujoMontoDeshacer(clave, colPlan) {
+  const original = flujoMontoOriginalGet(clave, colPlan);
+  if (original === undefined) { toast('No hay valor original guardado', 'err'); return; }
+
+  const fila = cxpData.find(r => r._key === clave);
+  if (!fila) { toast('Concepto no encontrado', 'err'); return; }
+
+  try {
+    const upd = {};
+    upd[colPlan] = original;
+    const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
+    if (error) throw error;
+    fila[colPlan] = original;
+    flujoMontoOriginalClear(clave, colPlan);
+    toast('↺ Monto restaurado al original', 'ok');
+    flujoRenderTabla();
+    if (typeof renderDashboard === 'function') renderDashboard();
+  } catch(e) {
+    console.error('flujoMontoDeshacer:', e);
+    toast('Error al deshacer: ' + (e.message || e), 'err');
+  }
 };
 
 function flujoRenderTabla() {
@@ -5140,7 +5315,7 @@ function flujoRenderTabla() {
     } catch(e) { semanaChip.textContent = 'Semana actual'; }
   }
 
-  // Solo conceptos pendientes en el plan activo, ordenados por nivel
+  // Solo conceptos pendientes en el plan activo, ordenados por nivel (invisible)
   const filtradas = cxpData
     .filter(r => r.concepto && r.total !== undefined)
     .map(r => {
@@ -5151,42 +5326,25 @@ function flujoRenderTabla() {
     })
     .filter(r => r._pendiente > 0);
 
+  // Orden: nivel efectivo (criterio invisible) → orden custom del usuario
   filtradas.sort((a,b) => {
     const na = flujoNivEfectivo(a), nb = flujoNivEfectivo(b);
     if (na !== nb) return na - nb;
-    // Dentro del mismo nivel, seguir el orden custom del usuario (persistido en Supabase)
     return (a.orden ?? 9999) - (b.orden ?? 9999);
   });
 
-  const puedeAjustarNivel = currentUser?.rol === 'admin_master' || currentUser?.rol === 'admin' || currentUser?.rol === 'cohost';
-  const hayOverrides = Object.keys(flujoNivOverridesGet()).length > 0;
+  const puedeAjustar = currentUser?.rol === 'admin_master' || currentUser?.rol === 'admin' || currentUser?.rol === 'cohost';
 
-  // Render con running balance
+  // Render con running balance (SIN separadores de nivel)
   let running = totalDisponible;
   let cruceCubierto = null;
   let bodyHtml = '';
   let totalGastos = 0;
-  let ultimoNivel = null;
 
   filtradas.forEach((r, i) => {
     const nivKey = flujoNivEfectivo(r);
-    const nivDisp = nivKey === 999 ? '—' : ('L' + nivKey);
-    const nivCol = nivelColor(nivKey);
     const claveEsc = (r._key || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-
-    // Separador de nivel — también es zona drop (admin/cohost)
-    if (nivKey !== ultimoNivel) {
-      const dropAttrs = (puedeAjustarNivel && nivKey !== 999)
-        ? ' ondragover="flujoDragOverNivel(event,' + nivKey + ')" ondragleave="flujoDragLeaveNivel(event)" ondrop="flujoDropEnNivel(event,' + nivKey + ')"'
-        : '';
-      bodyHtml += '<tr class="flujo-nivel-sep"' + dropAttrs + ' style="background:' + nivCol + '14;">'
-        + '<td colspan="3" style="color:' + nivCol + ';border-top:1px solid ' + nivCol + '55;">'
-        + '<span class="flujo-nivel-badge" style="background:' + nivCol + ';">' + nivDisp + '</span>'
-        + nivelLabel(nivKey)
-        + (puedeAjustarNivel && nivKey !== 999 ? ' <span style="font-size:9px;opacity:.55;font-weight:400;text-transform:none;letter-spacing:0">· suelta aquí para mover a este nivel</span>' : '')
-        + '</td></tr>';
-      ultimoNivel = nivKey;
-    }
+    const nivColorVal = nivelColor(nivKey);
 
     const prevRunning = running;
     running = running - r._pendiente;
@@ -5199,38 +5357,73 @@ function flujoRenderTabla() {
     const rowBase = running < 0 ? 'data-row negativo' : 'data-row';
 
     const cutoffMark = seCruza
-      ? '<tr class="flujo-cutoff"><td colspan="3" style="text-align:center;"><span class="flujo-cutoff-label">\uD83D\uDD3B Línea de corte</span></td></tr>'
+      ? '<tr class="flujo-cutoff"><td colspan="4" style="text-align:center;"><span class="flujo-cutoff-label">\uD83D\uDD3B Línea de corte</span></td></tr>'
       : '';
 
-    // Fila draggable (admin/cohost) o estática (view/income)
-    const rowAttrs = (puedeAjustarNivel && nivKey !== 999)
+    // Fila draggable (para reordenar) para admin/cohost. Ya NO se dropa en niveles.
+    const rowAttrs = (puedeAjustar && nivKey !== 999)
       ? ' draggable="true" class="' + rowBase + ' flujo-row-drag"'
         + ' ondragstart="flujoDragStart(event,\'' + claveEsc + '\')"'
         + ' ondragend="flujoDragEnd(event)"'
         + ' ondragover="flujoDragOverRow(event,' + nivKey + ')" ondragleave="flujoDragLeaveRow(event)" ondrop="flujoDropEnRow(event,\'' + claveEsc + '\',' + nivKey + ')"'
       : ' class="' + rowBase + '"';
 
-    const handle = (puedeAjustarNivel && nivKey !== 999)
-      ? '<span class="flujo-drag-handle" title="Arrastra a otro nivel">⋮⋮</span>'
+    const handle = (puedeAjustar && nivKey !== 999)
+      ? '<span class="flujo-drag-handle" title="Arrastra para reordenar">⋮⋮</span>'
+      : '';
+
+    // Chip de nivel discreto (indicador visual pequeño, no separador)
+    const nivChip = nivKey === 999
+      ? ''
+      : '<span style="display:inline-block;background:' + nivColorVal + '22;color:' + nivColorVal + ';font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle;">L' + nivKey + '</span>';
+
+    // Detectar si el monto está "ajustado" (existe backup del original)
+    const montoOriginal = flujoMontoOriginalGet(r._key, colPlan);
+    const valorActualPlan = parseFloat(r[colPlan]) || 0;
+    const estaAjustado = montoOriginal !== undefined && Math.abs(montoOriginal - valorActualPlan) > 0.01;
+    const ajusteBadge = estaAjustado ? '<span class="flujo-ajuste-badge" title="Monto original: ' + fmt(montoOriginal) + '">ajustado</span>' : '';
+
+    // Celda de monto: input editable si admin/cohost, texto si no
+    // NOTA: mostramos el valor en la moneda original de la fila (r[colPlan]),
+    // no en MXN convertido, para que la edición sea directa
+    let montoCell;
+    if (puedeAjustar) {
+      const valStr = valorActualPlan > 0 ? Math.round(valorActualPlan).toLocaleString('es-MX') : '';
+      const monedaHint = (r.moneda && r.moneda !== 'MXN') ? ' <span style="font-size:9px;color:var(--muted);">' + r.moneda + '</span>' : '';
+      montoCell = '<input type="text" inputmode="decimal" class="flujo-monto-input' + (estaAjustado ? ' ajustado' : '') + '"'
+        + ' value="' + valStr + '"'
+        + ' oninput="fmtInputMoneyGeneric(this)"'
+        + ' onblur="flujoMontoGuardar(\'' + claveEsc + '\',\'' + colPlan + '\',this)"'
+        + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
+        + ' title="Editar y presionar Enter o salir del campo para guardar">' + monedaHint;
+    } else {
+      montoCell = '<span style="font-weight:600;">' + fmt(r._pendiente) + '</span>';
+    }
+
+    // Botón deshacer (solo si hay backup Y admin/cohost)
+    const undoCell = (puedeAjustar && estaAjustado)
+      ? '<button class="flujo-undo-btn" onclick="flujoMontoDeshacer(\'' + claveEsc + '\',\'' + colPlan + '\')" title="Restaurar monto original">↺</button>'
       : '';
 
     bodyHtml += '<tr' + rowAttrs + '>'
-      + '<td style="color:var(--text);">' + handle + r.concepto
+      + '<td style="color:var(--text);">' + handle + nivChip + r.concepto
         + (r.nota ? ' <span style="color:var(--muted);font-size:10.5px;">(' + r.nota + ')</span>' : '')
+        + ajusteBadge
         + '</td>'
-      + '<td style="text-align:right;font-weight:600;color:var(--text);white-space:nowrap;">' + fmt(r._pendiente) + '</td>'
+      + '<td style="text-align:right;white-space:nowrap;">' + montoCell + '</td>'
       + '<td class="' + runningClass + '" style="text-align:right;white-space:nowrap;">' + runningTxt + '</td>'
+      + '<td style="text-align:center;">' + undoCell + '</td>'
       + '</tr>' + cutoffMark;
   });
 
   if (filtradas.length === 0) {
-    bodyHtml = '<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">\uD83C\uDF89 No hay gastos pendientes en este plan.</td></tr>';
+    bodyHtml = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--muted);font-size:13px;">\uD83C\uDF89 No hay gastos pendientes en este plan.</td></tr>';
   }
 
-  // Thead — siempre 3 columnas
+  // Thead — ahora 4 columnas (agregamos acciones)
   var thead = document.querySelector('#flujoTabla thead tr');
   if (thead) {
-    thead.innerHTML = '<th>Concepto</th><th class="num">Monto</th><th class="num">Saldo tras pago</th>';
+    thead.innerHTML = '<th>Concepto</th><th class="num">Monto</th><th class="num">Saldo tras pago</th><th style="width:40px;"></th>';
   }
 
   document.getElementById('flujoTablaBody').innerHTML = bodyHtml;
@@ -5238,6 +5431,7 @@ function flujoRenderTabla() {
     + '<td>Total</td>'
     + '<td style="text-align:right;">' + fmt(totalGastos) + '</td>'
     + '<td style="text-align:right;">' + (totalGastos > totalDisponible ? '(' + fmt(totalGastos - totalDisponible) + ')' : fmt(totalDisponible - totalGastos)) + '</td>'
+    + '<td></td>'
     + '</tr>';
 
   // Actualizar sección total
