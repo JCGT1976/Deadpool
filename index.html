@@ -1550,7 +1550,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.17.4';
+const APP_VERSION = '2026.07.17.5';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5361,15 +5361,16 @@ function flujoRenderTabla() {
       ? '<tr class="flujo-cutoff"><td colspan="4" style="text-align:center;"><span class="flujo-cutoff-label">\uD83D\uDD3B Línea de corte</span></td></tr>'
       : '';
 
-    // Fila draggable (para reordenar) para admin/cohost. Ya NO se dropa en niveles.
-    const rowAttrs = (puedeAjustar && nivKey !== 999)
+    // Fila draggable — TODAS las filas se pueden reordenar (incluso nivel 999)
+    // El nivel destino se toma de la fila donde se suelta
+    const rowAttrs = puedeAjustar
       ? ' draggable="true" class="' + rowBase + ' flujo-row-drag"'
         + ' ondragstart="flujoDragStart(event,\'' + claveEsc + '\')"'
         + ' ondragend="flujoDragEnd(event)"'
         + ' ondragover="flujoDragOverRow(event,' + nivKey + ')" ondragleave="flujoDragLeaveRow(event)" ondrop="flujoDropEnRow(event,\'' + claveEsc + '\',' + nivKey + ')"'
       : ' class="' + rowBase + '"';
 
-    const handle = (puedeAjustar && nivKey !== 999)
+    const handle = puedeAjustar
       ? '<span class="flujo-drag-handle" title="Arrastra para reordenar">⋮⋮</span>'
       : '';
 
