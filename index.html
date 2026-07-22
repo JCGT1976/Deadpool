@@ -1596,7 +1596,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.9';
+const APP_VERSION = '2026.07.22.10';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5161,19 +5161,20 @@ function flujoNivEfectivo(r) {
 var _flujoDragClave = null;  // clave del concepto que se está arrastrando
 
 window.flujoDragStart = function flujoDragStart(ev, clave) {
+  // Guard: solo activar si el origen del evento es el handle ⋮⋮ o descendiente
+  var origen = ev.target;
+  var esHandle = origen && (origen.classList.contains('flujo-drag-handle') || !!origen.closest('.flujo-drag-handle'));
+  if (!esHandle) { ev.preventDefault(); return; }
   _flujoDragClave = clave;
   ev.dataTransfer.effectAllowed = 'move';
   ev.dataTransfer.setData('text/plain', 'flujo:' + clave);
-  // El handle ⋮⋮ es currentTarget; marcar la fila padre visualmente
-  var tr = ev.currentTarget.closest('tr');
+  var tr = ev.currentTarget;
   if (tr) { setTimeout(function(){ tr.classList.add('flujo-dragging'); }, 0); }
-  ev.stopPropagation();
 };
 
 window.flujoDragEnd = function flujoDragEnd(ev) {
   _flujoDragClave = null;
-  // Limpiar clase en la fila padre del handle
-  var tr = ev.currentTarget.closest('tr');
+  var tr = ev.currentTarget;
   if (tr) tr.classList.remove('flujo-dragging');
   document.querySelectorAll('.flujo-drop-over,.flujo-drop-over-row,.flujo-drop-before,.flujo-drop-after').forEach(function(el){
     el.classList.remove('flujo-drop-over','flujo-drop-over-row','flujo-drop-before','flujo-drop-after');
@@ -5507,18 +5508,16 @@ function flujoRenderTabla() {
 
     const cutoffMark = '';
 
-    // Fila: solo drop-target (no draggable). El handle ⋮⋮ inicia el drag.
-    // Patrón idéntico al Plan de Pagos (CxP) para consistencia y mejor UX en touch.
+    // Fila draggable — el dragstart tiene guard interno que solo activa desde el handle ⋮⋮
     const rowAttrs = puedeAjustar
-      ? ' class="' + rowBase + ' flujo-row-drag"'
+      ? ' draggable="true" class="' + rowBase + ' flujo-row-drag"'
+        + ' ondragstart="flujoDragStart(event,\'' + claveEsc + '\')"'
+        + ' ondragend="flujoDragEnd(event)"'
         + ' ondragover="flujoDragOverRow(event,' + nivKey + ')" ondragleave="flujoDragLeaveRow(event)" ondrop="flujoDropEnRow(event,\'' + claveEsc + '\',' + nivKey + ')"'
       : ' class="' + rowBase + '"';
 
     const handle = puedeAjustar
-      ? '<span class="flujo-drag-handle" draggable="true"'
-        + ' ondragstart="flujoDragStart(event,\'' + claveEsc + '\')"'
-        + ' ondragend="flujoDragEnd(event)"'
-        + ' title="Arrastra para reordenar" style="touch-action:none;">⋮⋮</span>'
+      ? '<span class="flujo-drag-handle" style="touch-action:none;" title="Arrastra para reordenar">⋮⋮</span>'
       : '';
 
     // Sin chip de nivel visual — lista plana
