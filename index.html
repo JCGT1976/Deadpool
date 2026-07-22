@@ -583,6 +583,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 .flujo-row-drag.flujo-drop-over-row{outline:2px dashed var(--accent);outline-offset:-2px;}
 .flujo-row-drag.flujo-drop-before td{box-shadow:inset 0 3px 0 0 var(--accent);}
 .flujo-row-drag.flujo-drop-after td{box-shadow:inset 0 -3px 0 0 var(--accent);}
+.flujo-arrow-up,.flujo-arrow-dn{
+  display:inline-block;padding:0 3px;cursor:pointer;font-size:11px;
+  color:var(--muted);user-select:none;line-height:1;
+}
+.flujo-arrow-up:hover,.flujo-arrow-dn:hover{color:var(--accent);}
 .flujo-drag-handle{
   display:inline-block;color:var(--muted);font-size:12px;
   margin-right:7px;cursor:grab;vertical-align:middle;
@@ -1596,7 +1601,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.10';
+const APP_VERSION = '2026.07.22.11';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5207,6 +5212,30 @@ window.flujoDragLeaveRow = function flujoDragLeaveRow(ev) {
 };
 
 
+window.flujoMoverArriba = function flujoMoverArriba(clave) {
+  const idx = cxpData.findIndex(r => r._key === clave);
+  if (idx <= 0) return;
+  const tmp = cxpData[idx - 1];
+  cxpData[idx - 1] = cxpData[idx];
+  cxpData[idx] = tmp;
+  cxpData.forEach((r, i) => { r.orden = i + 1; });
+  flujoMoverYReordenar(clave, cxpData[idx]._key, true)
+    .then(() => { flujoRenderTabla(); toast('↑ Subido', 'ok'); })
+    .catch(e => toast('Error: ' + e.message, 'err'));
+};
+
+window.flujoMoverAbajo = function flujoMoverAbajo(clave) {
+  const idx = cxpData.findIndex(r => r._key === clave);
+  if (idx < 0 || idx >= cxpData.length - 1) return;
+  const tmp = cxpData[idx + 1];
+  cxpData[idx + 1] = cxpData[idx];
+  cxpData[idx] = tmp;
+  cxpData.forEach((r, i) => { r.orden = i + 1; });
+  flujoMoverYReordenar(clave, cxpData[idx]._key, false)
+    .then(() => { flujoRenderTabla(); toast('↓ Bajado', 'ok'); })
+    .catch(e => toast('Error: ' + e.message, 'err'));
+};
+
 async function flujoMoverYReordenar(clave, claveDestino, insertBefore) {
   const movedRow = cxpData.find(r => r._key === clave);
   if (!movedRow) return;
@@ -5508,16 +5537,11 @@ function flujoRenderTabla() {
 
     const cutoffMark = '';
 
-    // Fila draggable — el dragstart tiene guard interno que solo activa desde el handle ⋮⋮
-    const rowAttrs = puedeAjustar
-      ? ' draggable="true" class="' + rowBase + ' flujo-row-drag"'
-        + ' ondragstart="flujoDragStart(event,\'' + claveEsc + '\')"'
-        + ' ondragend="flujoDragEnd(event)"'
-        + ' ondragover="flujoDragOverRow(event,' + nivKey + ')" ondragleave="flujoDragLeaveRow(event)" ondrop="flujoDropEnRow(event,\'' + claveEsc + '\',' + nivKey + ')"'
-      : ' class="' + rowBase + '"';
+    const rowAttrs = ' class="' + rowBase + '"';
 
     const handle = puedeAjustar
-      ? '<span class="flujo-drag-handle" style="touch-action:none;" title="Arrastra para reordenar">⋮⋮</span>'
+      ? '<span class="flujo-arrow-up" onclick="flujoMoverArriba(\'' + claveEsc + '\')" title="Subir">▲</span>'
+        + '<span class="flujo-arrow-dn" onclick="flujoMoverAbajo(\'' + claveEsc + '\')" title="Bajar">▼</span>'
       : '';
 
     // Sin chip de nivel visual — lista plana
