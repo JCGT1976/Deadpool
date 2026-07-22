@@ -1206,6 +1206,50 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   </div>
 </div>
 
+<!-- MODAL: Revisión Inteligente de Nivel de Prioridad (IA) -->
+<div id="nivelRevisionModal" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1150;align-items:center;justify-content:center;display:none;">
+  <div class="modal-content" style="background:var(--surface);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:90%;max-width:420px;overflow:hidden;">
+    <div style="padding:20px;border-bottom:1px solid var(--border);">
+      <h3 style="margin:0;font-size:16px;font-weight:600;">Validar nivel de prioridad</h3>
+    </div>
+    
+    <div style="padding:16px;">
+      <div style="margin-bottom:14px;">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px;">Concepto</label>
+        <p id="nivelRevisionConcepto" style="font-weight:500;margin:0;font-size:14px;"></p>
+      </div>
+      
+      <div style="margin-bottom:14px;">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px;">Monto</label>
+        <p id="nivelRevisionMonto" style="font-weight:500;margin:0;font-size:14px;color:var(--green);"></p>
+      </div>
+      
+      <div style="margin-bottom:18px;padding:12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent);">
+        <label style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;letter-spacing:.5px;">💡 Sugerencia IA</label>
+        <p id="nivelRevisionSugerencia" style="font-weight:700;margin:0;font-size:16px;color:var(--accent);"></p>
+      </div>
+      
+      <label style="display:block;margin-bottom:8px;font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;">Confirmar nivel</label>
+      <select id="nivelRevisionSelect" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px;font-size:13px;margin-bottom:0;">
+        <option value="1">L1 · Salarios (máxima prioridad)</option>
+        <option value="2">L2 · Impuestos</option>
+        <option value="3">L3 · Operativos</option>
+        <option value="4">L4 · Servicios</option>
+        <option value="5">L5 · Proveedores convenio</option>
+        <option value="6">L6 · Rentas</option>
+        <option value="7">L7 · Proveedores (menor prioridad)</option>
+      </select>
+    </div>
+    
+    <div style="display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--border);">
+      <button onclick="closeNivelRevisionModal()" style="flex:1;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-weight:500;font-size:13px;">Cancelar</button>
+      <button onclick="confirmarNivelRevision()" style="flex:1;padding:10px;background:var(--accent);color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;">✓ Guardar</button>
+    </div>
+  </div>
+</div>
+
+
+
 <!-- ── MODAL REGISTRAR PAGO (total/parcial) ── -->
 <div id="registroPagoModal" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;align-items:center;justify-content:center;">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;width:min(440px,95vw);max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);">
@@ -3218,170 +3262,197 @@ function renderCxP(c) {
 }
 
 /* ── CARGA EXCEL ─────────────────────────── */
-async function cxpHandleFile(e) {
-  // 🔒 Solo usuarios con permiso 'catalogo' pueden cargar el Excel de CxP
-  if (!requirePerm('catalogo', 'Sin permisos para cargar el catálogo de CxP')) return;
-  const file = e.target.files[0];
-  if (!file) return;
-  const statusEl = document.getElementById('cxpUploadStatus');
+
+/* ── FUNCIONES: DETECCIÓN INTELIGENTE DE NIVELES CON CLAUDE API ────────────── */
+
+/* ── DETECCIÓN INTELIGENTE DE NIVELES CON CLAUDE API ─────────────────────── */
+/* Función: sugerirNivel(concepto, monto)
+   • Llama Claude API para clasificar gasto en L1–L7
+   • Retorna: "L1" | "L2" | ... | "L7" o "" si error
+   • Usado por: cxpHandleFile al procesar gastos NUEVOS
+*/
+async function sugerirNivel(concepto, monto) {
   try {
-    if (statusEl) statusEl.textContent = '⏳ Procesando ' + file.name + '…';
+    // Preparar prompt detallado para Claude
+    const prompt = `Eres un experto en clasificación de gastos empresariales mexicanos.
+Clasifica este gasto en UNO de estos 7 niveles de prioridad de pago:
 
-    // Semana que el usuario indicó estar cargando (input type=week, arriba del recuadro)
-    const semanaInput = document.getElementById('cxpSemanaInput');
-    cxpSemanaSeleccionada = (semanaInput && semanaInput.value) ? semanaInput.value : getWeekKey();
-    localStorage.setItem('cxpSemanaSeleccionada', cxpSemanaSeleccionada);
+L1 = Salarios y nómina (máxima prioridad)
+L2 = Impuestos (ISR, IVA, IMSS, INFONAVIT)
+L3 = Operativos (servicios esenciales, proveedores críticos)
+L4 = Servicios (honorarios, asesorías, mantenimiento)
+L5 = Proveedores con convenio (acuerdos de pago)
+L6 = Rentas e inmuebles
+L7 = Proveedores varios (menor prioridad)
 
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
-    // 🎯 Detección dinámica: buscar primero "Deadpool", luego CxP estándar
-    const sheetName = wb.SheetNames.find(n => /deadpool/i.test(n)) 
-      || wb.SheetNames.find(n => /rep|cxp|cuentas|pagar/i.test(n)) 
-      || wb.SheetNames[0];
-    const ws = wb.Sheets[sheetName];
-    const isDeadpool = /deadpool/i.test(sheetName);
+GASTO A CLASIFICAR:
+Concepto: "${concepto}"
+Monto aproximado: $${monto} MXN
 
-    // Normalizar columnas (acepta mayúsculas/minúsculas/tildes)
-    const norm = s => (s||'').toString().toUpperCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+INSTRUCCIONES CRÍTICAS:
+• Analiza la naturaleza del concepto (palabra clave, contexto)
+• Considera el monto relativo
+• Responde EXACTAMENTE con "L#" (ej: "L3")
+• SIN explicación, SIN comillas, SOLO la letra "L" y el número
+• Si es ambiguo, elige el nivel más probable
 
-    // 🔴 RAMA DEADPOOL: Lectura dinámica de columnas T-U (gastos urgentes)
-    let parsedRows;
-    if (isDeadpool) {
-      const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      parsedRows = [];
-      for (let i = 5; i < allRows.length; i++) {
-        const fila = allRows[i] || [];
-        const desc = fila[19]; // Columna T (0-indexed)
-        const monto = fila[20]; // Columna U
-        if (!desc || norm(desc).includes('TOTAL')) break;
-        parsedRows.push({
-          tipo: '', nivel: '', categoria: 'Gastos Urgentes',
-          concepto: String(desc || '').trim(), nota: '',
-          total: parseFloat(monto) || 0, recomendado: 0, urgente: parseFloat(monto) || 0,
-          supervivencia: 0, ajuste: 0, moneda: 'MXN', tc_ref: null
-        });
-      }
-      if (parsedRows.length === 0) throw new Error('Deadpool: sin datos en columnas T-U');
-    } else {
-      // 🟢 RAMA ESTÁNDAR: CxP normal
-      // Detectar automáticamente en qué fila están los encabezados reales (CONCEPTO, TOTAL, etc.),
-      // por si el Excel trae filas de título/logo arriba (ej. "MI TECHNOLOGIES - CUENTAS POR PAGAR").
-      // Nota: se usa el índice ABSOLUTO de fila (relativo a toda la hoja), no relativo a la primera
-      // fila con datos, porque algunas hojas no empiezan en la fila 1 (ej. dimension "A2:Y81").
-      const range0 = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-      const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      let headerRowIdx = range0.s.r; // fallback: primera fila real de la hoja
-      for (let i = 0; i < Math.min(rawRows.length, 20); i++) {
-        const rowVals = rawRows[i] || [];
-        if (rowVals.some(v => norm(v).includes('CONCEPTO') || norm(v).includes('CONCEPT'))) {
-          headerRowIdx = range0.s.r + i;
-          break;
-        }
-      }
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: null, range: headerRowIdx });
+RESPUESTA:`;
 
-      parsedRows = rows
-      .filter(r => {
-        const keys = Object.keys(r);
-        return keys.some(k => norm(k).includes('CONCEPTO') || norm(k).includes('CONCEPT'));
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 10,
+        messages: [
+          { role: "user", content: prompt }
+        ]
       })
-      .map(r => {
-        const find = (keywords) => {
-          const k = Object.keys(r).find(k => keywords.some(kw => norm(k).includes(kw)));
-          return k ? r[k] : null;
-        };
-        return {
-          tipo:         find(['TIPO','TYPE']) || '',
-          nivel:        nivelDisplay(find(['NIVEL','LEVEL']) || ''),
-          categoria:    find(['CATEG','GRUPO','GROUP']) || 'General',
-          concepto:     find(['CONCEPTO','CONCEPT','NOMBRE','NAME','DESCRIPCION']) || '',
-          nota:         find(['NOTA','NOTE','OBS']) || '',
-          total:        parseFloat(find(['TOTAL','TOT']) || 0),
-          recomendado:  parseFloat(find(['RECOM']) || 0),
-          urgente:      parseFloat(find(['URG']) || 0),
-          supervivencia:parseFloat(find(['SUPERV','SURV','SOB']) || 0),
-          // Columna AJUSTE del Excel: se lee tal cual (parseFloat maneja NaN → 0).
-          // Se guarda en Supabase pero no se muestra en la UI (por decisión del usuario).
-          ajuste:       parseFloat(find(['AJUSTE','AJUST','ADJUST'])) || 0,
-          moneda:       (find(['MONEDA','CURRENCY','DIVISA']) || 'MXN').toString().toUpperCase() === 'USD' ? 'USD' : 'MXN',
-          tc_ref:       parseFloat(find(['TC','TCREF','TIPO_CAMBIO','TIPOCAMBIO','EXCHANGE'])) || null,
-        };
-      })
-      .filter(r => {
-        const c = (r.concepto || '').toString().trim();
-        if (!c) return false;
-        // ── FILTRO POR LEVEL VÁLIDO (única fuente de verdad) ──────
-        // Solo se cargan filas cuyo Level esté dentro de la tabla del Excel
-        // (L1, L2, ... L8, o superior). Todo lo que quede fuera de la tabla
-        // — la fila 'Total', las NOTAS al pie, la tabla resumen por TIPO,
-        // filas en blanco, sub-totales sueltos — NO tiene Level, así que
-        // se descarta automáticamente. Este es el criterio que pidió el
-        // usuario: "solo carga lo que está en la tabla".
-        // r.nivel ya fue normalizado por nivelDisplay() → '' si no era 'L#' válido.
-        const nivelStr = (r.nivel || '').toString().trim();
-        if (!nivelStr) return false;
-        return true;
-      });
+    });
+
+    if (!response.ok) {
+      console.error(`Claude API error: ${response.status}`);
+      return ''; // fallback: vacío, usuario elige manualmente
     }
 
-    if (parsedRows.length === 0) {
-      // Diagnóstico: si el archivo tiene filas pero ninguna columna se reconoció como CONCEPTO,
-      // avisamos con el detalle de qué encabezados sí vio, en vez de quedarnos en silencio.
-      const headersVistos = rows.length ? Object.keys(rows[0]).join(', ') : '(el archivo no tiene filas)';
-      throw new Error('No se reconoció ninguna fila con columna "CONCEPTO". Encabezados detectados: ' + headersVistos);
-    }
-
-    cxpData = parsedRows;
-    cxpData.forEach(r => { r._key = cxpRowKey(r); r._semana = cxpSemanaSeleccionada; });
-
-    if (statusEl) statusEl.textContent = '⏳ Sincronizando con Supabase…';
-    const syncResult = await cxpSyncToSupabase(cxpData);
-
-    // Guardar en cache local para que el plan sobreviva si Supabase falla en futuras sesiones
-    try {
-      localStorage.setItem('mitech_plan_cache', JSON.stringify({
-        semana: cxpSemanaSeleccionada || getWeekKey(),
-        ts: Date.now(),
-        data: cxpData
-      }));
-    } catch(e) { console.warn('Cache plan:', e); }
-
-    // Etapa 1 — Guardar baseline del plan (para detectar ajustes/imprevistos post-carga)
-    if (syncResult.ok) { try { guardarBaseline(cxpData); } catch(e) { console.warn('Baseline:', e); } }
-
-    const semanaLbl = getWeekLabel(cxpSemanaSeleccionada);
-    if (statusEl) statusEl.textContent =
-      '✔ ' + file.name + ' · ' + cxpData.length + ' conceptos · semana ' + semanaLbl +
-      (syncResult.ok ? ' · Supabase ✓' : ' · ⚠️ no se sincronizó: ' + syncResult.message);
-    toast(syncResult.ok
-      ? 'Excel cargado y sincronizado a Supabase ✓ (semana ' + semanaLbl + ')'
-      : 'Falló la sincronización a Supabase: ' + syncResult.message, syncResult.ok ? 'ok' : 'err');
-    cxpFiltro = 'all';
-    cxpCategoria = null;
-    cxpRenderAll();
-  } catch(err) {
-    console.error('cxpHandleFile error:', err);
-    const msg = (err && err.message) ? err.message : 'no se pudo leer el archivo';
-    if (statusEl) statusEl.textContent = '❌ Error: ' + msg;
-    else alert('❌ Error al cargar Excel: ' + msg); // fallback por si el DOM no tiene el status (no debería pasar)
-    toast('Error al cargar Excel: ' + msg, 'err');
+    const data = await response.json();
+    const respuesta = (data.content?.[0]?.text || '').trim().toUpperCase();
+    
+    // Extraer "L#" de la respuesta (ej: "L3" de "L3")
+    const match = respuesta.match(/L[1-7]/);
+    return match ? match[0] : '';
+  } catch (error) {
+    console.error('Error en sugerirNivel:', error);
+    return ''; // fallback
   }
 }
 
-/* ── SYNC EXCEL → SUPABASE ───────────────────
-   Sube (upsert) el catálogo cargado desde Excel a la tabla catalogo_cxp,
-   usando categoria+concepto como llave de negocio (clave). Esto da a cada
-   concepto una identidad estable entre sesiones/usuarios sin depender del
-   Excel a futuro. */
-/* ══════════════════════════════════════════
-   FIX v2026.07.04.8 · cxpInsertarGastoNuevo
-   INSERT de UNA sola fila sin purgar el catálogo completo.
-   Antes se usaba cxpSyncToSupabase([nuevaFila]) que borra TODO
-   el catálogo y solo dejaba el nuevo gasto — bug catastrófico
-   reportado por el usuario ("solo se ve el gasto nuevo, no
-   se ve el resto del plan").
-════════════════════════════════════════════ */
+/* ── MODAL DE REVISIÓN DE NIVEL ────────────────────────────────────────────── */
+let nivelRevisionPendiente = {
+  row: null,
+  sugerido: '',
+  callback: null
+};
+
+function openNivelRevisionModal(row, nivelSugerido, onConfirm) {
+  nivelRevisionPendiente = { row, sugerido: nivelSugerido, callback: onConfirm };
+  
+  // Llenar datos del modal
+  document.getElementById('nivelRevisionConcepto').textContent = row.concepto || '(sin concepto)';
+  document.getElementById('nivelRevisionMonto').textContent = fmtMoney(row.monto) || '$0';
+  document.getElementById('nivelRevisionSugerencia').textContent = nivelSugerido;
+  document.getElementById('nivelRevisionSelect').value = nivelSugerido.replace('L', ''); // "L3" → "3"
+  
+  // Abrir modal
+  document.getElementById('nivelRevisionModal').classList.add('open');
+}
+
+function closeNivelRevisionModal() {
+  document.getElementById('nivelRevisionModal').classList.remove('open');
+  nivelRevisionPendiente = { row: null, sugerido: '', callback: null };
+}
+
+async function confirmarNivelRevision() {
+  if (!nivelRevisionPendiente.row || !nivelRevisionPendiente.callback) return;
+  
+  const nivelElegido = document.getElementById('nivelRevisionSelect').value;
+  nivelRevisionPendiente.row.nivel = 'L' + nivelElegido; // "3" → "L3"
+  
+  closeNivelRevisionModal();
+  
+  // Ejecutar callback (guardar a catalogo_cxp)
+  await nivelRevisionPendiente.callback();
+}
+
+// Event listener: cerrar modal al click fuera
+document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('nivelRevisionModal');
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) closeNivelRevisionModal();
+    });
+  }
+});
+
+
+/* ── NUEVA FUNCIÓN: cxpHandleFile (mejorada con detección IA) ────────────────── */
+async function cxpHandleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('cxpUploadStatus');
+  statusEl.innerHTML = '⏳ Leyendo archivo...';
+  
+  try {
+    const ab = await file.arrayBuffer();
+    const wb = XLSX.read(ab, { sheet: 'Gastos' });
+    const ws = wb.Sheets['Gastos'];
+    const datos = XLSX.utils.sheet_to_json(ws);
+    
+    if (datos.length === 0) {
+      statusEl.innerHTML = '❌ El archivo está vacío';
+      return;
+    }
+    
+    const semanaInput = document.getElementById('cxpSemanaInput');
+    if (!semanaInput.value) {
+      statusEl.innerHTML = '⚠️ Selecciona una semana primero';
+      return;
+    }
+    
+    statusEl.innerHTML = `⏳ Procesando ${datos.length} gastos (detección IA en curso...)`;
+    
+    // Procesar cada fila con detección de nivel
+    const cxpData = [];
+    for (const row of datos) {
+      if (!row.CONCEPTO || !row.MONTO) continue;
+      
+      const concepto = String(row.CONCEPTO).trim();
+      const monto = parseMoney(String(row.MONTO));
+      if (!concepto || monto <= 0) continue;
+      
+      // 1. BUSCAR coincidencia exacta en catalogo
+      const gastoExistente = cxpData.find(x => x.concepto === concepto);
+      if (gastoExistente) {
+        row.nivel = gastoExistente.nivel; // usar nivel existente
+        cxpData.push(row);
+      } else {
+        // 2. NUEVO gasto → sugerir nivel con IA
+        const nivelSugerido = await sugerirNivel(concepto, monto);
+        row.nivel = nivelSugerido; // temporal (puede cambiar en modal)
+        
+        // 3. ABRIR MODAL de revisión
+        await new Promise(resolve => {
+          openNivelRevisionModal(row, nivelSugerido || 'L3', () => {
+            // Callback: usuario confirmó en modal
+            cxpData.push(row); // row.nivel ya tiene la elección del usuario
+            resolve();
+          });
+        });
+      }
+    }
+    
+    cxpSemanaSeleccionada = semanaInput.value;
+    const syncResult = await cxpSyncToSupabase(cxpData);
+    
+    if (syncResult.error) {
+      statusEl.innerHTML = `❌ Error al guardar: ${syncResult.error}`;
+      return;
+    }
+    
+    statusEl.innerHTML = `✅ ${cxpData.length} gastos cargados (${syncResult.nuevos} nuevos, ${syncResult.actualizados} actualizados)`;
+    
+    const semanaLbl = getWeekLabel(cxpSemanaSeleccionada);
+    document.getElementById('cxpSemanaLabel').textContent = semanaLbl;
+    renderCxpTable();
+  } catch (error) {
+    console.error(error);
+    statusEl.innerHTML = `❌ Error: ${error.message}`;
+  }
+}
+
+/* ── Resto de funciones CxP (cxpInsertarGastoNuevo en adelante) ──────────────── */
 async function cxpInsertarGastoNuevo(row) {
   try {
     const nivelToInt = (v) => {
