@@ -5098,6 +5098,42 @@ window.flujoDragLeaveRow = function flujoDragLeaveRow(ev) {
   if (tr) { tr.classList.remove('flujo-drop-over-row','flujo-drop-before','flujo-drop-after'); delete tr.dataset.dropBefore; }
 };
 
+
+async function flujoMoverYReordenar(clave, claveDestino, insertBefore) {
+  const movedRow = cxpData.find(r => r._key === clave);
+  if (!movedRow) return;
+  
+  cxpData = cxpData.filter(r => r._key !== clave);
+  if (claveDestino) {
+    const destIdx = cxpData.findIndex(r => r._key === claveDestino);
+    if (destIdx >= 0) {
+      const insertAt = insertBefore ? destIdx : destIdx + 1;
+      cxpData.splice(insertAt, 0, movedRow);
+    } else {
+      cxpData.push(movedRow);
+    }
+  } else {
+    cxpData.push(movedRow);
+  }
+  
+  cxpData.forEach((r, i) => { r.orden = i + 1; });
+  
+  try {
+    const payload = cxpData.map((r, i) => ({
+      clave: r._key,
+      concepto: r.concepto,
+      categoria: r.categoria || 'General',
+      orden: i + 1,
+      nivel: (r.nivel ? parseInt(r.nivel.toString().replace(/\D/g, ''), 10) : 0) || 0
+    }));
+    const { error } = await sb.from('catalogo_cxp').upsert(payload, { onConflict: 'clave' });
+    if (error) throw error;
+  } catch(err) {
+    console.error('flujoMoverYReordenar:', err);
+    throw err;
+  }
+}
+
 window.flujoDropEnRow = function flujoDropEnRow(ev, claveDestino, nivelDestino) {
   ev.preventDefault();
   var tr = ev.currentTarget.closest('tr') || ev.currentTarget;
@@ -5106,23 +5142,15 @@ window.flujoDropEnRow = function flujoDropEnRow(ev, claveDestino, nivelDestino) 
   if (!_flujoDragClave || _flujoDragClave === claveDestino) return;
   var clave = _flujoDragClave;
   _flujoDragClave = null;
-  // Reordenar: mover la fila arrastrada antes o después de la fila destino,
-  // según en qué mitad de la fila se soltó. Así SÍ se puede llevar algo
-  // hasta la primera posición absoluta (soltando en la mitad superior de
-  // la fila más arriba).
-  if (typeof planPagoMoverYReordenar === 'function') {
-    planPagoMoverYReordenar([clave], nivelDestino, claveDestino, insertBefore).then(function(){
-      flujoRenderTabla();
-      toast('✅ Reordenado', 'ok');
-    }).catch(function(e){
-      console.error('flujo reorden:', e);
-      toast('Error al reordenar: ' + (e.message || e), 'err');
-    });
-  } else {
-    flujoNivOverrideSet(clave, nivelDestino);
+  
+  flujoMoverYReordenar(clave, claveDestino, insertBefore).then(function(){
     flujoRenderTabla();
-    toast('✅ Movido', 'ok');
-  }
+    if (typeof renderDashboard === 'function') renderDashboard();
+    toast('✅ Reordenado', 'ok');
+  }).catch(function(e){
+    console.error('flujo reorden:', e);
+    toast('Error al reordenar: ' + (e.message || e), 'err');
+  });
 };
 
 /* Queda como stub para compatibilidad — ya no se llama desde HTML */
