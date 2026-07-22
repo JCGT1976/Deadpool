@@ -1552,7 +1552,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.3';
+const APP_VERSION = '2026.07.22.4';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3152,6 +3152,12 @@ function renderCxP(c) {
       <div class="cxp-upload-status" id="cxpUploadStatus">${cxpData.length > 0 ? '✔ '+cxpData.length+' conceptos cargados' + (cxpSemanaSeleccionada ? ' · semana '+getWeekLabel(cxpSemanaSeleccionada) : '') : '📊 Sin archivo cargado · usando Supabase como fallback'}</div>
     </div>
     <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
+    
+    <!-- Botón "Actualizar orden desde Excel" -->
+    <button onclick='actualizarOrdenDesdeExcel()' style='width:100%;margin-top:12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#3b82f6;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;'>
+      🔄 Actualizar orden desde Excel
+    </button>
+    <p style='font-size:11px;margin-top:6px;color:#666;'>Carga un Excel con tus gastos en el orden deseado · actualiza SOLO el orden sin borrar datos</p>
       </div></div>
     </div><!-- /.accordion upload -->
     ` : ''}
@@ -5191,8 +5197,66 @@ window.insertarGastoImportExport = async function insertarGastoImportExport() {
   }
 };
 
-/* ══════════════════════════════════════════
-   EDICIÓN DE MONTOS INLINE EN FLUJO DE EFECTIVO
+window.actualizarOrdenDesdeExcel = function actualizarOrdenDesdeExcel() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,.xls';
+  
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+      const ab = await file.arrayBuffer();
+      const workbook = XLSX.read(ab);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const datos = XLSX.utils.sheet_to_json(sheet, {header: 1});
+      
+      const conceptosEnExcel = [];
+      datos.forEach((row, idx) => {
+        if (idx === 0) return;
+        if (!row || row.length === 0) return;
+        const concepto = (row[0] || row[1] || row[2] || '').toString().trim();
+        if (concepto && concepto.length > 0) {
+          conceptosEnExcel.push({ concepto, nuevoOrden: idx });
+        }
+      });
+      
+      if (conceptosEnExcel.length === 0) {
+        toast('❌ No se encontraron gastos en el Excel', 'err');
+        return;
+      }
+      
+      let actualizados = 0;
+      for (const item of conceptosEnExcel) {
+        const fila = cxpData.find(r => 
+          r.concepto.toLowerCase().includes(item.concepto.toLowerCase()) ||
+          item.concepto.toLowerCase().includes(r.concepto.toLowerCase())
+        );
+        
+        if (fila) {
+          const { error } = await sb.from('catalogo_cxp')
+            .update({ orden: item.nuevoOrden })
+            .eq('clave', fila._key);
+          
+          if (!error) actualizados++;
+        }
+      }
+      
+      toast(`✅ Orden actualizado: ${actualizados}/${conceptosEnExcel.length} gastos`, 'ok');
+      await cxpEnsureData(true);
+      flujoRenderTabla();
+      if (typeof renderDashboard === 'function') renderDashboard();
+    } catch(err) {
+      console.error('actualizarOrdenDesdeExcel:', err);
+      toast('❌ Error: ' + (err.message || err), 'err');
+    }
+  };
+  
+  input.click();
+};
+
+
    Al editar → UPDATE al catalogo_cxp en la columna del plan activo.
    Guarda el "monto original" en un backup por-clave para poder deshacer.
    Solo admin_master, admin y cohost.
