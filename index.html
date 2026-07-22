@@ -1552,7 +1552,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.2';
+const APP_VERSION = '2026.07.22.3';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5162,6 +5162,33 @@ window.flujoResetNiveles = function flujoResetNiveles() {
   try { localStorage.removeItem('mitech_flujo_niv'); } catch(e) {}
   flujoRenderTabla();
   toast('🔄 Niveles restablecidos al original', 'ok');
+};
+
+window.insertarGastoImportExport = async function insertarGastoImportExport() {
+  const gasto = {
+    clave: 'gastos_import_export',
+    concepto: 'Gastos Import/Export',
+    tipo: 'Maquila',
+    categoria: 'Operativos',
+    nivel: 3,
+    total: 815830,
+    recomendado: 815830,
+    urgente: 350000,
+    supervivencia: 200000,
+    orden: 9999
+  };
+  
+  try {
+    const { error } = await sb.from('catalogo_cxp').upsert([gasto], { onConflict: 'clave' });
+    if (error) throw error;
+    toast('✅ Gastos Import/Export insertado en Supabase', 'ok');
+    await cxpEnsureData(true);  // Recargar desde Supabase
+    flujoRenderTabla();
+    if (typeof renderDashboard === 'function') renderDashboard();
+  } catch(e) {
+    console.error('insertarGastoImportExport:', e);
+    toast('❌ Error al insertar: ' + (e.message || e), 'err');
+  }
 };
 
 /* ══════════════════════════════════════════
