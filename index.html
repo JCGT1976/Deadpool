@@ -5258,12 +5258,8 @@ function flujoRenderTabla() {
     })
     .filter(r => r._pendiente > 0);
 
-  // Orden: nivel efectivo (criterio invisible) → orden custom del usuario
-  filtradas.sort((a,b) => {
-    const na = flujoNivEfectivo(a), nb = flujoNivEfectivo(b);
-    if (na !== nb) return na - nb;
-    return (a.orden ?? 9999) - (b.orden ?? 9999);
-  });
+  // Orden: SOLO por orden custom del usuario (sin agrupar por nivel)
+  filtradas.sort((a,b) => (a.orden ?? 9999) - (b.orden ?? 9999));
 
   const puedeAjustar = currentUser?.rol === 'admin_master' || currentUser?.rol === 'admin' || currentUser?.rol === 'cohost';
 
@@ -5305,10 +5301,8 @@ function flujoRenderTabla() {
       ? '<span class="flujo-drag-handle" title="Arrastra para reordenar">⋮⋮</span>'
       : '';
 
-    // Chip de nivel discreto (indicador visual pequeño, no separador)
-    const nivChip = nivKey === 999
-      ? ''
-      : '<span style="display:inline-block;background:' + nivColorVal + '22;color:' + nivColorVal + ';font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle;">L' + nivKey + '</span>';
+    // Sin chip de nivel visual — lista plana
+    const nivChip = '';
 
     // Detectar si el monto está "ajustado" (existe backup del original)
     const montoOriginal = flujoMontoOriginalGet(r._key, colPlan);
