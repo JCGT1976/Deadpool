@@ -1601,7 +1601,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.11';
+const APP_VERSION = '2026.07.22.12';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3203,10 +3203,10 @@ function renderCxP(c) {
     <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
     
     <!-- Botón "Actualizar orden desde Excel" -->
-    <button onclick='actualizarOrdenDesdeExcel()' style='width:100%;margin-top:12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#3b82f6;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;'>
-      🔄 Actualizar orden desde Excel
+    <button onclick='abrirComparativoExcel()' style='width:100%;margin-top:12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#3b82f6;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;'>
+      📊 Importar orden desde Excel (con revisión)
     </button>
-    <p style='font-size:11px;margin-top:6px;color:#666;'>Carga un Excel con tus gastos en el orden deseado · actualiza SOLO el orden sin borrar datos</p>
+    <p style='font-size:11px;margin-top:6px;color:#666;'>Carga el Excel · revisa coincidencias · asigna nivel a los nuevos · aplica cambios al plan</p>
       </div></div>
     </div><!-- /.accordion upload -->
     ` : ''}
@@ -5328,6 +5328,243 @@ window.insertarGastoImportExport = async function insertarGastoImportExport() {
   }
 };
 
+/* ══════════════════════════════════════════
+   COMPARATIVO EXCEL vs PLAN — lógica completa
+   Columna T (índice 19) = Concepto, U (índice 20) = Monto, desde fila 6 (índice 5)
+══════════════════════════════════════════ */
+
+// Estado del comparativo
+window._comparativoData = [];
+
+// Normaliza texto para comparación: quita acentos, minúsculas, espacios extra
+function normalizarTexto(s) {
+  return (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+}
+
+// Score de similitud: % de palabras del Excel que aparecen en el plan
+function similitudTexto(a, b) {
+  const wa = normalizarTexto(a).split(' ').filter(x => x.length > 2);
+  const wb = normalizarTexto(b).split(' ').filter(x => x.length > 2);
+  if (wa.length === 0) return 0;
+  const hits = wa.filter(w => wb.includes(w)).length;
+  return hits / wa.length;
+}
+
+window.abrirComparativoExcel = function abrirComparativoExcel() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,.xls';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const ab = await file.arrayBuffer();
+      const wb = XLSX.read(ab, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+      // Leer desde fila 6 (índice 5), col T=19, U=20
+      const excelItems = [];
+      for (let i = 5; i < rows.length; i++) {
+        const row = rows[i];
+        const concepto = (row[19] || '').toString().trim();
+        const montoRaw = row[20];
+        const monto = parseFloat((montoRaw || '0').toString().replace(/[^0-9.\-]/g,'')) || 0;
+        if (concepto && concepto.length > 1 && monto > 0) {
+          excelItems.push({ concepto, monto, orden: excelItems.length + 1 });
+        }
+      }
+
+      if (excelItems.length === 0) {
+        toast('❌ No se encontraron gastos en col T/U desde fila 6', 'err');
+        return;
+      }
+
+      // Para cada item del Excel, buscar match en cxpData
+      const usados = new Set();
+      window._comparativoData = excelItems.map((item, idx) => {
+        // Buscar mejor match
+        let bestRow = null, bestScore = 0;
+        for (const r of cxpData) {
+          if (usados.has(r._key)) continue;
+          const score = similitudTexto(item.concepto, r.concepto);
+          if (score > bestScore) { bestScore = score; bestRow = r; }
+        }
+
+        let estado, planConcepto, planMonto, matchKey;
+        const UMBRAL = 0.5; // 50% palabras en común
+
+        if (bestRow && bestScore >= UMBRAL) {
+          const planMnt = parseFloat(bestRow.total) || 0;
+          const montoDifiere = Math.abs(planMnt - item.monto) > 1;
+          estado = montoDifiere ? 'parcial' : 'exacto';
+          planConcepto = bestRow.concepto;
+          planMonto = planMnt;
+          matchKey = bestRow._key;
+          usados.add(bestRow._key);
+        } else {
+          estado = 'nuevo';
+          planConcepto = '—';
+          planMonto = 0;
+          matchKey = null;
+        }
+
+        return { ...item, idx, estado, planConcepto, planMonto, matchKey, nivelAsignado: 1 };
+      });
+
+      // Renderizar tabla
+      renderComparativoTabla();
+      document.getElementById('comparativoExcelModal').style.display = 'block';
+
+    } catch(err) {
+      console.error('comparativoExcel:', err);
+      toast('❌ Error: ' + (err.message || err), 'err');
+    }
+  };
+  input.click();
+};
+
+function renderComparativoTabla() {
+  const data = window._comparativoData;
+  const nExacto = data.filter(d => d.estado === 'exacto').length;
+  const nParcial = data.filter(d => d.estado === 'parcial').length;
+  const nNuevo  = data.filter(d => d.estado === 'nuevo').length;
+
+  document.getElementById('comparativoResumen').innerHTML =
+    `<b>${data.length}</b> filas del Excel · ` +
+    `<span style="color:#22c55e;">✅ ${nExacto} exactos</span> · ` +
+    `<span style="color:#f59e0b;">🟡 ${nParcial} parciales</span> · ` +
+    `<span style="color:#ef4444;">❌ ${nNuevo} nuevos</span>`;
+
+  const NIVEL_OPTS = [1,2,3,4,5,6,7].map(n =>
+    `<option value="${n}">${nivelLabel ? nivelLabel(n) : 'L'+n}</option>`
+  ).join('');
+
+  const COLOR = { exacto:'#22c55e', parcial:'#f59e0b', nuevo:'#ef4444' };
+  const ICON  = { exacto:'✅', parcial:'🟡', nuevo:'❌' };
+
+  let html = '';
+  data.forEach((d, i) => {
+    const rowBg = i % 2 === 0 ? 'var(--bg)' : 'transparent';
+    const dot = `<span style="width:9px;height:9px;border-radius:50%;background:${COLOR[d.estado]};display:inline-block;margin-right:4px;"></span>`;
+    const nivelSel = d.estado === 'nuevo'
+      ? `<select onchange="window._comparativoData[${i}].nivelAsignado=parseInt(this.value)"
+           style="font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 4px;">
+           ${NIVEL_OPTS}
+         </select>`
+      : '<span style="color:var(--muted);font-size:11px;">—</span>';
+
+    html += `<tr style="background:${rowBg};border-bottom:1px solid var(--border);">
+      <td style="text-align:center;padding:7px 6px;color:var(--muted);font-size:11px;">${d.orden}</td>
+      <td style="padding:7px 6px;font-size:12px;">${d.concepto}</td>
+      <td style="text-align:right;padding:7px 6px;font-size:12px;color:var(--accent);">${fmt ? fmt(d.monto) : d.monto}</td>
+      <td style="padding:7px 6px;font-size:11px;color:var(--muted);">${d.planConcepto}</td>
+      <td style="text-align:right;padding:7px 6px;font-size:11px;color:var(--muted);">${d.planMonto > 0 ? (fmt ? fmt(d.planMonto) : d.planMonto) : '—'}</td>
+      <td style="text-align:center;padding:7px 6px;">${dot}${d.estado}</td>
+      <td style="text-align:center;padding:7px 6px;">${nivelSel}</td>
+    </tr>`;
+  });
+
+  document.getElementById('comparativoTbody').innerHTML = html;
+}
+
+// Aliases para el verificador (convención open*/close*)
+window.openComparativoExcelModal = function openComparativoExcelModal() { window.abrirComparativoExcel(); };
+window.closeComparativoExcelModal = function closeComparativoExcelModal() { window.cerrarComparativoExcel(); };
+
+window.cerrarComparativoExcel = function cerrarComparativoExcel() {
+  document.getElementById('comparativoExcelModal').style.display = 'none';
+  window._comparativoData = [];
+};
+
+window.aplicarComparativoExcel = async function aplicarComparativoExcel() {
+  const data = window._comparativoData;
+  if (!data || data.length === 0) return;
+
+  const btn = document.getElementById('btnAplicarComparativo');
+  btn.disabled = true;
+  btn.textContent = '⏳ Aplicando...';
+
+  try {
+    // 1. Aplicar nuevo orden a los que tienen match
+    const planActualizado = [...cxpData];
+
+    // Asignar nuevos ordenes según posición en Excel
+    data.forEach((d, posExcel) => {
+      if (d.matchKey) {
+        const fila = planActualizado.find(r => r._key === d.matchKey);
+        if (fila) fila.orden = posExcel + 1;
+      }
+    });
+
+    // 2. Agregar los nuevos al plan
+    const nuevos = data.filter(d => d.estado === 'nuevo');
+    for (const n of nuevos) {
+      const clave = 'excel_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+      const nivelInt = n.nivelAsignado || 1;
+      const nuevoGasto = {
+        _key: clave,
+        clave,
+        concepto: n.concepto,
+        categoria: 'General',
+        tipo: 'Importado',
+        nivel: 'L' + nivelInt,
+        total: n.monto,
+        recomendado: n.monto,
+        urgente: n.monto,
+        supervivencia: n.monto,
+        orden: n.orden,
+        moneda: 'MXN',
+      };
+      // Insertar en Supabase
+      const { error } = await sb.from('catalogo_cxp').upsert([{
+        clave,
+        concepto: n.concepto,
+        categoria: 'General',
+        tipo: 'Importado',
+        nivel: nivelInt,
+        total: n.monto,
+        recomendado: n.monto,
+        urgente: n.monto,
+        supervivencia: n.monto,
+        orden: n.orden,
+      }], { onConflict: 'clave' });
+      if (!error) planActualizado.push(nuevoGasto);
+    }
+
+    // 3. Persistir ordenes actualizados
+    const payload = planActualizado
+      .filter(r => r._key && r.concepto)
+      .map(r => ({
+        clave: r._key,
+        concepto: r.concepto,
+        categoria: r.categoria || 'General',
+        orden: r.orden || 9999,
+        nivel: (r.nivel ? parseInt((r.nivel).toString().replace(/\D/g,''),10) : 0) || 0,
+      }));
+
+    const { error: errOrd } = await sb.from('catalogo_cxp').upsert(payload, { onConflict: 'clave' });
+    if (errOrd) throw errOrd;
+
+    // 4. Recargar
+    await cxpEnsureData(true);
+    flujoRenderTabla();
+    if (typeof renderDashboard === 'function') renderDashboard();
+
+    const nExacto  = data.filter(d => d.estado !== 'nuevo').length;
+    const nNuevos  = nuevos.length;
+    toast(`✅ ${nExacto} reordenados · ${nNuevos} nuevos agregados`, 'ok');
+    cerrarComparativoExcel();
+
+  } catch(err) {
+    console.error('aplicarComparativoExcel:', err);
+    toast('❌ Error al aplicar: ' + (err.message || err), 'err');
+    btn.disabled = false;
+    btn.textContent = '✅ Aplicar al Plan';
+  }
+};
+
 window.actualizarOrdenDesdeExcel = function actualizarOrdenDesdeExcel() {
   const input = document.createElement('input');
   input.type = 'file';
@@ -5676,7 +5913,55 @@ function flujoImprimir() {
     </style></head><body>
     <h2>💰 Flujo de Efectivo MXN &nbsp;·&nbsp; ${semanaChip} &nbsp;·&nbsp; ${planChip}</h2>
     ${contenido}
-    </body></html>`);
+    
+<!-- ══════════════════════════════════════════
+     MODAL: COMPARATIVO EXCEL vs PLAN
+══════════════════════════════════════════ -->
+<div id="comparativoExcelModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);overflow-y:auto;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:820px;margin:40px auto;padding:0;overflow:hidden;">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);padding:18px 24px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:16px;font-weight:800;color:#fff;">📊 Comparativo Excel vs Plan de Pagos</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.75);margin-top:2px;">Revisa las coincidencias antes de aplicar cambios</div>
+      </div>
+      <button onclick="cerrarComparativoExcel()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;cursor:pointer;border-radius:6px;padding:4px 10px;">✕</button>
+    </div>
+    <!-- Leyenda -->
+    <div style="display:flex;gap:16px;padding:14px 24px 0;flex-wrap:wrap;">
+      <span style="font-size:11px;display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;"></span>Match exacto</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>Match parcial (monto difiere)</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;"></span>Sin match — se agregará al plan</span>
+    </div>
+    <!-- Tabla -->
+    <div style="padding:14px 24px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;" id="comparativoTabla">
+        <thead>
+          <tr style="background:var(--bg);border-bottom:2px solid var(--border);">
+            <th style="text-align:center;padding:8px 6px;width:28px;">#</th>
+            <th style="text-align:left;padding:8px 6px;">Concepto Excel</th>
+            <th style="text-align:right;padding:8px 6px;">Monto Excel</th>
+            <th style="text-align:left;padding:8px 6px;">Concepto Plan</th>
+            <th style="text-align:right;padding:8px 6px;">Monto Plan</th>
+            <th style="text-align:center;padding:8px 6px;">Estado</th>
+            <th style="text-align:center;padding:8px 6px;">Nivel (nuevos)</th>
+          </tr>
+        </thead>
+        <tbody id="comparativoTbody"></tbody>
+      </table>
+    </div>
+    <!-- Footer -->
+    <div style="padding:14px 24px 20px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);">
+      <div id="comparativoResumen" style="font-size:12px;color:var(--muted);"></div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="cerrarComparativoExcel()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 20px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+        <button onclick="aplicarComparativoExcel()" id="btnAplicarComparativo" style="background:#3b82f6;border:none;color:#fff;padding:9px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ Aplicar al Plan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body></html>`);
   w.document.close();
   setTimeout(() => { w.print(); }, 200);
 }
