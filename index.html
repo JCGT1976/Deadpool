@@ -1602,7 +1602,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.15';
+const APP_VERSION = '2026.07.22.16';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5938,6 +5938,9 @@ function flujoImprimir() {
     <h2>💰 Flujo de Efectivo MXN &nbsp;·&nbsp; ${semanaChip} &nbsp;·&nbsp; ${planChip}</h2>
     ${contenido}
     
+
+
+
 <!-- ══════════════════════════════════════════
      MODAL: COMPARATIVO EXCEL vs PLAN
 ══════════════════════════════════════════ -->
@@ -5984,7 +5987,6 @@ function flujoImprimir() {
     </div>
   </div>
 </div>
-
 </body></html>`);
   w.document.close();
   setTimeout(() => { w.print(); }, 200);
