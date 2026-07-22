@@ -1552,7 +1552,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.17.6';
+const APP_VERSION = '2026.07.22.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -4108,7 +4108,6 @@ function planPagoRenderTabla() {
 
   const mostrarPlanCol = (plan !== 'all');
   document.getElementById('planPagoHead').innerHTML = `<tr>
-    <th style="text-align:left;width:56px;">Nivel</th>
     <th style="text-align:left">Concepto</th>
     <th>Tipo</th>
     <th class="${plan==='all'?'col-active':''}">Total</th>
@@ -4127,20 +4126,8 @@ function planPagoRenderTabla() {
   );
   const nLiquidados = todas.length - filtradas.length;
 
-  const grupos = {};
-  let nSugeridos = 0;
-  filtradas.forEach(r => {
-    const nivKey = nivelEfectivo(r);
-    if (nivelEsInferido(r)) nSugeridos++;
-    const g = nivKey === 999 ? 'Sin nivel' : ('L' + nivKey);
-    if (!grupos[g]) grupos[g] = [];
-    grupos[g].push(r);
-  });
-  const gruposOrdenados = Object.keys(grupos).sort((a,b) => {
-    const na = a === 'Sin nivel' ? 999 : parseInt(a.replace('L',''),10);
-    const nb = b === 'Sin nivel' ? 999 : parseInt(b.replace('L',''),10);
-    return na - nb;
-  });
+  // Ordenar por 'orden' sin agrupar por nivel (lista plana)
+  filtradas.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
 
   // Totales calculados sobre TODAS las filas (incl. liquidadas) para el pie
   let grandPlan = 0, grandPagado = 0, grandPendiente = 0;
@@ -4151,38 +4138,9 @@ function planPagoRenderTabla() {
   });
 
   let html = '';
-  gruposOrdenados.forEach(grupo => {
-    const gRows = grupos[grupo];
-    const nivKey = grupo === 'Sin nivel' ? 999 : parseInt(grupo.replace('L',''),10);
-    const colorNiv = nivelColor(nivKey);
-    const labelNiv = nivelLabel(nivKey);
+  const puedeArrastrar = canAccess('catalogo');
 
-    const grupoIdSafe = grupo.replace(/[^a-zA-Z0-9_-]/g,'_');
-    const grupoKeyIdx = planPagoRegistrarClaveSegura(grupo);
-    // Drag & drop en header de nivel: SOLO el handle ⋮⋮ inicia el arrastre (mobile-safe).
-    // El resto del header sigue siendo drop-target (ondragover/ondrop). Requiere permiso 'catalogo'.
-    const puedeArrastrar = canAccess('catalogo');
-    const dropAttrs = puedeArrastrar
-      ? ` data-drop-nivel="${nivKey}"`
-        + ` ondragover="dragOverNivel(event)"`
-        + ` ondragleave="dragLeaveNivel(event)"`
-        + ` ondrop="dropEnNivel(event, ${nivKey})"`
-      : '';
-    const grupoHandle = puedeArrastrar
-      ? `<span class="drag-handle-group" draggable="true"`
-        + ` ondragstart="dragStartGrupo(event, ${nivKey})"`
-        + ` ondragend="dragEndClear(event)"`
-        + ` title="Arrastra para mover todo el grupo">⋮⋮</span>`
-      : '';
-    html += `<tr class="cxp-group nivel-dropzone"${dropAttrs} style="background:linear-gradient(90deg, ${colorNiv}18, transparent 60%);">
-      <th colspan="99" style="border-left:3px solid ${colorNiv};padding-left:8px;">
-        ${grupoHandle}<span style="display:inline-block;background:${colorNiv};color:#fff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800;margin-right:8px;">${grupo === 'Sin nivel' ? '—' : grupo}</span>
-        ${labelNiv} <span style="font-weight:400;color:var(--muted)">(${gRows.length})</span>${puedeArrastrar ? ' <span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">↕ arrastra el ⋮⋮ para mover</span>' : ''}
-      </th>
-    </tr>`;
-    // Ordenar dentro del grupo por 'orden' (persistido en Supabase)
-    gRows.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
-    gRows.forEach(r => {
+  filtradas.forEach(r => {
       const montoTotal = cxpMontoMXN(r, 'total');
       const montoTotalRaw = parseFloat(r.total) || 0;
       const montoPlan = cxpMontoMXN(r, colPlan);
@@ -4194,22 +4152,12 @@ function planPagoRenderTabla() {
         ? `<span title="Concepto en USD · TC ref ${r.tc_ref || '—'} · MXN equiv $${Math.round(montoTotal).toLocaleString('es-MX')}" style="display:inline-block;background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.4);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">🇺🇸 USD $${Math.round(montoTotalRaw).toLocaleString('es-MX')}</span>`
         : '';
       const rowKeyIdx = planPagoRegistrarClaveSegura(r._key);
-      const esInferido = nivelEsInferido(r);
-      const nivKeyRow = nivelEfectivo(r);
-      const nivDisp = nivKeyRow === 999 ? '' : ('L' + nivKeyRow);
-      const nivColor = nivelColor(nivKeyRow);
-      // Estilo del badge: sólido si explícito, dashed + opacidad si inferido
-      const badgeStyle = esInferido
-        ? `background:${nivColor}12;color:${nivColor};border:1px dashed ${nivColor}88;`
-        : `background:${nivColor}22;color:${nivColor};border:1px solid ${nivColor}55;`;
-      const badgeTitle = esInferido ? 'Nivel sugerido por categoría (no explícito en el catálogo)' : 'Nivel explícito';
       // Etapa 1 — Badge de "Ajuste de semana" si el concepto no estaba en el baseline
       const esAjuste = esGastoAjuste(r);
       const ajusteBadge = esAjuste
         ? `<span title="Gasto agregado durante la semana (no estaba en el plan inicial)" style="display:inline-block;background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.5);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">⚡ Ajuste</span>`
         : '';
-      // Drag & drop por fila: SOLO el handle ⋮⋮ dentro de la celda Nivel inicia el
-      // arrastre. El resto de la fila queda libre para hacer scroll táctil en móvil.
+      // Drag & drop por fila: SOLO el handle ⋮⋮ inicia el arrastre
       // La fila sigue siendo drop-target (ondragover/ondrop) para reubicar.
       const rowDropAttrs = puedeArrastrar
         ? ` ondragover="dragOverRow(event)"`
@@ -4220,11 +4168,10 @@ function planPagoRenderTabla() {
         ? `<span class="drag-handle-cell" draggable="true"`
           + ` ondragstart="dragStartItem(event, ${rowKeyIdx})"`
           + ` ondragend="dragEndClear(event)"`
-          + ` title="Arrastra para reordenar o cambiar de nivel">⋮⋮</span>`
+          + ` title="Arrastra para reordenar">⋮⋮</span>`
         : '';
       html += `<tr class="plan-row-draggable"${rowDropAttrs}>
-        <td>${rowHandle}<span title="${badgeTitle}" style="display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:700;${badgeStyle}">${nivDisp || '—'}${esInferido ? ' ✨' : ''}</span></td>
-        <td>${r.concepto}${monedaBadge}${ajusteBadge}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
+        <td style="padding-left:${puedeArrastrar ? '4px' : '14px'};">${rowHandle}${r.concepto}${monedaBadge}${ajusteBadge}${r.nota ? `<br><span style="font-size:10px;color:var(--muted)">${r.nota}</span>` : ''}</td>
         <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
         <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
         ${mostrarPlanCol ? `<td class="col-active">${fmt(montoPlan)}</td>` : ''}
@@ -4236,20 +4183,7 @@ function planPagoRenderTabla() {
           ${pagado === 0 && canAccess('cxp') ? `<button onclick="planPagoBorrarConcepto(${rowKeyIdx})" title="Quitar del plan (sin pagos registrados)" style="background:transparent;color:var(--red);border:none;font-size:13px;cursor:pointer;padding:1px 3px;" ondragstart="event.preventDefault();event.stopPropagation();">🗑️</button>` : ''}
         </td>
       </tr>`;
-    });
   });
-
-  // Banner de niveles inferidos + botón para persistirlos
-  if (nSugeridos > 0) {
-    html = `<tr><td colspan="99" style="padding:10px 14px;background:rgba(255,193,7,.10);border-bottom:1px solid rgba(255,193,7,.35);">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;">
-        <span style="color:var(--yellow);">
-          ✨ <b>${nSugeridos} concepto${nSugeridos>1?'s':''}</b> sin nivel explícito — se muestra${nSugeridos>1?'n':''} nivel sugerido por categoría (badge dashed).
-        </span>
-        ${canAccess('cxp') ? `<button onclick="planPagoPersistirNivelesInferidos()" style="background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:700;">🎯 Aplicar niveles sugeridos a Supabase</button>` : ''}
-      </div>
-    </td></tr>` + html;
-  }
 
   // Banner de liquidados ocultos
   if (nLiquidados > 0) {
@@ -4260,7 +4194,8 @@ function planPagoRenderTabla() {
   // Total general considerando montoTotal (columna Total) y montoPlan (columna Plan activo)
   const grandTotalCol = todas.reduce((s,r) => s + cxpMontoMXN(r, 'total'), 0);
   html += `<tr class="cxp-total">
-    <td></td><td>TOTAL GENERAL</td><td></td>
+    <td>TOTAL GENERAL</td>
+    <td></td>
     <td class="${plan==='all'?'col-active':''}">${fmt(grandTotalCol)}</td>
     ${mostrarPlanCol ? `<td class="col-active">${fmt(grandPlan)}</td>` : ''}
     <td style="color:var(--green);">${fmt(grandPagado)}</td>
