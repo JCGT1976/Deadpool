@@ -768,7 +768,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 /* ══════════════════════════════════════════
    CONFIG
 ══════════════════════════════════════════ */
-const APP_VERSION = '2026.07.22.1';  // ← Orden de gastos por secuencia Excel
+const APP_VERSION = '2026.07.22.2';
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
 const { createClient } = supabase;
@@ -2125,7 +2125,7 @@ async function cxpHandleFile(e) {
           return k ? r[k] : null;
         };
         return {
-          secuencia:    idx + 1,  // ← NUEVO: orden del Excel (1, 2, 3...)
+          secuencia:    idx + 1,
           tipo:         find(['TIPO','TYPE']) || '',
           nivel:        find(['NIVEL','LEVEL']) || '',
           categoria:    find(['CATEG','GRUPO','GROUP']) || 'General',
@@ -2367,7 +2367,7 @@ function cxpRenderTabla(rows) {
 function cxpRenderAll() {
   if (!cxpData.length) return;
   const rows = cxpData.filter(r => r.concepto && r.total !== undefined)
-    .sort((a, b) => (a.secuencia || 999) - (b.secuencia || 999));  // ← Ordenar por secuencia del Excel
+    .sort((a, b) => (a.secuencia || 999) - (b.secuencia || 999));
   cxpRenderKPIs(rows);
   cxpRenderChips(rows);
   cxpRenderTabla(rows);
@@ -2435,8 +2435,7 @@ function cambiarPlanPago() {
 
 /* Calcula el monto total del plan activo a partir de cxpData */
 function planPagoGetMonto(plan) {
-  const rows = cxpData.filter(r => r.concepto && r.total !== undefined)
-    .sort((a, b) => (a.secuencia || 999) - (b.secuencia || 999));  // ← Ordenar por Excel
+  const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
   if (plan === 'all') return rows.reduce((s,r) => s + (parseFloat(r.total)||0), 0);
   return rows.reduce((s,r) => s + (parseFloat(r[plan])||0), 0);
 }
@@ -2446,8 +2445,7 @@ function planPagoGetMonto(plan) {
    Un concepto nunca cuenta como "pendiente" negativo: si ya se pagó más
    de lo que pedía el plan, su pendiente es 0. */
 function planPagoGetPendiente(plan) {
-  const rows = cxpData.filter(r => r.concepto && r.total !== undefined)
-    .sort((a, b) => (a.secuencia || 999) - (b.secuencia || 999));  // ← Ordenar por Excel
+  const rows = cxpData.filter(r => r.concepto && r.total !== undefined);
   const colPlan = plan === 'all' ? 'total' : plan;
   return rows.reduce((s,r) => {
     const montoPlan = parseFloat(r[colPlan]) || 0;
