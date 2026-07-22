@@ -1602,7 +1602,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.17';
+const APP_VERSION = '2026.07.22.18';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5395,7 +5395,9 @@ window.abrirComparativoExcel = function abrirComparativoExcel() {
         const concepto = celdaT ? celdaT.v.toString().trim() : '';
         const montoRaw = celdaU ? celdaU.v : 0;
         const monto = parseFloat((montoRaw || '0').toString().replace(/[^0-9.\-]/g,'')) || 0;
-        if (concepto && concepto.length > 1 && monto > 0) {
+        // Excluir filas de totales/subtotales
+        const esTotal = /^(total|subtotal|suma|gran total)$/i.test(concepto.trim());
+        if (concepto && concepto.length > 1 && monto > 0 && !esTotal) {
           excelItems.push({ concepto, monto, orden: excelItems.length + 1 });
         }
       }
