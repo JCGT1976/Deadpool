@@ -1322,7 +1322,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
           </div>
         </div>
       </div>
-      <button onclick="closeFlujoEfectivoModal()" class="flujo-close" title="Cerrar">✕</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="abrirComparativoExcel()" class="flujo-btn flujo-btn-secondary" style="font-size:12px;padding:6px 12px;" title="Importar orden desde Excel">📊 Excel</button>
+        <button onclick="flujoImprimir()" class="flujo-btn flujo-btn-secondary" style="font-size:12px;padding:6px 12px;" title="Imprimir">🖨️ Imprimir</button>
+        <button onclick="closeFlujoEfectivoModal()" class="flujo-close" title="Cerrar">✕</button>
+      </div>
     </div>
 
     <div class="flujo-body">
@@ -1602,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.18';
+const APP_VERSION = '2026.07.22.19';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
