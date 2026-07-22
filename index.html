@@ -5145,7 +5145,6 @@ window.flujoDropEnRow = function flujoDropEnRow(ev, claveDestino, nivelDestino) 
   
   flujoMoverYReordenar(clave, claveDestino, insertBefore).then(function(){
     flujoRenderTabla();
-    if (typeof renderDashboard === 'function') renderDashboard();
     toast('✅ Reordenado', 'ok');
   }).catch(function(e){
     console.error('flujo reorden:', e);
@@ -5275,7 +5274,7 @@ function flujoRenderTabla() {
     } catch(e) { semanaChip.textContent = 'Semana actual'; }
   }
 
-  // Solo conceptos pendientes en el plan activo, ordenados por nivel (invisible)
+  // Filtrar conceptos pendientes en el plan activo
   const filtradas = cxpData
     .filter(r => r.concepto && r.total !== undefined)
     .map(r => {
