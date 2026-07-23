@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.9';
+const APP_VERSION = '2026.07.23.10';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2550,8 +2550,14 @@ function closeEntradasModal() {
    Regresa NaN si está vacío/no numérico, para que isNaN() detecte campos sin llenar */
 function parseMoney(str) {
   if (str === null || str === undefined || String(str).trim() === '') return NaN;
-  const n = parseFloat(String(str).replace(/[^0-9.\-]/g,''));
-  return isNaN(n) ? NaN : n;
+  const s = String(str).trim();
+  // Si es número ya (más común después de cellFormula:false)
+  const direct = parseFloat(s.replace(/[^0-9.\-]/g,''));
+  // Si empieza con = es fórmula no resuelta → intentar evaluar de forma segura (solo +/-)
+  if (s.startsWith('=') && /^[=0-9+\-*\/.() ]+$/.test(s)) {
+    try { const v = Function('"use strict"; return (' + s.slice(1) + ')')(); if (typeof v === 'number' && isFinite(v)) return v; } catch(e) {}
+  }
+  return isNaN(direct) ? NaN : direct;
 }
 
 /* Formatea un <input> con separadores de miles en vivo mientras se escribe.
@@ -3398,7 +3404,7 @@ async function cxpHandleFile(e) {
     const ab = await file.arrayBuffer();
     // ✅ CORRECCIÓN: No pasar { sheet: 'Gastos' } a read() — no es válido
     // En su lugar, leemos el workbook completo y luego detectamos los sheets
-    const wb = XLSX.read(ab);
+    const wb = XLSX.read(ab, { cellFormula: false, cellNF: false });
     
     // ✅ Detección inteligente de sheet
     // Buscar "Gastos", "RepCxC" o cualquier sheet que tenga "CXC", "CUENTAS", "PAGOS"
@@ -3443,60 +3449,54 @@ async function cxpHandleFile(e) {
     }
     
     const ws = wb.Sheets[sheetName];
-    
-    // 🔍 BÚSQUEDA DE HEADERS: puede estar en cualquier fila (no asumir fila 1)
-    // Leer todas las filas y buscar la que tenga CONCEPTO, TIPO, CATEGORIA, etc.
-    const allRows = XLSX.utils.sheet_to_json(ws, { 
-      defval: '',
-      header: 1  // Modo array en lugar de objeto
-    });
-    
-    let headerRowIdx = -1;
-    let headerRow = null;
-    
-    // Buscar la fila con headers en hasta 25 filas (titulo puede ocupar varias)
+
+    // 🔍 LECTURA ROBUSTA: header:1 = arrays puros, evita que XLSX use el título como key (__EMPTY_N)
+    const allRowsRaw = XLSX.utils.sheet_to_json(ws, { defval: '', header: 1 });
+
     const HEADER_KW = ['CONCEPTO','TIPO','CATEGORIA','TOTAL','RECOMENDADO','URGENTE','SUPERVIVENCIA','MONTO','LEVEL','NIVEL'];
-    for (let i = 0; i < Math.min(25, allRows.length); i++) {
-      const row = allRows[i];
-      const cells = (row || []).map(c => (c||'').toString().toUpperCase().trim());
-      const hits = HEADER_KW.filter(k => cells.some(cell => cell === k || cell.startsWith(k)));
+    let headerRowIdx = -1;
+    let headerCells = null;
+
+    for (let i = 0; i < Math.min(25, allRowsRaw.length); i++) {
+      const cells = (allRowsRaw[i] || []).map(c => (c||'').toString().toUpperCase().trim());
+      const hits = HEADER_KW.filter(k => cells.includes(k));
       if (hits.length >= 2) {
         headerRowIdx = i;
-        headerRow = row;
-        statusEl.innerHTML = '✓ Headers en fila ' + (i + 1) + ': ' + hits.join(', ');
+        headerCells = cells;
+        statusEl.innerHTML = '✓ Headers fila ' + (i+1) + ': ' + hits.join(', ');
         break;
       }
     }
-    
-    if (!headerRow) {
-      statusEl.innerHTML = '❌ No se encontraron headers en las primeras 25 filas. Columnas esperadas: CONCEPTO, TOTAL';
+
+    if (!headerCells) {
+      statusEl.innerHTML = '❌ No encontré headers en las primeras 25 filas (busco: CONCEPTO + TOTAL)';
       return;
     }
-    
-    // Leer datos desde la fila de headers
-    const datos = XLSX.utils.sheet_to_json(ws, {
-      defval: '',
-      range: headerRowIdx  // XLSX usa esta fila como header row
-    });
-    
+
+    // Construir objetos manualmente — evita que XLSX pierda la fila real de headers
+    const datos = [];
+    for (let i = headerRowIdx + 1; i < allRowsRaw.length; i++) {
+      const row = allRowsRaw[i] || [];
+      const obj = {};
+      headerCells.forEach((col, ci) => { if (col) obj[col] = (row[ci] !== undefined ? row[ci] : ''); });
+      if (obj['CONCEPTO'] && obj['CONCEPTO'].toString().trim() !== '') datos.push(obj);
+    }
+
     if (datos.length === 0) {
-      statusEl.innerHTML = '❌ No hay datos después de los headers';
+      statusEl.innerHTML = '❌ No hay datos con CONCEPTO válido después de los headers';
       return;
     }
-    
-    // Mapeo de columnas: normalizar a UPPERCASE para match robusto
-    const primeraFila = datos[0] || {};
-    const columnasPresentes = Object.keys(primeraFila);
-    // Crear mapa normalizado: 'CONCEPTO' -> 'Concepto' (clave real del objeto)
+
+    // colNorm: UPPERCASE -> UPPERCASE (identidad; datos ya están en UPPERCASE por construcción)
+    const columnasPresentes = headerCells.filter(Boolean);
     const colNorm = {};
-    columnasPresentes.forEach(c => { colNorm[c.toString().trim().toUpperCase()] = c; });
-    
-    // Mapeo flexible: campo interno -> posibles nombres en Excel (en UPPERCASE)
+    columnasPresentes.forEach(c => { colNorm[c] = c; });
+
     const mapeos = {
       concepto:      ['CONCEPTO'],
       tipo:          ['TIPO'],
       nivel:         ['LEVEL','NIVEL'],
-      categoria:     ['CATEGORIA','CATEGORÍA'],
+      categoria:     ['CATEGORIA'],
       total:         ['TOTAL','MONTO'],
       recomendado:   ['RECOMENDADO'],
       urgente:       ['URGENTE'],
@@ -3504,18 +3504,16 @@ async function cxpHandleFile(e) {
       ajuste:        ['AJUSTE'],
       nota:          ['NOTA','NOTAS']
     };
-    
-    // Encontrar columna real para cada campo
+
     const colMap = {};
     for (const [campo, aliases] of Object.entries(mapeos)) {
       for (const alias of aliases) {
         if (colNorm[alias]) { colMap[campo] = colNorm[alias]; break; }
       }
     }
-    
-    // Validar campos críticos
+
     if (!colMap.concepto || !colMap.total) {
-      statusEl.innerHTML = '❌ Faltan columnas críticas (CONCEPTO y TOTAL requeridas). Encontradas: ' + columnasPresentes.join(', ');
+      statusEl.innerHTML = '❌ Faltan columnas críticas. Encontradas: ' + columnasPresentes.join(', ');
       return;
     }
     
