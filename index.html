@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.8';
+const APP_VERSION = '2026.07.23.9';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3454,64 +3454,68 @@ async function cxpHandleFile(e) {
     let headerRowIdx = -1;
     let headerRow = null;
     
-    // Buscar la fila con headers (debe tener texto como CONCEPTO, TIPO, CATEGORIA)
-    for (let i = 0; i < Math.min(10, allRows.length); i++) {
+    // Buscar la fila con headers en hasta 25 filas (titulo puede ocupar varias)
+    const HEADER_KW = ['CONCEPTO','TIPO','CATEGORIA','TOTAL','RECOMENDADO','URGENTE','SUPERVIVENCIA','MONTO','LEVEL','NIVEL'];
+    for (let i = 0; i < Math.min(25, allRows.length); i++) {
       const row = allRows[i];
-      const rowStr = (row || []).join(' ').toUpperCase();
-      if (rowStr.includes('CONCEPTO') || rowStr.includes('TIPO') || rowStr.includes('CATEGORIA')) {
+      const cells = (row || []).map(c => (c||'').toString().toUpperCase().trim());
+      const hits = HEADER_KW.filter(k => cells.some(cell => cell === k || cell.startsWith(k)));
+      if (hits.length >= 2) {
         headerRowIdx = i;
         headerRow = row;
-        statusEl.innerHTML = `✓ Headers detectados en fila ${i + 1}`;
+        statusEl.innerHTML = '✓ Headers en fila ' + (i + 1) + ': ' + hits.join(', ');
         break;
       }
     }
     
     if (!headerRow) {
-      statusEl.innerHTML = '❌ No se encontraron headers (CONCEPTO, TIPO, CATEGORIA, etc.)';
+      statusEl.innerHTML = '❌ No se encontraron headers en las primeras 25 filas. Columnas esperadas: CONCEPTO, TOTAL';
       return;
     }
     
-    // Leer datos desde la fila siguiente a los headers
+    // Leer datos desde la fila de headers
     const datos = XLSX.utils.sheet_to_json(ws, {
       defval: '',
-      range: headerRowIdx  // Empieza a leer desde headerRowIdx (XLSX lo toma como header)
+      range: headerRowIdx  // XLSX usa esta fila como header row
     });
     
     if (datos.length === 0) {
-      statusEl.innerHTML = `❌ No hay datos después de los headers`;
+      statusEl.innerHTML = '❌ No hay datos después de los headers';
       return;
     }
     
-    // 🔍 Mapeo de columnas: encontrar dónde está cada campo
+    // Mapeo de columnas: normalizar a UPPERCASE para match robusto
     const primeraFila = datos[0] || {};
     const columnasPresentes = Object.keys(primeraFila);
+    // Crear mapa normalizado: 'CONCEPTO' -> 'Concepto' (clave real del objeto)
+    const colNorm = {};
+    columnasPresentes.forEach(c => { colNorm[c.toString().trim().toUpperCase()] = c; });
     
-    // Mapeo flexible: qué columna del Excel = qué campo interno
+    // Mapeo flexible: campo interno -> posibles nombres en Excel (en UPPERCASE)
     const mapeos = {
-      concepto: ['CONCEPTO', 'concepto', 'Concepto'],
-      tipo: ['TIPO', 'tipo', 'Tipo'],
-      nivel: ['Level', 'LEVEL', 'level', 'NIVEL', 'nivel'],
-      categoria: ['CATEGORIA', 'categoria', 'Categoría', 'CATEGORÍA'],
-      total: ['TOTAL', 'total', 'MONTO', 'monto'],
-      recomendado: ['RECOMENDADO', 'recomendado'],
-      urgente: ['URGENTE', 'urgente'],
-      supervivencia: ['SUPERVIVENCIA', 'supervivencia', 'SOBREVIVENCIA', 'sobrevivencia'],
-      ajuste: ['AJUSTE', 'ajuste'],
-      nota: ['NOTA', 'nota', 'NOTAS', 'notas']
+      concepto:      ['CONCEPTO'],
+      tipo:          ['TIPO'],
+      nivel:         ['LEVEL','NIVEL'],
+      categoria:     ['CATEGORIA','CATEGORÍA'],
+      total:         ['TOTAL','MONTO'],
+      recomendado:   ['RECOMENDADO'],
+      urgente:       ['URGENTE'],
+      supervivencia: ['SUPERVIVENCIA','SOBREVIVENCIA'],
+      ajuste:        ['AJUSTE'],
+      nota:          ['NOTA','NOTAS']
     };
     
     // Encontrar columna real para cada campo
     const colMap = {};
     for (const [campo, aliases] of Object.entries(mapeos)) {
-      const found = columnasPresentes.find(c => aliases.includes(c));
-      if (found) {
-        colMap[campo] = found;
+      for (const alias of aliases) {
+        if (colNorm[alias]) { colMap[campo] = colNorm[alias]; break; }
       }
     }
     
     // Validar campos críticos
     if (!colMap.concepto || !colMap.total) {
-      statusEl.innerHTML = `❌ Faltan columnas críticas. Mapeadas: ${Object.entries(colMap).map(([k,v]) => k).join(', ')}. Encontradas: ${columnasPresentes.join(', ')}`;
+      statusEl.innerHTML = '❌ Faltan columnas críticas (CONCEPTO y TOTAL requeridas). Encontradas: ' + columnasPresentes.join(', ');
       return;
     }
     
