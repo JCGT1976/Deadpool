@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.6';
+const APP_VERSION = '2026.07.23.7';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3401,7 +3401,7 @@ async function cxpHandleFile(e) {
     const wb = XLSX.read(ab);
     
     // ✅ Detección inteligente de sheet
-    // Buscar "Gastos" (exacto o case-insensitive), fallback al primer sheet no vacío
+    // Buscar "Gastos", "RepCxC" o cualquier sheet que tenga "CXC", "CUENTAS", "PAGOS"
     let sheetName = null;
     const availableSheets = Object.keys(wb.Sheets || {});
     
@@ -3410,18 +3410,28 @@ async function cxpHandleFile(e) {
       return;
     }
     
-    // Buscar "Gastos" (case-insensitive)
-    const gastosMatch = availableSheets.find(s => s.toLowerCase() === 'gastos');
-    if (gastosMatch) {
-      sheetName = gastosMatch;
-    } else {
-      // Fallback: usar el primer sheet que no esté vacío
+    // Prioridad: buscar Gastos, RepCxC, o cualquier sheet con datos
+    const priorityNames = ['gastos', 'repcxc', 'cxc', 'cuentas por pagar', 'plan'];
+    for (const prio of priorityNames) {
+      const match = availableSheets.find(s => s.toLowerCase().includes(prio));
+      if (match) {
+        const ws = wb.Sheets[match];
+        const testData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (testData.length > 0) {
+          sheetName = match;
+          break;
+        }
+      }
+    }
+    
+    // Fallback: usar el primer sheet que no esté vacío
+    if (!sheetName) {
       for (const sn of availableSheets) {
         const ws = wb.Sheets[sn];
-        const testData = XLSX.utils.sheet_to_json(ws);
+        const testData = XLSX.utils.sheet_to_json(ws, { defval: '' });
         if (testData.length > 0) {
           sheetName = sn;
-          statusEl.innerHTML = `⚠️ Sheet "Gastos" no encontrado — usando "${sheetName}" (${testData.length} filas)`;
+          statusEl.innerHTML = `⚠️ Sheet "Gastos"/"RepCxC" no encontrado — usando "${sheetName}"`;
           break;
         }
       }
@@ -3433,74 +3443,77 @@ async function cxpHandleFile(e) {
     }
     
     const ws = wb.Sheets[sheetName];
-    const datos = XLSX.utils.sheet_to_json(ws);
     
-    if (datos.length === 0) {
-      statusEl.innerHTML = `❌ La hoja "${sheetName}" está vacía`;
-      return;
-    }
-    
-    // ✅ Validación de columnas esperadas ANTES de procesar
-    // Detectar qué columnas existen en el primer renglón
-    const primeraFila = datos[0] || {};
-    let columnasPresentes = Object.keys(primeraFila);
-    
-    // 🔍 BÚSQUEDA FLEXIBLE: "CONCEPTO" o similar (case-insensitive + trim)
-    // También ignora columnas "_EMPTY_N" (Excel vacías)
-    let colConcepto = columnasPresentes.find(c => {
-      const clean = (c || '').trim().toUpperCase();
-      return clean === 'CONCEPTO' || clean === 'NOMBRE' || clean === 'DESCRIPCION' 
-             || clean === 'GASTO' || clean === 'ITEM' || clean === 'DESCRIPCIÓN';
+    // 🔍 BÚSQUEDA DE HEADERS: puede estar en cualquier fila (no asumir fila 1)
+    // Leer todas las filas y buscar la que tenga CONCEPTO, TIPO, CATEGORIA, etc.
+    const allRows = XLSX.utils.sheet_to_json(ws, { 
+      defval: '',
+      header: 1  // Modo array en lugar de objeto
     });
     
-    // 🔍 BÚSQUEDA FLEXIBLE: "MONTO", "TOTAL", etc. (case-insensitive + trim)
-    let colMonto = columnasPresentes.find(c => {
-      const clean = (c || '').trim().toUpperCase();
-      return clean === 'MONTO' || clean === 'TOTAL' || clean === 'CANTIDAD'
-             || clean === 'IMPORTE' || clean === 'VALOR' || clean === 'MONTO_MXN';
-    });
+    let headerRowIdx = -1;
+    let headerRow = null;
     
-    // ⚠️ Si no encontró columnas exactas, intenta heurística: primera no-vacía como CONCEPTO,
-    // segunda como MONTO (fallback para Excel con estructura desconocida)
-    let usarHeuristica = false;
-    if (!colConcepto || !colMonto) {
-      const colsNoVacias = columnasPresentes.filter(c => 
-        !c.match(/_EMPTY_/i) && (c || '').trim().length > 0
-      );
-      
-      if (colsNoVacias.length >= 2) {
-        // Si hay al menos 2 columnas con nombre, asumir: primera=concepto, segunda=monto
-        if (!colConcepto) {
-          colConcepto = colsNoVacias[0];
-          usarHeuristica = true;
-        }
-        if (!colMonto) {
-          colMonto = colsNoVacias[1];
-          usarHeuristica = true;
-        }
-        if (usarHeuristica) {
-          statusEl.innerHTML = `⚠️ Detectadas columnas: "${colConcepto}" → CONCEPTO, "${colMonto}" → MONTO (verificar si es correcto)`;
-        }
+    // Buscar la fila con headers (debe tener texto como CONCEPTO, TIPO, CATEGORIA)
+    for (let i = 0; i < Math.min(10, allRows.length); i++) {
+      const row = allRows[i];
+      const rowStr = (row || []).join(' ').toUpperCase();
+      if (rowStr.includes('CONCEPTO') || rowStr.includes('TIPO') || rowStr.includes('CATEGORIA')) {
+        headerRowIdx = i;
+        headerRow = row;
+        statusEl.innerHTML = `✓ Headers detectados en fila ${i + 1}`;
+        break;
       }
     }
     
-    // Si AÚN no hay columnas, error definitivo
-    if (!colConcepto || !colMonto) {
-      const faltantes = [];
-      if (!colConcepto) faltantes.push('CONCEPTO');
-      if (!colMonto) faltantes.push('MONTO');
-      const colsValidas = columnasPresentes.filter(c => !c.match(/_EMPTY_/i)).join(', ');
-      statusEl.innerHTML = `❌ No se pudo detectar columnas: falta ${faltantes.join(' y ')}. Encontradas: ${colsValidas}`;
+    if (!headerRow) {
+      statusEl.innerHTML = '❌ No se encontraron headers (CONCEPTO, TIPO, CATEGORIA, etc.)';
       return;
     }
     
-    // ✅ Normalizar datos con las columnas reales encontradas
-    const datosNormalizados = datos.map(row => ({
-      ...row,
-      CONCEPTO: row[colConcepto],
-      MONTO: row[colMonto],
-      CATEGORIA: row[colConcepto.replace(/CONCEPTO|NOMBRE|DESCRIPCION/i, 'CATEGORIA')] || row.Grupo || row.GRUPO || 'General'
-    }));
+    // Leer datos desde la fila siguiente a los headers
+    const datos = XLSX.utils.sheet_to_json(ws, {
+      defval: '',
+      range: headerRowIdx  // Empieza a leer desde headerRowIdx (XLSX lo toma como header)
+    });
+    
+    if (datos.length === 0) {
+      statusEl.innerHTML = `❌ No hay datos después de los headers`;
+      return;
+    }
+    
+    // 🔍 Mapeo de columnas: encontrar dónde está cada campo
+    const primeraFila = datos[0] || {};
+    const columnasPresentes = Object.keys(primeraFila);
+    
+    // Mapeo flexible: qué columna del Excel = qué campo interno
+    const mapeos = {
+      concepto: ['CONCEPTO', 'concepto', 'Concepto'],
+      tipo: ['TIPO', 'tipo', 'Tipo'],
+      nivel: ['Level', 'LEVEL', 'level', 'NIVEL', 'nivel'],
+      categoria: ['CATEGORIA', 'categoria', 'Categoría', 'CATEGORÍA'],
+      total: ['TOTAL', 'total', 'MONTO', 'monto'],
+      recomendado: ['RECOMENDADO', 'recomendado'],
+      urgente: ['URGENTE', 'urgente'],
+      supervivencia: ['SUPERVIVENCIA', 'supervivencia', 'SOBREVIVENCIA', 'sobrevivencia'],
+      ajuste: ['AJUSTE', 'ajuste'],
+      nota: ['NOTA', 'nota', 'NOTAS', 'notas']
+    };
+    
+    // Encontrar columna real para cada campo
+    const colMap = {};
+    for (const [campo, aliases] of Object.entries(mapeos)) {
+      const found = columnasPresentes.find(c => aliases.includes(c));
+      if (found) {
+        colMap[campo] = found;
+      }
+    }
+    
+    // Validar campos críticos
+    if (!colMap.concepto || !colMap.total) {
+      statusEl.innerHTML = `❌ Faltan columnas críticas. Mapeadas: ${Object.entries(colMap).map(([k,v]) => k).join(', ')}. Encontradas: ${columnasPresentes.join(', ')}`;
+      return;
+    }
     
     const semanaInput = document.getElementById('cxpSemanaInput');
     if (!semanaInput.value) {
@@ -3510,45 +3523,56 @@ async function cxpHandleFile(e) {
     
     statusEl.innerHTML = `⏳ Procesando ${datos.length} gastos (detección IA en curso...)`;
     
-    // Snapshot del catálogo actual (global cxpData) para reutilizar nivel de
-    // conceptos que ya existían — antes se declaraba local `const cxpData = []`
-    // que sombreaba el global y hacía que TODOS los conceptos abrieran el modal.
+    // Snapshot del catálogo actual
     const catalogoActual = Array.isArray(cxpData) ? cxpData.slice() : [];
     const _normConc = s => (s || '').toString().trim().toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    // Procesar cada fila con detección de nivel (acumula en cxpDataNew, no sombrea el global)
+    // Procesar cada fila con mapeo correcto
     const cxpDataNew = [];
-    for (const row of datosNormalizados) {
-      if (!row.CONCEPTO || !row.MONTO) continue;
-
-      const concepto = String(row.CONCEPTO).trim();
-      const monto = parseMoney(String(row.MONTO));
+    for (const row of datos) {
+      // Obtener valores usando el mapa de columnas
+      const concepto = (row[colMap.concepto] || '').toString().trim();
+      const montoRaw = row[colMap.total];
+      const monto = parseMoney(String(montoRaw || 0));
+      
       if (!concepto || monto <= 0) continue;
 
-      // Asegurar campos que cxpSyncToSupabase / cxpFetchSupabaseData esperan
-      if (!row.concepto)  row.concepto  = concepto;
-      if (!row.categoria) row.categoria = row.CATEGORIA || row.Grupo || 'General';
-      if (row.total === undefined || row.total === null || row.total === '') row.total = monto;
-      if (!row._key) row._key = cxpRowKey(row);
-      row._semana = semanaInput.value;
+      // Construir objeto con mapeo correcto
+      const gastoMapeado = {
+        concepto: concepto,
+        tipo: (row[colMap.tipo] || '').toString().trim(),
+        nivel: (row[colMap.nivel] || 'L3').toString().trim(),
+        categoria: (row[colMap.categoria] || 'General').toString().trim(),
+        total: monto,
+        recomendado: parseMoney(String(row[colMap.recomendado] || 0)),
+        urgente: parseMoney(String(row[colMap.urgente] || 0)),
+        supervivencia: parseMoney(String(row[colMap.supervivencia] || 0)),
+        ajuste: parseMoney(String(row[colMap.ajuste] || 0)),
+        nota: (row[colMap.nota] || '').toString().trim(),
+        _key: null,
+        _semana: semanaInput.value
+      };
+      
+      gastoMapeado._key = cxpRowKey(gastoMapeado);
 
-      // 1. BUSCAR coincidencia exacta en catálogo GLOBAL (por concepto normalizado)
+      // Buscar en catálogo actual
       const cNorm = _normConc(concepto);
       const gastoExistente = catalogoActual.find(x => _normConc(x.concepto) === cNorm);
+      
       if (gastoExistente) {
-        row.nivel = gastoExistente.nivel; // usar nivel existente
-        cxpDataNew.push(row);
+        // Reutilizar nivel existente
+        gastoMapeado.nivel = gastoExistente.nivel;
+        cxpDataNew.push(gastoMapeado);
       } else {
-        // 2. NUEVO gasto → sugerir nivel con IA
+        // Nuevo gasto → sugerir nivel con IA
         const nivelSugerido = await sugerirNivel(concepto, monto);
-        row.nivel = nivelSugerido; // temporal (puede cambiar en modal)
+        gastoMapeado.nivel = nivelSugerido || 'L3';
 
-        // 3. ABRIR MODAL de revisión
+        // Abrir modal de revisión
         await new Promise(resolve => {
-          openNivelRevisionModal(row, nivelSugerido || 'L3', () => {
-            // Callback: usuario confirmó en modal
-            cxpDataNew.push(row); // row.nivel ya tiene la elección del usuario
+          openNivelRevisionModal(gastoMapeado, nivelSugerido || 'L3', () => {
+            cxpDataNew.push(gastoMapeado);
             resolve();
           });
         });
@@ -3556,7 +3580,7 @@ async function cxpHandleFile(e) {
     }
 
     if (cxpDataNew.length === 0) {
-      statusEl.innerHTML = '⚠️ No se cargaron gastos válidos (revisar formato de MONTO)';
+      statusEl.innerHTML = '⚠️ No se cargaron gastos válidos (revisar formato)';
       return;
     }
 
@@ -3565,7 +3589,6 @@ async function cxpHandleFile(e) {
     
     const syncResult = await cxpSyncToSupabase(cxpDataNew);
 
-    // cxpSyncToSupabase devuelve {ok, message}, no {error, nuevos, actualizados}
     if (!syncResult || syncResult.ok === false) {
       statusEl.innerHTML = `❌ Error al guardar: ${syncResult?.message || 'desconocido'}`;
       return;
@@ -3573,8 +3596,7 @@ async function cxpHandleFile(e) {
 
     statusEl.innerHTML = `✅ ${cxpDataNew.length} gastos cargados a Supabase`;
 
-    // CRÍTICO: refrescar el global cxpData desde Supabase para que el KPI de
-    // Brecha, el dashboard y el modal de Flujo de Efectivo vean el nuevo plan.
+    // Refrescar dashboard
     try {
       await cxpEnsureData(true);
       cxpRenderAll();
