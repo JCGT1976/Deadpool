@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.12';
+const APP_VERSION = '2026.07.23.13';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3213,11 +3213,7 @@ function renderCxP(c) {
     </div>
     <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
     
-    <!-- Botón "Actualizar orden desde Excel" -->
-    <button onclick='abrirComparativoExcel()' style='width:100%;margin-top:12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#3b82f6;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;'>
-      📊 Importar orden desde Excel (con revisión)
-    </button>
-    <p style='font-size:11px;margin-top:6px;color:#666;'>Carga el Excel · revisa coincidencias · asigna nivel a los nuevos · aplica cambios al plan</p>
+
       </div></div>
     </div><!-- /.accordion upload -->
     ` : ''}
