@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.14';
+const APP_VERSION = '2026.07.23.15';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5575,24 +5575,18 @@ window.abrirComparativoExcel = async function abrirComparativoExcel() {
           }
         }
         if (sheet) {
-          // Hoja Deadpool: concepto en col P (idx 15), monto en col Q (idx 16)
-          // Datos empiezan en fila 6 (idx 5), parar en fila vacía o "Total"
-          const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:Z300');
+          // Hoja Deadpool: concepto en col T (idx 19), monto en col U (idx 20)
+          // Datos desde fila 6 (idx 5), parar al encontrar "Total"
+          const range = XLSX.utils.decode_range(sheet['!ref'] || 'T6:U200');
           for (let rx = 5; rx <= range.e.r; rx++) {
-            // Intentar col P/Q (idx 15/16) primero, luego T/U (idx 19/20) como fallback
-            let cConc = sheet[XLSX.utils.encode_cell({r:rx,c:15})];
-            let cMont = sheet[XLSX.utils.encode_cell({r:rx,c:16})];
-            // Fallback a T/U si P está vacía
-            if (!cConc?.v) {
-              cConc = sheet[XLSX.utils.encode_cell({r:rx,c:19})];
-              cMont = sheet[XLSX.utils.encode_cell({r:rx,c:20})];
-            }
-            const concepto = cConc ? cConc.v.toString().trim() : '';
+            const cT = sheet[XLSX.utils.encode_cell({r:rx,c:19})];
+            const cU = sheet[XLSX.utils.encode_cell({r:rx,c:20})];
+            const concepto = cT ? cT.v.toString().trim() : '';
+            if (/^total$/i.test(concepto)) break;
             if (!concepto || concepto.length <= 1) continue;
-            if (/^(total|subtotal|saldo)/i.test(concepto)) continue;
-            const montoRaw = cMont?.v;
+            const montoRaw = cU?.v;
             const monto = typeof montoRaw === 'number' ? montoRaw :
-              parseFloat((montoRaw||'0').toString().replace(/[^0-9.\-]/g,'')) || 0;
+              parseFloat((String(montoRaw)||'0').replace(/[^0-9.\-]/g,'')) || 0;
             if (monto > 0)
               excelItems.push({ concepto, monto, orden: excelItems.length + 1 });
           }
