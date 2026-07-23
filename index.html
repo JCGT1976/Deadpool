@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.1';
+const APP_VERSION = '2026.07.23.2';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5414,100 +5414,126 @@ function similitudTexto(a, b) {
   return hits / wa.length;
 }
 
-window.abrirComparativoExcel = function abrirComparativoExcel() {
+/* ── CARGA DIRECTA DE PLAN DESDE FLUJO DE EFECTIVO ──────────────────────────
+   El botón 📊 Excel del modal de Flujo carga un Excel y reemplaza el plan
+   completo en Supabase — igual que la zona de upload de CxP pero sin pasar
+   por el comparativo de orden (que causaba cuelgues). Sin restricción de rol.
+   Formato Excel: hoja "Gastos" con columnas CONCEPTO / MONTO, o bien
+   hoja "Deadpool" con conceptos en col T fila 6 y montos en col U.
+──────────────────────────────────────────────────────────────────────────── */
+window.abrirComparativoExcel = async function abrirComparativoExcel() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.xlsx,.xls';
   input.onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Mostrar spinner en el botón Excel del modal
+    const btnExcel = document.querySelector('.flujo-btn-secondary');
+    const btnOrig = btnExcel ? btnExcel.textContent : '';
+    if (btnExcel) { btnExcel.disabled = true; btnExcel.textContent = '⏳ Cargando...'; }
+
     try {
       const ab = await file.arrayBuffer();
       const wb = XLSX.read(ab, { type: 'array' });
-      // Buscar la hoja correcta: primero 'Deadpool', luego la que tenga más datos en col T fila 6
-      let sheet = null;
-      const hojaDeadpool = wb.SheetNames.find(n => n.trim().toLowerCase() === 'deadpool');
-      if (hojaDeadpool) {
-        sheet = wb.Sheets[hojaDeadpool];
-      } else {
-        // Fallback: buscar la hoja con más filas con datos en col T
-        let maxFilas = 0;
-        for (const nombre of wb.SheetNames) {
-          const s = wb.Sheets[nombre];
-          const rng = s['!ref'] ? XLSX.utils.decode_range(s['!ref']) : null;
-          if (!rng) continue;
-          let count = 0;
-          for (let r = 5; r <= rng.e.r; r++) {
-            const c = s[XLSX.utils.encode_cell({ r, c: 19 })];
-            if (c && c.v) count++;
+
+      // ── Intentar hoja "Gastos" (formato CxP estándar: columnas CONCEPTO/MONTO) ──
+      let rows = [];
+      const hojaGastos = wb.SheetNames.find(n => /gastos/i.test(n.trim()));
+      if (hojaGastos) {
+        const ws = wb.Sheets[hojaGastos];
+        const datos = XLSX.utils.sheet_to_json(ws);
+        rows = datos
+          .filter(r => r.CONCEPTO && r.MONTO)
+          .map((r, i) => ({
+            concepto: String(r.CONCEPTO).trim(),
+            total:    parseMoney(String(r.MONTO)),
+            recomendado:   parseMoney(String(r.RECOMENDADO || r.MONTO)),
+            urgente:       parseMoney(String(r.URGENTE || r.MONTO)),
+            supervivencia: parseMoney(String(r.SUPERVIVENCIA || r.MONTO)),
+            categoria:     r.CATEGORIA || r.Grupo || 'General',
+            tipo:          r.TIPO || '',
+            nivel:         r.NIVEL || r.nivel || 0,
+            moneda:        r.MONEDA || 'MXN',
+            orden:         i + 1,
+          }))
+          .filter(r => r.concepto && r.total > 0);
+      }
+
+      // ── Fallback: hoja "Deadpool" col T (concepto) / U (monto) desde fila 6 ──
+      if (rows.length === 0) {
+        let sheet = null;
+        const hojaDP = wb.SheetNames.find(n => /deadpool/i.test(n.trim()));
+        if (hojaDP) {
+          sheet = wb.Sheets[hojaDP];
+        } else {
+          // hoja con más entradas en col T
+          let maxF = 0;
+          for (const nombre of wb.SheetNames) {
+            const s = wb.Sheets[nombre];
+            const rng = s['!ref'] ? XLSX.utils.decode_range(s['!ref']) : null;
+            if (!rng) continue;
+            let cnt = 0;
+            for (let rx = 5; rx <= rng.e.r; rx++) {
+              if (s[XLSX.utils.encode_cell({ r: rx, c: 19 })]?.v) cnt++;
+            }
+            if (cnt > maxF) { maxF = cnt; sheet = s; }
           }
-          if (count > maxFilas) { maxFilas = count; sheet = s; }
         }
-      }
-      if (!sheet) { toast('❌ No se encontró la hoja Deadpool en el Excel', 'err'); return; }
-      // Leer celdas directamente por referencia (T6, U6, T7, U7...)
-      // Más robusto que sheet_to_json cuando hay filas con pocas columnas
-      const excelItems = [];
-      const range = XLSX.utils.decode_range(sheet['!ref'] || 'T6:U200');
-      const maxRow = range.e.r; // última fila con datos
-
-      for (let r = 5; r <= maxRow; r++) { // r=5 = fila 6 (0-indexed)
-        const celdaT = sheet[XLSX.utils.encode_cell({ r, c: 19 })]; // col T
-        const celdaU = sheet[XLSX.utils.encode_cell({ r, c: 20 })]; // col U
-        const concepto = celdaT ? celdaT.v.toString().trim() : '';
-        // Parar al llegar a "Total"
-        if (/^total$/i.test(concepto)) break;
-        const montoRaw = celdaU ? celdaU.v : 0;
-        const monto = parseFloat((montoRaw || '0').toString().replace(/[^0-9.\-]/g,'')) || 0;
-        if (concepto && concepto.length > 1 && monto > 0) {
-          excelItems.push({ concepto, monto, orden: excelItems.length + 1 });
+        if (sheet) {
+          const range = XLSX.utils.decode_range(sheet['!ref'] || 'T6:U200');
+          for (let rx = 5; rx <= range.e.r; rx++) {
+            const cT = sheet[XLSX.utils.encode_cell({ r: rx, c: 19 })];
+            const cU = sheet[XLSX.utils.encode_cell({ r: rx, c: 20 })];
+            const concepto = cT ? cT.v.toString().trim() : '';
+            if (/^total$/i.test(concepto)) break;
+            const monto = parseFloat((cU?.v || '0').toString().replace(/[^0-9.\-]/g, '')) || 0;
+            if (concepto && concepto.length > 1 && monto > 0) {
+              rows.push({
+                concepto,
+                total: monto, recomendado: monto, urgente: monto, supervivencia: monto,
+                categoria: 'General', tipo: '', nivel: 0, moneda: 'MXN',
+                orden: rows.length + 1,
+              });
+            }
+          }
         }
       }
 
-      if (excelItems.length === 0) {
-        toast('❌ No se encontraron gastos en col T/U desde fila 6', 'err');
+      if (rows.length === 0) {
+        toast('❌ No se encontraron gastos en el Excel', 'err');
         return;
       }
 
-      // Para cada item del Excel, buscar match en cxpData
-      const usados = new Set();
-      window._comparativoData = excelItems.map((item, idx) => {
-        // Buscar mejor match
-        let bestRow = null, bestScore = 0;
-        for (const r of cxpData) {
-          if (usados.has(r._key)) continue;
-          const score = similitudTexto(item.concepto, r.concepto);
-          if (score > bestScore) { bestScore = score; bestRow = r; }
-        }
-
-        let estado, planConcepto, planMonto, matchKey;
-        const UMBRAL = 0.5; // 50% palabras en común
-
-        if (bestRow && bestScore >= UMBRAL) {
-          const planMnt = parseFloat(bestRow.total) || 0;
-          const montoDifiere = Math.abs(planMnt - item.monto) > 1;
-          estado = montoDifiere ? 'parcial' : 'exacto';
-          planConcepto = bestRow.concepto;
-          planMonto = planMnt;
-          matchKey = bestRow._key;
-          usados.add(bestRow._key);
-        } else {
-          estado = 'nuevo';
-          planConcepto = '—';
-          planMonto = 0;
-          matchKey = null;
-        }
-
-        return { ...item, idx, estado, planConcepto, planMonto, matchKey, nivelAsignado: 1 };
+      // Asignar _key y _semana (semana actual)
+      const semana = (typeof cxpSemanaSeleccionada !== 'undefined' && cxpSemanaSeleccionada)
+        ? cxpSemanaSeleccionada : getWeekKey();
+      rows.forEach(r => {
+        r._key   = cxpRowKey(r);
+        r._semana = semana;
       });
 
-      // Renderizar tabla
-      renderComparativoTabla();
-      document.getElementById('comparativoExcelModal').style.display = 'block';
+      // Sincronizar a Supabase (purga + insert, nómina arriba)
+      const result = await cxpSyncToSupabase(rows);
+      if (!result || result.ok === false) {
+        toast('❌ Error al guardar: ' + (result?.message || 'desconocido'), 'err');
+        return;
+      }
+
+      // Recargar global + refrescar toda la UI
+      await cxpEnsureData(true);
+      flujoRenderTabla();
+      if (typeof renderDashboard === 'function') renderDashboard();
+      if (typeof cxpRenderAll === 'function') cxpRenderAll();
+
+      toast('✅ Plan cargado: ' + rows.length + ' conceptos — Brecha actualizada', 'ok');
 
     } catch(err) {
-      console.error('comparativoExcel:', err);
+      console.error('abrirComparativoExcel:', err);
       toast('❌ Error: ' + (err.message || err), 'err');
+    } finally {
+      if (btnExcel) { btnExcel.disabled = false; btnExcel.textContent = btnOrig; }
     }
   };
   input.click();
