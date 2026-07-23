@@ -3443,17 +3443,54 @@ async function cxpHandleFile(e) {
     // ✅ Validación de columnas esperadas ANTES de procesar
     // Detectar qué columnas existen en el primer renglón
     const primeraFila = datos[0] || {};
-    const columnasPresentes = Object.keys(primeraFila);
+    let columnasPresentes = Object.keys(primeraFila);
     
-    // Buscar "CONCEPTO" o similar (case-insensitive)
-    const colConcepto = columnasPresentes.find(c => c.toUpperCase() === 'CONCEPTO' || c.toUpperCase() === 'NOMBRE' || c.toUpperCase() === 'DESCRIPCION');
-    const colMonto = columnasPresentes.find(c => c.toUpperCase() === 'MONTO' || c.toUpperCase() === 'TOTAL' || c.toUpperCase() === 'CANTIDAD');
+    // 🔍 BÚSQUEDA FLEXIBLE: "CONCEPTO" o similar (case-insensitive + trim)
+    // También ignora columnas "_EMPTY_N" (Excel vacías)
+    let colConcepto = columnasPresentes.find(c => {
+      const clean = (c || '').trim().toUpperCase();
+      return clean === 'CONCEPTO' || clean === 'NOMBRE' || clean === 'DESCRIPCION' 
+             || clean === 'GASTO' || clean === 'ITEM' || clean === 'DESCRIPCIÓN';
+    });
     
+    // 🔍 BÚSQUEDA FLEXIBLE: "MONTO", "TOTAL", etc. (case-insensitive + trim)
+    let colMonto = columnasPresentes.find(c => {
+      const clean = (c || '').trim().toUpperCase();
+      return clean === 'MONTO' || clean === 'TOTAL' || clean === 'CANTIDAD'
+             || clean === 'IMPORTE' || clean === 'VALOR' || clean === 'MONTO_MXN';
+    });
+    
+    // ⚠️ Si no encontró columnas exactas, intenta heurística: primera no-vacía como CONCEPTO,
+    // segunda como MONTO (fallback para Excel con estructura desconocida)
+    let usarHeuristica = false;
+    if (!colConcepto || !colMonto) {
+      const colsNoVacias = columnasPresentes.filter(c => 
+        !c.match(/_EMPTY_/i) && (c || '').trim().length > 0
+      );
+      
+      if (colsNoVacias.length >= 2) {
+        // Si hay al menos 2 columnas con nombre, asumir: primera=concepto, segunda=monto
+        if (!colConcepto) {
+          colConcepto = colsNoVacias[0];
+          usarHeuristica = true;
+        }
+        if (!colMonto) {
+          colMonto = colsNoVacias[1];
+          usarHeuristica = true;
+        }
+        if (usarHeuristica) {
+          statusEl.innerHTML = `⚠️ Detectadas columnas: "${colConcepto}" → CONCEPTO, "${colMonto}" → MONTO (verificar si es correcto)`;
+        }
+      }
+    }
+    
+    // Si AÚN no hay columnas, error definitivo
     if (!colConcepto || !colMonto) {
       const faltantes = [];
-      if (!colConcepto) faltantes.push('CONCEPTO (o similar)');
-      if (!colMonto) faltantes.push('MONTO (o similar)');
-      statusEl.innerHTML = `❌ Faltan columnas: ${faltantes.join(', ')}. Encontradas: ${columnasPresentes.join(', ')}`;
+      if (!colConcepto) faltantes.push('CONCEPTO');
+      if (!colMonto) faltantes.push('MONTO');
+      const colsValidas = columnasPresentes.filter(c => !c.match(/_EMPTY_/i)).join(', ');
+      statusEl.innerHTML = `❌ No se pudo detectar columnas: falta ${faltantes.join(' y ')}. Encontradas: ${colsValidas}`;
       return;
     }
     
