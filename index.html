@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.22.21';
+const APP_VERSION = '2026.07.23.1';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3413,49 +3413,75 @@ async function cxpHandleFile(e) {
     
     statusEl.innerHTML = `⏳ Procesando ${datos.length} gastos (detección IA en curso...)`;
     
-    // Procesar cada fila con detección de nivel
-    const cxpData = [];
+    // Snapshot del catálogo actual (global cxpData) para reutilizar nivel de
+    // conceptos que ya existían — antes se declaraba local `const cxpData = []`
+    // que sombreaba el global y hacía que TODOS los conceptos abrieran el modal.
+    const catalogoActual = Array.isArray(cxpData) ? cxpData.slice() : [];
+    const _normConc = s => (s || '').toString().trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // Procesar cada fila con detección de nivel (acumula en cxpDataNew, no sombrea el global)
+    const cxpDataNew = [];
     for (const row of datos) {
       if (!row.CONCEPTO || !row.MONTO) continue;
-      
+
       const concepto = String(row.CONCEPTO).trim();
       const monto = parseMoney(String(row.MONTO));
       if (!concepto || monto <= 0) continue;
-      
-      // 1. BUSCAR coincidencia exacta en catalogo
-      const gastoExistente = cxpData.find(x => x.concepto === concepto);
+
+      // Asegurar campos que cxpSyncToSupabase / cxpFetchSupabaseData esperan
+      if (!row.concepto)  row.concepto  = concepto;
+      if (!row.categoria) row.categoria = row.CATEGORIA || row.Grupo || 'General';
+      if (row.total === undefined || row.total === null || row.total === '') row.total = monto;
+      if (!row._key) row._key = cxpRowKey(row);
+      row._semana = semanaInput.value;
+
+      // 1. BUSCAR coincidencia exacta en catálogo GLOBAL (por concepto normalizado)
+      const cNorm = _normConc(concepto);
+      const gastoExistente = catalogoActual.find(x => _normConc(x.concepto) === cNorm);
       if (gastoExistente) {
         row.nivel = gastoExistente.nivel; // usar nivel existente
-        cxpData.push(row);
+        cxpDataNew.push(row);
       } else {
         // 2. NUEVO gasto → sugerir nivel con IA
         const nivelSugerido = await sugerirNivel(concepto, monto);
         row.nivel = nivelSugerido; // temporal (puede cambiar en modal)
-        
+
         // 3. ABRIR MODAL de revisión
         await new Promise(resolve => {
           openNivelRevisionModal(row, nivelSugerido || 'L3', () => {
             // Callback: usuario confirmó en modal
-            cxpData.push(row); // row.nivel ya tiene la elección del usuario
+            cxpDataNew.push(row); // row.nivel ya tiene la elección del usuario
             resolve();
           });
         });
       }
     }
-    
+
     cxpSemanaSeleccionada = semanaInput.value;
-    const syncResult = await cxpSyncToSupabase(cxpData);
-    
-    if (syncResult.error) {
-      statusEl.innerHTML = `❌ Error al guardar: ${syncResult.error}`;
+    const syncResult = await cxpSyncToSupabase(cxpDataNew);
+
+    // cxpSyncToSupabase devuelve {ok, message}, no {error, nuevos, actualizados}
+    if (!syncResult || syncResult.ok === false) {
+      statusEl.innerHTML = `❌ Error al guardar: ${syncResult?.message || 'desconocido'}`;
       return;
     }
-    
-    statusEl.innerHTML = `✅ ${cxpData.length} gastos cargados (${syncResult.nuevos} nuevos, ${syncResult.actualizados} actualizados)`;
-    
-    const semanaLbl = getWeekLabel(cxpSemanaSeleccionada);
-    // cxpSemanaLabel: elemento removido del HTML, se omite actualización
-    renderCxpTable();
+
+    statusEl.innerHTML = `✅ ${cxpDataNew.length} gastos cargados a Supabase`;
+
+    // CRÍTICO: refrescar el global cxpData desde Supabase para que el KPI de
+    // Brecha, el dashboard y el modal de Flujo de Efectivo vean el nuevo plan.
+    try {
+      await cxpEnsureData(true);
+      cxpRenderAll();
+      if (typeof renderDashboard === 'function') renderDashboard();
+      const flujo = document.getElementById('flujoEfectivoModal');
+      if (flujo && flujo.classList.contains('open') && typeof flujoRenderTabla === 'function') {
+        flujoRenderTabla();
+      }
+    } catch(rfErr) {
+      console.warn('Post-upload refresh:', rfErr);
+    }
   } catch (error) {
     console.error(error);
     statusEl.innerHTML = `❌ Error: ${error.message}`;
@@ -3535,7 +3561,18 @@ async function cxpSyncToSupabase(rows) {
       const n = parseInt((v || '').toString().replace(/\D/g, ''), 10);
       return isNaN(n) ? 0 : n;
     };
-    const payloadBase = rows.map((r, idx) => ({
+    // Por default los conceptos de NÓMINA / SALARIOS van arriba (orden bajo).
+    // El usuario los puede reordenar después y su nueva posición se persiste
+    // en `orden`, así que este sort solo aplica al momento de la carga de Excel.
+    const _esNomina = (r) => {
+      const t = ((r.categoria || '') + ' ' + (r.concepto || '')).toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return /\bnomina\b|\bsalario/.test(t);
+    };
+    const rowsSorted = rows.map((r, i) => ({ r, i, nom: _esNomina(r) }))
+      .sort((a, b) => (a.nom === b.nom) ? (a.i - b.i) : (a.nom ? -1 : 1))
+      .map(x => x.r);
+    const payloadBase = rowsSorted.map((r, idx) => ({
       clave:         r._key,
       orden:         idx + 1,
       tipo:          r.tipo || '',
@@ -3551,7 +3588,7 @@ async function cxpSyncToSupabase(rows) {
       moneda:        r.moneda || 'MXN',
       tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
     }));
-    const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rows[i]._semana || null }));
+    const payloadConSemana = payloadBase.map((p, i) => ({ ...p, semana: rowsSorted[i]._semana || null }));
     // Fallback si la columna 'ajuste' aún no existe en Supabase: mismo payload sin ella.
     const payloadSinAjuste = payloadBase.map(({ajuste, ...r}) => r);
     const payloadSinAjusteConSemana = payloadConSemana.map(({ajuste, ...r}) => r);
@@ -3642,12 +3679,14 @@ window.recargarPlan = async function() {
 
 async function cxpFetchSupabaseData() {
   try {
-    // Intento 1: ordenar por categoria y luego por 'orden' (columna persistida)
-    let { data, error } = await sb.from('catalogo_cxp').select('*').order('categoria').order('orden');
+    // Orden ÚNICO por 'orden' — antes se ordenaba por categoria primero y eso
+    // rompía el reordenamiento custom del usuario (movías X arriba de Y en
+    // categorías distintas y al recargar volvía al orden alfa por categoría).
+    let { data, error } = await sb.from('catalogo_cxp').select('*').order('orden');
     if (error && /orden/i.test(error.message || '')) {
       // La columna 'orden' no existe en el schema — reintentar sin ella
-      console.warn('Columna "orden" no disponible, usando solo categoria:', error.message);
-      ({ data, error } = await sb.from('catalogo_cxp').select('*').order('categoria'));
+      console.warn('Columna "orden" no disponible, cargando sin ordenar:', error.message);
+      ({ data, error } = await sb.from('catalogo_cxp').select('*'));
     }
     if (error || !data || data.length === 0) return false;
     cxpData = data.map(r => ({
@@ -5217,31 +5256,50 @@ window.flujoDragLeaveRow = function flujoDragLeaveRow(ev) {
 };
 
 
+/* Helper: reconstruye la lista VISIBLE (mismo filtro que flujoRenderTabla)
+   para que ▲/▼ muevan relativo a lo que el usuario ve, no relativo al array
+   completo cxpData (que incluye filas con pendiente=0 no renderizadas). */
+function _flujoVisibles() {
+  const plan = planPagoGetActivo();
+  if (!plan) return [];
+  const colPlan = plan === 'all' ? 'total' : plan;
+  return cxpData
+    .filter(r => r.concepto && r.total !== undefined)
+    .map(r => {
+      const mp = cxpMontoMXN(r, colPlan);
+      const pagado = gastosEfectuadosTotalPorClave(r._key);
+      return { row: r, pendiente: Math.max(mp - pagado, 0) };
+    })
+    .filter(x => x.pendiente > 0)
+    .sort((a, b) => (a.row.orden ?? 9999) - (b.row.orden ?? 9999));
+}
+
 window.flujoMoverArriba = function flujoMoverArriba(clave) {
-  const idx = cxpData.findIndex(r => r._key === clave);
-  if (idx <= 0) return;
-  const tmp = cxpData[idx - 1];
-  cxpData[idx - 1] = cxpData[idx];
-  cxpData[idx] = tmp;
-  cxpData.forEach((r, i) => { r.orden = i + 1; });
-  flujoMoverYReordenar(clave, cxpData[idx]._key, true)
+  const vis = _flujoVisibles();
+  const pos = vis.findIndex(x => x.row._key === clave);
+  if (pos <= 0) return;
+  const claveDestino = vis[pos - 1].row._key;
+  flujoMoverYReordenar(clave, claveDestino, true)
     .then(() => { flujoRenderTabla(); toast('↑ Subido', 'ok'); })
     .catch(e => toast('Error: ' + e.message, 'err'));
 };
 
 window.flujoMoverAbajo = function flujoMoverAbajo(clave) {
-  const idx = cxpData.findIndex(r => r._key === clave);
-  if (idx < 0 || idx >= cxpData.length - 1) return;
-  const tmp = cxpData[idx + 1];
-  cxpData[idx + 1] = cxpData[idx];
-  cxpData[idx] = tmp;
-  cxpData.forEach((r, i) => { r.orden = i + 1; });
-  flujoMoverYReordenar(clave, cxpData[idx]._key, false)
+  const vis = _flujoVisibles();
+  const pos = vis.findIndex(x => x.row._key === clave);
+  if (pos < 0 || pos >= vis.length - 1) return;
+  const claveDestino = vis[pos + 1].row._key;
+  flujoMoverYReordenar(clave, claveDestino, false)
     .then(() => { flujoRenderTabla(); toast('↓ Bajado', 'ok'); })
     .catch(e => toast('Error: ' + e.message, 'err'));
 };
 
 async function flujoMoverYReordenar(clave, claveDestino, insertBefore) {
+  // CRÍTICO: ordenar cxpData por 'orden' primero, para que las posiciones del
+  // array coincidan con el orden visible (sino, un reorder cross-categoría o
+  // sobre filas invisibles rompía el resultado).
+  cxpData.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
+
   const movedRow = cxpData.find(r => r._key === clave);
   if (!movedRow) return;
   
