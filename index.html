@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.15';
+const APP_VERSION = '2026.07.23.16';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5793,29 +5793,8 @@ async function _ejecutarAplicarComparativo(data) {
     // Heredados: gastos en Supabase que no aparecen en el Excel — se conservan tal cual
     const heredados = cxpData.filter(r => !matchKeys.has(r._key));
 
-    // 1. UPDATE montos parciales (batch upsert)
-    if (parciales.length > 0) {
-      const payloadParciales = parciales.map(d => {
-        const fila = cxpData.find(r => r._key === d.matchKey);
-        return {
-          clave:         d.matchKey,
-          concepto:      fila?.concepto || d.concepto,
-          categoria:     fila?.categoria || 'General',
-          orden:         fila?.orden || 9999,
-          nivel:         fila ? (parseInt((fila.nivel||'0').toString().replace(/\D/g,''),10)||0) : 0,
-          total:         d.monto,
-          recomendado:   d.monto,
-          urgente:       d.monto,
-          supervivencia: d.monto,
-        };
-      });
-      const { error: errP } = await sb.from('catalogo_cxp').upsert(payloadParciales, { onConflict: 'clave' });
-      if (errP) throw errP;
-      parciales.forEach(d => {
-        const fila = cxpData.find(r => r._key === d.matchKey);
-        if (fila) { fila.total = d.monto; fila.recomendado = d.monto; fila.urgente = d.monto; fila.supervivencia = d.monto; }
-      });
-    }
+    // 1. Parciales: el Excel Deadpool es referencia, NO modifica el plan
+    //    Solo se insertan nuevos — los parciales se informan pero no tocan Supabase
 
     // 2. INSERT nuevos (batch con nivel asignado)
     if (nuevos.length > 0) {
@@ -5855,10 +5834,10 @@ async function _ejecutarAplicarComparativo(data) {
     } catch(e) {}
 
     const msg = [
-      exactos.length   + ' sin cambios',
-      parciales.length + ' montos actualizados',
-      nuevos.length    + ' nuevos (nivel asignado)',
-      heredados.length + ' heredados conservados',
+      exactos.length   + ' coincidentes',
+      parciales.length + ' con monto diferente (no modificados)',
+      nuevos.length    + ' nuevos agregados',
+      heredados.length + ' del plan conservados',
     ].join(' · ');
     toast('✅ ' + msg, 'ok');
     cerrarComparativoExcel();
