@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.23.2';
+const APP_VERSION = '2026.07.23.3';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5524,8 +5524,12 @@ window.abrirComparativoExcel = async function abrirComparativoExcel() {
       // Recargar global + refrescar toda la UI
       await cxpEnsureData(true);
       flujoRenderTabla();
-      if (typeof renderDashboard === 'function') renderDashboard();
-      if (typeof cxpRenderAll === 'function') cxpRenderAll();
+      // renderDashboard solo si el tab dashboard está activo (necesita su contenedor)
+      try {
+        const tabActivo = document.querySelector('.nav-tab.active')?.dataset.tab;
+        if (tabActivo === 'dashboard' && typeof showTab === 'function') showTab('dashboard');
+        else if (tabActivo === 'cxp' && typeof cxpRenderAll === 'function') cxpRenderAll();
+      } catch(rfErr) { console.warn('Post-load refresh:', rfErr); }
 
       toast('✅ Plan cargado: ' + rows.length + ' conceptos — Brecha actualizada', 'ok');
 
