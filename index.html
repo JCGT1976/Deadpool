@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.1';
+const APP_VERSION = '2026.07.24.2';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3554,10 +3554,19 @@ async function cxpHandleFile(e) {
       
       gastoMapeado._key = cxpRowKey(gastoMapeado);
 
-      // Buscar en catálogo actual
+      // Buscar en catálogo actual (clave exacta primero, luego nombre normalizado)
       const cNorm = _normConc(concepto);
-      const gastoExistente = catalogoActual.find(x => _normConc(x.concepto) === cNorm);
-      
+      const gastoExistente = catalogoActual.find(x => x._key === gastoMapeado._key)
+                          || catalogoActual.find(x => _normConc(x.concepto) === cNorm);
+
+      // CRÍTICO: reusar la clave original del plan para no romper el vínculo con gastos_efectuados.
+      // Si el nombre del Excel tiene variaciones (tildes, espacios) genera una clave distinta,
+      // pero concepto_key en gastos_efectuados apunta a la clave anterior — usando la clave
+      // original evitamos que el concepto aparezca como 100% pendiente tras recargar el Excel.
+      if (gastoExistente && (gastoExistente.clave || gastoExistente._key)) {
+        gastoMapeado._key = gastoExistente.clave || gastoExistente._key;
+      }
+
       // Nivel: usar el del Excel primero, luego el existente en catálogo, default L3
       const nivelExcel = (row[colMap.nivel] || '').toString().trim();
       if (nivelExcel) {
