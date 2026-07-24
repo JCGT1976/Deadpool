@@ -430,7 +430,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   background:var(--bg);border:1px solid var(--border);
   border-radius:20px;width:min(920px,97vw);max-height:94vh;overflow:hidden;
   box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.03) inset;
-  display:flex;flex-direction:column;
+  display:flex;flex-direction:column;height:94vh;
 }
 .flujo-header{
   background:linear-gradient(135deg,#0b3d91 0%,#1f6feb 55%,#2ea3ff 100%);
@@ -464,7 +464,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   transition:background .15s;position:relative;z-index:1;
 }
 .flujo-close:hover{background:rgba(255,255,255,.28);}
-.flujo-body{padding:20px 24px 22px;overflow-y:auto;flex:1;}
+.flujo-body{padding:20px 24px 22px;overflow-y:auto;flex:1;min-height:0;cursor:grab;}
 
 /* KPI Grid */
 .flujo-kpi-grid{
@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.11';
+const APP_VERSION = '2026.07.24.12';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
