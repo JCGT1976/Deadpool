@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.3';
+const APP_VERSION = '2026.07.24.4';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3698,78 +3698,71 @@ async function cxpInsertarGastoNuevo(row) {
 }
 
 async function cxpSyncToSupabase(rows) {
+  // ── ESTRATEGIA SIMPLE Y CONFIABLE ────────────────────────────────────────────
+  // 1) Leer gastos_efectuados de Supabase (pagos reales registrados)
+  // 2) Para cada fila del Excel:
+  //    - Si coincide con concepto pagado (por clave o nombre≈) → UPDATE supervivencia/montos
+  //      pero NO cambiar la clave → gastos_efectuados sigue vinculado
+  //    - Si no existe → INSERT nuevo
+  // 3) Conceptos del plan sin correspondencia en Excel → se conservan (arrastre)
+  // NUNCA se hace PURGE — así los pagos nunca quedan huérfanos
+  // ────────────────────────────────────────────────────────────────────────────
   try {
-    const nivelToInt = (v) => {
-      const n = parseInt((v || '').toString().replace(/\D/g, ''), 10);
-      return isNaN(n) ? 0 : n;
-    };
-    const _esNomina = (r) => {
-      const t = ((r.categoria || '') + ' ' + (r.concepto || '')).toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return /\bnomina\b|\bsalario/.test(t);
-    };
-    const _normConc = s => (s || '').toString().trim().toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const nivelToInt = v => { const n = parseInt((v||'').toString().replace(/\D/g,''),10); return isNaN(n)?0:n; };
+    const norm = s => (s||'').toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    // Elimina "Sem #N", "Sem. #N" para comparar nóminas semanales
+    const sinSem = s => norm(s).replace(/sem\.?\s*#?\s*\d+/gi,'').replace(/\s+/g,' ').trim();
+    const esNomina = r => /\bnomina\b|\bsalario/.test(norm((r.categoria||'')+' '+(r.concepto||'')));
 
-    // Elimina número de semana para comparar nóminas recurrentes (Sem #28 ≡ Sem #29)
-    const _stripSem = s => _normConc(s)
-      .replace(/sem\.?\s*#?\s*\d+/gi, '').replace(/\s+/g, ' ').trim();
-
-    // ── RECONCILIACIÓN INTELIGENTE ──────────────────────────────────────────────
-    // En vez de PURGE + INSERT, hacemos MERGE preservando los pagos registrados.
-    //
-    // Reglas:
-    //   1. Gasto del Excel NO existe en plan actual → INSERT nuevo
-    //   2. Gasto del Excel existe + 100% pagado    → IGNORAR (no sobreescribir)
-    //   3. Gasto del Excel existe + pago parcial   → UPDATE solo montos/nivel
-    //   4. Gasto del plan actual NO viene en Excel → CONSERVAR (arrastre semana)
-    // ────────────────────────────────────────────────────────────────────────────
-
-    // Leer estado actual de catalogo_cxp desde Supabase
-    const { data: planActual, error: fetchErr } = await sb.from('catalogo_cxp').select('*');
-    if (fetchErr) console.warn('cxpSync: no pudo leer plan actual:', fetchErr.message);
-    const planExistente = Array.isArray(planActual) ? planActual : [];
-
-    // Ordenar: nómina primero, luego mantener orden original del Excel
-    const rowsSorted = rows.map((r, i) => ({ r, i, nom: _esNomina(r) }))
-      .sort((a, b) => (a.nom === b.nom) ? (a.i - b.i) : (a.nom ? -1 : 1))
-      .map(x => x.r);
-
-    // Calcular pagado por clave usando gastosEfectuadosTotalPorClave (en memoria)
-    const _getPagado = (clave) => {
-      try { return gastosEfectuadosTotalPorClave(clave) || 0; } catch(e) { return 0; }
-    };
-
-    // Construir mapas del plan actual: por clave, nombre normalizado y nombre sin semana
-    const mapPorClave   = {};
-    const mapPorNombre  = {};
-    const mapSinSem     = {};
-    for (const p of planExistente) {
-      if (p.clave)    mapPorClave[p.clave] = p;
-      if (p.concepto) mapPorNombre[_normConc(p.concepto)] = p;
-      // Mapa sin número de semana — permite reconocer "Sem #29" como "Sem #28"
-      const sinSem = _stripSem(p.concepto);
-      if (sinSem.length > 6) mapSinSem[sinSem] = p;
+    // ── PASO 1: Leer pagos reales desde Supabase ──────────────────────────────
+    const { data: pagosDB } = await sb.from('gastos_efectuados').select('concepto_key,monto_pagado,moneda,tc');
+    const pagosData = Array.isArray(pagosDB) ? pagosDB : [];
+    const tcGlobal = parseFloat(localStorage.getItem('mitech_tc')) || 17;
+    // Suma pagado en MXN por clave
+    const pagadoPorClave = {};
+    for (const p of pagosData) {
+      const m = parseFloat(p.monto_pagado) || 0;
+      const mxn = (p.moneda === 'USD') ? m * (parseFloat(p.tc) || tcGlobal) : m;
+      pagadoPorClave[p.concepto_key] = (pagadoPorClave[p.concepto_key] || 0) + mxn;
     }
 
-    // Ordenar: el orden máximo actual, para insertar nuevos al final
-    let ordenMax = planExistente.reduce((m, r) => Math.max(m, parseInt(r.orden||0,10)), 0);
+    // ── PASO 2: Leer plan actual de Supabase ──────────────────────────────────
+    const { data: planDB } = await sb.from('catalogo_cxp').select('*');
+    const planActual = Array.isArray(planDB) ? planDB : [];
+
+    // Índices del plan actual para búsqueda rápida
+    const idxPorClave  = {};
+    const idxPorNorm   = {};
+    const idxSinSem    = {};
+    for (const p of planActual) {
+      if (p.clave)    idxPorClave[p.clave] = p;
+      const n = norm(p.concepto);
+      if (n) idxPorNorm[n] = p;
+      const s = sinSem(p.concepto);
+      if (s.length > 6) idxSinSem[s] = p;
+    }
+    let ordenMax = planActual.reduce((m,r) => Math.max(m, parseInt(r.orden||0,10)), 0);
+
+    // ── PASO 3: Ordenar Excel (nóminas primero) y clasificar ──────────────────
+    const rowsSorted = rows.map((r,i) => ({r,i,nom:esNomina(r)}))
+      .sort((a,b) => a.nom===b.nom ? a.i-b.i : (a.nom?-1:1))
+      .map(x => x.r);
 
     const toInsert = [];
-    const toUpdate = [];
-    const toIgnore = [];
+    const toUpdate = []; // { claveOriginal, campos }
+    const ignorados = [];
 
     for (const r of rowsSorted) {
-      const keyExcel    = r._key;
-      const nombreNorm  = _normConc(r.concepto);
-      const sinSemExcel = _stripSem(r.concepto);
-      const existente   = mapPorClave[keyExcel]
-                       || mapPorNombre[nombreNorm]
-                       || (sinSemExcel.length > 6 ? mapSinSem[sinSemExcel] : null)
-                       || null;
+      const nExcel   = norm(r.concepto);
+      const sExcel   = sinSem(r.concepto);
 
-      const payloadBase = {
-        clave:         keyExcel,
+      // Buscar coincidencia en plan actual (3 niveles)
+      const match = idxPorClave[r._key]
+                 || idxPorNorm[nExcel]
+                 || (sExcel.length > 6 ? idxSinSem[sExcel] : null)
+                 || null;
+
+      const campos = {
         tipo:          r.tipo || '',
         nivel:         nivelToInt(r.nivel),
         categoria:     r.categoria || 'General',
@@ -3779,122 +3772,85 @@ async function cxpSyncToSupabase(rows) {
         recomendado:   parseFloat(r.recomendado) || 0,
         urgente:       parseFloat(r.urgente) || 0,
         supervivencia: parseFloat(r.supervivencia) || 0,
-        ajuste:        parseFloat(r.ajuste) || 0,
-        moneda:        r.moneda || 'MXN',
-        tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
         semana:        r._semana || null,
       };
 
-      if (!existente) {
-        // Regla 1: NUEVO — no estaba en el plan
+      if (!match) {
+        // Nuevo concepto — INSERT
         ordenMax++;
-        toInsert.push({ ...payloadBase, orden: ordenMax });
+        toInsert.push({ ...campos, clave: r._key, orden: ordenMax,
+          moneda: r.moneda||'MXN', tc_ref: r.tc_ref!=null?parseFloat(r.tc_ref):null });
       } else {
-        const pagado      = _getPagado(existente.clave || keyExcel);
-        const montoPlan   = parseFloat(existente.supervivencia || existente.total || 0);
-        const liquidado   = montoPlan > 0 && pagado >= montoPlan;
+        // Existe — verificar si está 100% pagado
+        const claveOriginal = match.clave || match._key || r._key;
+        const pagado  = pagadoPorClave[claveOriginal] || 0;
+        const montoP  = parseFloat(match.supervivencia || match.total || 0);
+        const liquidado = montoP > 0 && pagado >= montoP;
 
         if (liquidado) {
-          // Regla 2: IGNORAR — ya liquidado, no tocarlo
-          toIgnore.push(r.concepto);
+          // Ya pagado completamente — NO tocar
+          ignorados.push(r.concepto);
         } else {
-          // Regla 3: ACTUALIZAR — parcialmente pagado o sin pagar, actualizar montos/nivel
-          toUpdate.push({
-            clave:         existente.clave || keyExcel,
-            tipo:          payloadBase.tipo,
-            nivel:         payloadBase.nivel,
-            categoria:     payloadBase.categoria,
-            concepto:      payloadBase.concepto,
-            nota:          payloadBase.nota,
-            total:         payloadBase.total,
-            recomendado:   payloadBase.recomendado,
-            urgente:       payloadBase.urgente,
-            supervivencia: payloadBase.supervivencia,
-            ajuste:        payloadBase.ajuste,
-            semana:        payloadBase.semana,
-          });
+          // Actualizar montos/nivel PERO usando la clave ORIGINAL del plan
+          // Así gastos_efectuados sigue vinculado aunque el nombre cambió (Sem#28→#29)
+          toUpdate.push({ claveOriginal, campos });
         }
       }
-      // Regla 4: conceptos del plan que no vienen en Excel → se conservan (no se tocan)
+      // Conceptos del plan que NO están en el Excel → se conservan solos (arrastre)
     }
 
-    console.log(`cxpSync MERGE → INSERT:${toInsert.length} UPDATE:${toUpdate.length} IGNORADOS(pagados):${toIgnore.length} ARRASTRE:${planExistente.length - toUpdate.length - toIgnore.length}`);
-    if (toIgnore.length) console.log('Ignorados (ya pagados):', toIgnore.join(', '));
+    console.log(`cxpSync → INSERT:${toInsert.length} UPDATE:${toUpdate.length} IGNORADOS:${ignorados.length} ARRASTRE:${planActual.length - toUpdate.length - ignorados.length}`);
+    if (ignorados.length) console.log('Ignorados (liquidados):', ignorados.join(', '));
 
-    let ultimoError = null;
+    // ── PASO 4: Ejecutar cambios ──────────────────────────────────────────────
 
-    // Paso A: INSERT de nuevos (con cascada de variantes por compatibilidad de schema)
+    // A) INSERT nuevos
     if (toInsert.length > 0) {
-      const variantesInsert = [
+      // Cascada de variantes por compatibilidad de schema
+      for (const payload of [
         toInsert,
-        toInsert.map(({ajuste, ...r}) => r),
-        toInsert.map(({ajuste, moneda, tc_ref, ...r}) => r),
-        toInsert.map(({ajuste, nota, moneda, tc_ref, ...r}) => r),
-      ];
-      let insertOk = false;
-      for (const payload of variantesInsert) {
+        toInsert.map(({ajuste,  ...x}) => x),
+        toInsert.map(({moneda, tc_ref, ...x}) => x),
+      ]) {
         const { error } = await sb.from('catalogo_cxp').insert(payload);
-        if (!error) { insertOk = true; break; }
-        ultimoError = error;
-        if (!/column|schema|does not exist|could not find/i.test(error.message || '')) break;
-      }
-      if (!insertOk) {
-        console.warn('INSERT nuevos falló:', ultimoError?.message);
+        if (!error) break;
+        if (!/column|schema|does not exist/i.test(error.message||'')) break;
       }
     }
 
-    // Paso B: UPDATE de existentes (preserva pagado, solo actualiza montos/nivel)
-    for (const upd of toUpdate) {
-      const { clave, ...campos } = upd;
-      // Intentar con ajuste, luego sin él
-      let updErr = null;
-      ({ error: updErr } = await sb.from('catalogo_cxp').update(campos).eq('clave', clave));
-      if (updErr && /column|schema|does not exist/i.test(updErr.message || '')) {
-        const { ajuste, ...camposSinAjuste } = campos;
-        ({ error: updErr } = await sb.from('catalogo_cxp').update(camposSinAjuste).eq('clave', clave));
+    // B) UPDATE existentes — solo montos/nivel, clave original intacta
+    for (const { claveOriginal, campos } of toUpdate) {
+      let { error } = await sb.from('catalogo_cxp').update(campos).eq('clave', claveOriginal);
+      if (error && /column|schema|does not exist/i.test(error.message||'')) {
+        const { ajuste, semana, ...camposMin } = campos;
+        ({ error } = await sb.from('catalogo_cxp').update(camposMin).eq('clave', claveOriginal));
       }
-      if (updErr) console.warn('UPDATE', clave, 'falló:', updErr.message);
+      if (error) console.warn('UPDATE', claveOriginal, ':', error.message);
     }
 
-    // Si no había plan anterior (primera carga de la semana), hacemos INSERT directo
-    if (planExistente.length === 0 && toInsert.length === 0 && rows.length > 0) {
-      // Primer carga: todos van como INSERT con orden secuencial
-      const firstLoad = rowsSorted.map((r, idx) => ({
-        clave:         r._key,
-        orden:         idx + 1,
-        tipo:          r.tipo || '',
-        nivel:         nivelToInt(r.nivel),
-        categoria:     r.categoria || 'General',
-        concepto:      r.concepto || '',
-        nota:          r.nota || '',
-        total:         parseFloat(r.total) || 0,
-        recomendado:   parseFloat(r.recomendado) || 0,
-        urgente:       parseFloat(r.urgente) || 0,
-        supervivencia: parseFloat(r.supervivencia) || 0,
-        ajuste:        parseFloat(r.ajuste) || 0,
-        moneda:        r.moneda || 'MXN',
-        tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
-        semana:        r._semana || null,
+    // C) Primera carga (tabla vacía) — INSERT directo todos
+    if (planActual.length === 0 && toInsert.length === 0 && rows.length > 0) {
+      const first = rowsSorted.map((r,i) => ({
+        clave: r._key, orden: i+1, tipo: r.tipo||'',
+        nivel: nivelToInt(r.nivel), categoria: r.categoria||'General',
+        concepto: r.concepto||'', nota: r.nota||'',
+        total: parseFloat(r.total)||0, recomendado: parseFloat(r.recomendado)||0,
+        urgente: parseFloat(r.urgente)||0, supervivencia: parseFloat(r.supervivencia)||0,
+        semana: r._semana||null, moneda: r.moneda||'MXN',
+        tc_ref: r.tc_ref!=null?parseFloat(r.tc_ref):null,
       }));
-      const variantesPrimera = [
-        firstLoad,
-        firstLoad.map(({ajuste, ...r}) => r),
-        firstLoad.map(({ajuste, moneda, tc_ref, ...r}) => r),
-      ];
-      for (const payload of variantesPrimera) {
-        const { error } = await sb.from('catalogo_cxp').insert(payload);
-        if (!error) { console.log('✓ Primera carga insertada:', payload.length, 'conceptos'); break; }
-        ultimoError = error;
-        if (!/column|schema|does not exist|could not find/i.test(error.message || '')) break;
+      for (const p of [first, first.map(({moneda,tc_ref,...x})=>x)]) {
+        const { error } = await sb.from('catalogo_cxp').insert(p);
+        if (!error) break;
       }
     }
 
     try { cxpEsperadoLimpiar(); } catch(e){}
-    return { ok: true, insertados: toInsert.length, actualizados: toUpdate.length, ignorados: toIgnore.length };
+    return { ok: true, insertados: toInsert.length, actualizados: toUpdate.length, ignorados: ignorados.length };
 
   } catch(err) {
-    console.error(err);
-    return { ok:false, message: (err && err.message) ? err.message : 'error desconocido al sincronizar' };
+    console.error('cxpSyncToSupabase:', err);
+    return { ok: false, message: err.message || 'error desconocido' };
   }
 }
 
