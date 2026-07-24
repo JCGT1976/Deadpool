@@ -1329,7 +1329,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       </div>
     </div>
 
-    <div class="flujo-body">
+    <div class="flujo-body" id="flujoBody">
 
       <!-- KPI Cards -->
       <div class="flujo-kpi-grid">
@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.9';
+const APP_VERSION = '2026.07.24.10';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5377,6 +5377,28 @@ async function openFlujoEfectivoModal() {
 function closeFlujoEfectivoModal() {
   document.getElementById('flujoEfectivoModal').classList.remove('open');
 }
+
+/* Hand-scroll en la lista de gastos de Brecha */
+(function(){
+  var el, down=false, y0, top0;
+  function init(){
+    el = document.getElementById('flujoBody');
+    if(!el || el._hs) return;
+    el._hs = true;
+    el.addEventListener('mousedown', function(e){
+      if(e.target.closest('input,button,select')) return;
+      down=true; y0=e.clientY; top0=el.scrollTop;
+      el.style.cursor='grabbing'; e.preventDefault();
+    });
+    window.addEventListener('mouseup', function(){ down=false; if(el) el.style.cursor=''; });
+    window.addEventListener('mousemove', function(e){ if(down && el) el.scrollTop = top0-(e.clientY-y0); });
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    document.getElementById('flujoEfectivoModal').addEventListener('click', function(){
+      setTimeout(init, 100);
+    }, {once:false});
+  });
+})();
 
 
 
