@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.8';
+const APP_VERSION = '2026.07.24.9';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5372,42 +5372,13 @@ async function openFlujoEfectivoModal() {
 
   flujoRenderTabla();
   document.getElementById('flujoEfectivoModal').classList.add('open');
-  // Activar hand-scroll en la tabla de brecha
-  flujoInitHandScroll();
 }
 
 function closeFlujoEfectivoModal() {
   document.getElementById('flujoEfectivoModal').classList.remove('open');
 }
 
-/* Hand-scroll en tabla Brecha — solo sobre la tabla, no el modal completo */
-function flujoInitHandScroll() {
-  const el = document.querySelector('#flujoTablaBody');
-  if (!el) return;
-  const wrap = el.closest('.flujo-table-wrap') || el.closest('.flujo-body');
-  if (!wrap || wrap._hs) return;
-  wrap._hs = true;
-  wrap.style.overflowY = 'auto';
-  wrap.style.maxHeight = '45vh';
-  wrap.style.cursor = 'grab';
-  let down = false, y0, t0;
-  wrap.addEventListener('mousedown', e => {
-    if (e.target.closest('input,button,.flujo-arrow-up,.flujo-arrow-dn,.flujo-undo-btn')) return;
-    down = true; y0 = e.clientY; t0 = wrap.scrollTop;
-    wrap.style.cursor = 'grabbing';
-  });
-  window.addEventListener('mouseup',   () => { down=false; wrap.style.cursor='grab'; });
-  window.addEventListener('mousemove', e => {
-    if (!down) return;
-    wrap.scrollTop = t0 - (e.clientY - y0);
-  });
-  wrap.addEventListener('touchstart', e => {
-    y0=e.touches[0].clientY; t0=wrap.scrollTop;
-  },{passive:true});
-  wrap.addEventListener('touchmove', e => {
-    wrap.scrollTop = t0-(e.touches[0].clientY-y0);
-  },{passive:true});
-}
+
 
 function flujoActualizarDepositos() {
   const raw = parseMoney(document.getElementById('flujoDepositosInput').value);
@@ -5521,37 +5492,37 @@ window.flujoMoverAbajo = function flujoMoverAbajo(clave) {
 };
 
 async function flujoMoverYReordenar(clave, claveDestino, insertBefore) {
-  // CRÍTICO: ordenar cxpData por 'orden' primero, para que las posiciones del
-  // array coincidan con el orden visible (sino, un reorder cross-categoría o
-  // sobre filas invisibles rompía el resultado).
   cxpData.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
 
   const movedRow = cxpData.find(r => r._key === clave);
   if (!movedRow) return;
-  
+
   cxpData = cxpData.filter(r => r._key !== clave);
   if (claveDestino) {
     const destIdx = cxpData.findIndex(r => r._key === claveDestino);
     if (destIdx >= 0) {
-      const insertAt = insertBefore ? destIdx : destIdx + 1;
-      cxpData.splice(insertAt, 0, movedRow);
+      cxpData.splice(insertBefore ? destIdx : destIdx + 1, 0, movedRow);
     } else {
       cxpData.push(movedRow);
     }
   } else {
     cxpData.push(movedRow);
   }
-  
+
   cxpData.forEach((r, i) => { r.orden = i + 1; });
-  
+
   try {
-    const payload = cxpData.map((r, i) => ({
-      clave: r._key,
-      concepto: r.concepto,
-      categoria: r.categoria || 'General',
-      orden: i + 1,
-      nivel: (r.nivel ? parseInt(r.nivel.toString().replace(/\D/g, ''), 10) : 0) || 0
-    }));
+    // Solo persistir los 2 registros intercambiados — mucho más rápido que upsert completo
+    const afectados = [clave, claveDestino].filter(Boolean);
+    const payload = cxpData
+      .filter(r => afectados.includes(r._key))
+      .map(r => ({
+        clave: r._key,
+        concepto: r.concepto,
+        categoria: r.categoria || 'General',
+        orden: r.orden,
+        nivel: (r.nivel ? parseInt(r.nivel.toString().replace(/\D/g,''),10) : 0) || 0
+      }));
     const { error } = await sb.from('catalogo_cxp').upsert(payload, { onConflict: 'clave' });
     if (error) throw error;
   } catch(err) {
