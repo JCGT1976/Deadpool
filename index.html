@@ -464,7 +464,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   transition:background .15s;position:relative;z-index:1;
 }
 .flujo-close:hover{background:rgba(255,255,255,.28);}
-.flujo-body{padding:20px 24px 22px;overflow-y:auto;flex:1;}
+.flujo-body{padding:20px 24px 22px;overflow-y:auto;flex:1;cursor:grab;user-select:none;-webkit-user-select:none;}
+.flujo-body.grabbing{cursor:grabbing;}
 
 /* KPI Grid */
 .flujo-kpi-grid{
@@ -549,10 +550,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 /* Tabla */
 .flujo-table-wrap{
   border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;
-  overflow-x:auto;overflow-y:auto;max-height:52vh;background:var(--surface);
-  cursor:grab;user-select:none;-webkit-user-select:none;scroll-behavior:smooth;
+  overflow:hidden;background:var(--surface);
 }
-.flujo-table-wrap.grabbing{cursor:grabbing;}
 .flujo-table{width:100%;border-collapse:collapse;font-size:12.5px;}
 .flujo-table thead th{
   background:var(--surface2);color:var(--muted);
@@ -1608,7 +1607,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.6';
+const APP_VERSION = '2026.07.24.7';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5382,44 +5381,34 @@ function closeFlujoEfectivoModal() {
   document.getElementById('flujoEfectivoModal').classList.remove('open');
 }
 
-/* Hand-scroll (click+drag) en la tabla de brecha */
+/* Hand-scroll (click+drag) en el body del modal Brecha */
 function flujoInitHandScroll() {
-  const wrap = document.querySelector('.flujo-table-wrap');
-  if (!wrap || wrap._handScroll) return;
-  wrap._handScroll = true;
-  let isDown = false, startX, startY, scrollLeft, scrollTop;
-  wrap.addEventListener('mousedown', e => {
-    // No activar si el click es sobre un input, botón o span de flecha
-    if (e.target.closest('input,button,.flujo-arrow-up,.flujo-arrow-dn,.flujo-undo-btn')) return;
-    isDown = true;
-    wrap.classList.add('grabbing');
-    startX = e.pageX - wrap.offsetLeft;
-    startY = e.pageY - wrap.offsetTop;
-    scrollLeft = wrap.scrollLeft;
-    scrollTop  = wrap.scrollTop;
+  const el = document.querySelector('#flujoEfectivoModal .flujo-body');
+  if (!el || el._handScroll) return;
+  el._handScroll = true;
+  let active = false, startY, startTop;
+  el.addEventListener('mousedown', e => {
+    if (e.target.closest('input,button,select,.flujo-arrow-up,.flujo-arrow-dn,.flujo-undo-btn')) return;
+    active = true;
+    startY   = e.clientY;
+    startTop = el.scrollTop;
+    el.classList.add('grabbing');
     e.preventDefault();
   });
-  wrap.addEventListener('mouseleave', () => { isDown=false; wrap.classList.remove('grabbing'); });
-  wrap.addEventListener('mouseup',    () => { isDown=false; wrap.classList.remove('grabbing'); });
-  wrap.addEventListener('mousemove', e => {
-    if (!isDown) return;
-    const x = e.pageX - wrap.offsetLeft;
-    const y = e.pageY - wrap.offsetTop;
-    wrap.scrollLeft = scrollLeft - (x - startX);
-    wrap.scrollTop  = scrollTop  - (y - startY);
+  document.addEventListener('mouseup',    () => { active=false; el.classList.remove('grabbing'); });
+  document.addEventListener('mouseleave', () => { active=false; el.classList.remove('grabbing'); });
+  document.addEventListener('mousemove', e => {
+    if (!active) return;
+    el.scrollTop = startTop - (e.clientY - startY);
   });
-  // Touch (mobile)
-  let tStartX, tStartY, tScrollLeft, tScrollTop;
-  wrap.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) return;
-    tStartX = e.touches[0].pageX; tStartY = e.touches[0].pageY;
-    tScrollLeft = wrap.scrollLeft; tScrollTop = wrap.scrollTop;
-  }, { passive:true });
-  wrap.addEventListener('touchmove', e => {
-    if (e.touches.length !== 1) return;
-    wrap.scrollLeft = tScrollLeft - (e.touches[0].pageX - tStartX);
-    wrap.scrollTop  = tScrollTop  - (e.touches[0].pageY - tStartY);
-  }, { passive:true });
+  // Touch
+  let tY, tTop;
+  el.addEventListener('touchstart', e => {
+    tY = e.touches[0].clientY; tTop = el.scrollTop;
+  }, {passive:true});
+  el.addEventListener('touchmove', e => {
+    el.scrollTop = tTop - (e.touches[0].clientY - tY);
+  }, {passive:true});
 }
 
 function flujoActualizarDepositos() {
