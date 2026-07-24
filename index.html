@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.10';
+const APP_VERSION = '2026.07.24.11';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5372,6 +5372,7 @@ async function openFlujoEfectivoModal() {
 
   flujoRenderTabla();
   document.getElementById('flujoEfectivoModal').classList.add('open');
+  setTimeout(flujoHandScrollInit, 50);
 }
 
 function closeFlujoEfectivoModal() {
@@ -5379,26 +5380,24 @@ function closeFlujoEfectivoModal() {
 }
 
 /* Hand-scroll en la lista de gastos de Brecha */
-(function(){
-  var el, down=false, y0, top0;
-  function init(){
-    el = document.getElementById('flujoBody');
-    if(!el || el._hs) return;
-    el._hs = true;
-    el.addEventListener('mousedown', function(e){
-      if(e.target.closest('input,button,select')) return;
-      down=true; y0=e.clientY; top0=el.scrollTop;
-      el.style.cursor='grabbing'; e.preventDefault();
-    });
-    window.addEventListener('mouseup', function(){ down=false; if(el) el.style.cursor=''; });
-    window.addEventListener('mousemove', function(e){ if(down && el) el.scrollTop = top0-(e.clientY-y0); });
-  }
-  document.addEventListener('DOMContentLoaded', function(){
-    document.getElementById('flujoEfectivoModal').addEventListener('click', function(){
-      setTimeout(init, 100);
-    }, {once:false});
+var _hsDown=false, _hsY0=0, _hsTop0=0, _hsEl=null;
+function flujoHandScrollInit(){
+  var el = document.getElementById('flujoBody');
+  if(!el || el._hs) return;
+  el._hs = true;
+  _hsEl = el;
+  el.style.cursor = 'grab';
+  el.addEventListener('mousedown', function(e){
+    if(e.target.closest('input,button,select,.flujo-arrow-up,.flujo-arrow-dn,.flujo-drag-handle,.flujo-undo-btn')) return;
+    _hsDown=true; _hsY0=e.clientY; _hsTop0=el.scrollTop;
+    el.style.cursor='grabbing';
   });
-})();
+  window.addEventListener('mouseup', function(){ _hsDown=false; if(_hsEl) _hsEl.style.cursor='grab'; });
+  window.addEventListener('mousemove', function(e){
+    if(!_hsDown || !_hsEl) return;
+    _hsEl.scrollTop = _hsTop0 - (e.clientY - _hsY0);
+  });
+}
 
 
 
