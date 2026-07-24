@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.15';
+const APP_VERSION = '2026.07.24.16';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5388,13 +5388,17 @@ function flujoHandScrollInit(){
   _hsEl = el;
   el.style.cursor = 'grab';
   el.addEventListener('mousedown', function(e){
+    // No activar hand-scroll si hay drag activo o si el target es interactivo
+    if(_flujoDragClave) return;
     if(e.target.closest('input,button,select,.flujo-arrow-up,.flujo-arrow-dn,.flujo-drag-handle,.flujo-undo-btn')) return;
+    // Solo activar si NO es una fila draggable (draggable="true")
+    if(e.target.closest('[draggable="true"]')) return;
     _hsDown=true; _hsY0=e.clientY; _hsTop0=el.scrollTop;
     el.style.cursor='grabbing';
   });
   window.addEventListener('mouseup', function(){ _hsDown=false; if(_hsEl) _hsEl.style.cursor='grab'; });
   window.addEventListener('mousemove', function(e){
-    if(!_hsDown || !_hsEl) return;
+    if(!_hsDown || !_hsEl || _flujoDragClave) return;
     _hsEl.scrollTop = _hsTop0 - (e.clientY - _hsY0);
   });
 }
@@ -5430,9 +5434,9 @@ var _flujoDragClave = null;  // clave del concepto que se está arrastrando
 window.flujoDragStart = function flujoDragStart(ev, clave) {
   if (ev.target.closest('input,button,.flujo-undo-btn')) { ev.preventDefault(); return; }
   _flujoDragClave = clave;
+  _hsDown = false; // cancelar hand-scroll si estaba activo
   ev.dataTransfer.effectAllowed = 'move';
   ev.dataTransfer.setData('text/plain', 'flujo:' + clave);
-  // Congelar scroll del body durante el drag
   var body = document.getElementById('flujoBody');
   if (body) { body.style.overflow = 'hidden'; body.style.cursor = 'grabbing'; }
   var tr = ev.currentTarget;
