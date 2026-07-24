@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.4';
+const APP_VERSION = '2026.07.24.5';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -6777,8 +6777,29 @@ function cxpMontoMXN(r, colPlan) {
 
 /* Suma de lo ya pagado (en MXN equiv.) para una clave de concepto */
 function gastosEfectuadosTotalPorClave(clave) {
+  // Búsqueda primaria: clave exacta
+  const exactos = gastosEfectuadosData.filter(g => g.concepto_key === clave);
+  if (exactos.length > 0) return exactos.reduce((s,g) => s + gastoToMXN(g), 0);
+
+  // Fallback: comparar por nombre normalizado sin número de semana.
+  // Cubre el caso donde la clave en catalogo_cxp cambió pero el pago
+  // fue registrado con la clave anterior (ej. Sem #28 → Sem #29).
+  const _norm = s => (s||'').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/sem\.?\s*#?\s*\d+/gi,'')
+    .replace(/\s+/g,' ').trim();
+
+  // Extraer la parte de concepto de la clave actual (formato: "categoria::concepto")
+  const conceptoBase = _norm(clave.includes('::') ? clave.split('::').slice(1).join('::') : clave);
+  if (!conceptoBase || conceptoBase.length < 5) return 0;
+
   return gastosEfectuadosData
-    .filter(g => g.concepto_key === clave)
+    .filter(g => {
+      const keyConc = _norm(g.concepto_key && g.concepto_key.includes('::')
+        ? g.concepto_key.split('::').slice(1).join('::')
+        : (g.concepto || g.concepto_key || ''));
+      return keyConc === conceptoBase;
+    })
     .reduce((s,g) => s + gastoToMXN(g), 0);
 }
 
