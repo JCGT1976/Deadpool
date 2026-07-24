@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.2';
+const APP_VERSION = '2026.07.24.3';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -3554,17 +3554,33 @@ async function cxpHandleFile(e) {
       
       gastoMapeado._key = cxpRowKey(gastoMapeado);
 
-      // Buscar en catálogo actual (clave exacta primero, luego nombre normalizado)
-      const cNorm = _normConc(concepto);
-      const gastoExistente = catalogoActual.find(x => x._key === gastoMapeado._key)
-                          || catalogoActual.find(x => _normConc(x.concepto) === cNorm);
+      // Normalización para búsqueda: elimina número de semana ("Sem #29", "Sem. #28", etc.)
+      // Esto permite reconocer "Nómina TJ Sem #29" como el mismo concepto que "Nómina TJ Sem #28"
+      const _stripSem = s => (s || '').toString().trim().toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/sem\.?\s*#?\s*\d+/gi, '').replace(/\s+/g, ' ').trim();
+
+      const cNorm    = _normConc(concepto);
+      const cSinSem  = _stripSem(concepto);
+
+      // Búsqueda en 3 niveles de coincidencia (de más exacto a más flexible):
+      // 1) Clave idéntica
+      // 2) Nombre normalizado idéntico
+      // 3) Nombre sin número de semana (captura nóminas Sem #28 → Sem #29)
+      const gastoExistente =
+        catalogoActual.find(x => x._key === gastoMapeado._key) ||
+        catalogoActual.find(x => _normConc(x.concepto) === cNorm) ||
+        (cSinSem.length > 6
+          ? catalogoActual.find(x => _stripSem(x.concepto) === cSinSem)
+          : null);
 
       // CRÍTICO: reusar la clave original del plan para no romper el vínculo con gastos_efectuados.
-      // Si el nombre del Excel tiene variaciones (tildes, espacios) genera una clave distinta,
-      // pero concepto_key en gastos_efectuados apunta a la clave anterior — usando la clave
-      // original evitamos que el concepto aparezca como 100% pendiente tras recargar el Excel.
+      // Sin esto, "Nómina TJ Sem #29" genera clave nueva y el pago registrado en Sem #28
+      // queda huérfano → el concepto aparece como 100% pendiente en brecha.
       if (gastoExistente && (gastoExistente.clave || gastoExistente._key)) {
         gastoMapeado._key = gastoExistente.clave || gastoExistente._key;
+        // También actualizar el concepto visible para reflejar el nombre nuevo (Sem #29)
+        // pero mantener la clave antigua (Sem #28) para no romper gastos_efectuados
       }
 
       // Nivel: usar el del Excel primero, luego el existente en catálogo, default L3
@@ -3695,6 +3711,10 @@ async function cxpSyncToSupabase(rows) {
     const _normConc = s => (s || '').toString().trim().toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+    // Elimina número de semana para comparar nóminas recurrentes (Sem #28 ≡ Sem #29)
+    const _stripSem = s => _normConc(s)
+      .replace(/sem\.?\s*#?\s*\d+/gi, '').replace(/\s+/g, ' ').trim();
+
     // ── RECONCILIACIÓN INTELIGENTE ──────────────────────────────────────────────
     // En vez de PURGE + INSERT, hacemos MERGE preservando los pagos registrados.
     //
@@ -3720,12 +3740,16 @@ async function cxpSyncToSupabase(rows) {
       try { return gastosEfectuadosTotalPorClave(clave) || 0; } catch(e) { return 0; }
     };
 
-    // Construir mapas del plan actual: por clave y por nombre normalizado
-    const mapPorClave  = {};
-    const mapPorNombre = {};
+    // Construir mapas del plan actual: por clave, nombre normalizado y nombre sin semana
+    const mapPorClave   = {};
+    const mapPorNombre  = {};
+    const mapSinSem     = {};
     for (const p of planExistente) {
       if (p.clave)    mapPorClave[p.clave] = p;
       if (p.concepto) mapPorNombre[_normConc(p.concepto)] = p;
+      // Mapa sin número de semana — permite reconocer "Sem #29" como "Sem #28"
+      const sinSem = _stripSem(p.concepto);
+      if (sinSem.length > 6) mapSinSem[sinSem] = p;
     }
 
     // Ordenar: el orden máximo actual, para insertar nuevos al final
@@ -3738,7 +3762,11 @@ async function cxpSyncToSupabase(rows) {
     for (const r of rowsSorted) {
       const keyExcel    = r._key;
       const nombreNorm  = _normConc(r.concepto);
-      const existente   = mapPorClave[keyExcel] || mapPorNombre[nombreNorm] || null;
+      const sinSemExcel = _stripSem(r.concepto);
+      const existente   = mapPorClave[keyExcel]
+                       || mapPorNombre[nombreNorm]
+                       || (sinSemExcel.length > 6 ? mapSinSem[sinSemExcel] : null)
+                       || null;
 
       const payloadBase = {
         clave:         keyExcel,
