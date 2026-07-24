@@ -464,8 +464,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   transition:background .15s;position:relative;z-index:1;
 }
 .flujo-close:hover{background:rgba(255,255,255,.28);}
-.flujo-body{padding:20px 24px 22px;overflow-y:auto;flex:1;cursor:grab;user-select:none;-webkit-user-select:none;}
-.flujo-body.grabbing{cursor:grabbing;}
+.flujo-body{padding:20px 24px 22px;overflow-y:auto;flex:1;}
 
 /* KPI Grid */
 .flujo-kpi-grid{
@@ -1607,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.7';
+const APP_VERSION = '2026.07.24.8';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5381,34 +5380,33 @@ function closeFlujoEfectivoModal() {
   document.getElementById('flujoEfectivoModal').classList.remove('open');
 }
 
-/* Hand-scroll (click+drag) en el body del modal Brecha */
+/* Hand-scroll en tabla Brecha — solo sobre la tabla, no el modal completo */
 function flujoInitHandScroll() {
-  const el = document.querySelector('#flujoEfectivoModal .flujo-body');
-  if (!el || el._handScroll) return;
-  el._handScroll = true;
-  let active = false, startY, startTop;
-  el.addEventListener('mousedown', e => {
-    if (e.target.closest('input,button,select,.flujo-arrow-up,.flujo-arrow-dn,.flujo-undo-btn')) return;
-    active = true;
-    startY   = e.clientY;
-    startTop = el.scrollTop;
-    el.classList.add('grabbing');
-    e.preventDefault();
+  const el = document.querySelector('#flujoTablaBody');
+  if (!el) return;
+  const wrap = el.closest('.flujo-table-wrap') || el.closest('.flujo-body');
+  if (!wrap || wrap._hs) return;
+  wrap._hs = true;
+  wrap.style.overflowY = 'auto';
+  wrap.style.maxHeight = '45vh';
+  wrap.style.cursor = 'grab';
+  let down = false, y0, t0;
+  wrap.addEventListener('mousedown', e => {
+    if (e.target.closest('input,button,.flujo-arrow-up,.flujo-arrow-dn,.flujo-undo-btn')) return;
+    down = true; y0 = e.clientY; t0 = wrap.scrollTop;
+    wrap.style.cursor = 'grabbing';
   });
-  document.addEventListener('mouseup',    () => { active=false; el.classList.remove('grabbing'); });
-  document.addEventListener('mouseleave', () => { active=false; el.classList.remove('grabbing'); });
-  document.addEventListener('mousemove', e => {
-    if (!active) return;
-    el.scrollTop = startTop - (e.clientY - startY);
+  window.addEventListener('mouseup',   () => { down=false; wrap.style.cursor='grab'; });
+  window.addEventListener('mousemove', e => {
+    if (!down) return;
+    wrap.scrollTop = t0 - (e.clientY - y0);
   });
-  // Touch
-  let tY, tTop;
-  el.addEventListener('touchstart', e => {
-    tY = e.touches[0].clientY; tTop = el.scrollTop;
-  }, {passive:true});
-  el.addEventListener('touchmove', e => {
-    el.scrollTop = tTop - (e.touches[0].clientY - tY);
-  }, {passive:true});
+  wrap.addEventListener('touchstart', e => {
+    y0=e.touches[0].clientY; t0=wrap.scrollTop;
+  },{passive:true});
+  wrap.addEventListener('touchmove', e => {
+    wrap.scrollTop = t0-(e.touches[0].clientY-y0);
+  },{passive:true});
 }
 
 function flujoActualizarDepositos() {
