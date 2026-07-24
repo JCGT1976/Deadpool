@@ -549,8 +549,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 /* Tabla */
 .flujo-table-wrap{
   border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;
-  overflow:hidden;background:var(--surface);
+  overflow-x:auto;overflow-y:auto;max-height:52vh;background:var(--surface);
+  cursor:grab;user-select:none;-webkit-user-select:none;scroll-behavior:smooth;
 }
+.flujo-table-wrap.grabbing{cursor:grabbing;}
 .flujo-table{width:100%;border-collapse:collapse;font-size:12.5px;}
 .flujo-table thead th{
   background:var(--surface2);color:var(--muted);
@@ -1606,7 +1608,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.5';
+const APP_VERSION = '2026.07.24.6';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5372,10 +5374,52 @@ async function openFlujoEfectivoModal() {
 
   flujoRenderTabla();
   document.getElementById('flujoEfectivoModal').classList.add('open');
+  // Activar hand-scroll en la tabla de brecha
+  flujoInitHandScroll();
 }
 
 function closeFlujoEfectivoModal() {
   document.getElementById('flujoEfectivoModal').classList.remove('open');
+}
+
+/* Hand-scroll (click+drag) en la tabla de brecha */
+function flujoInitHandScroll() {
+  const wrap = document.querySelector('.flujo-table-wrap');
+  if (!wrap || wrap._handScroll) return;
+  wrap._handScroll = true;
+  let isDown = false, startX, startY, scrollLeft, scrollTop;
+  wrap.addEventListener('mousedown', e => {
+    // No activar si el click es sobre un input, botón o span de flecha
+    if (e.target.closest('input,button,.flujo-arrow-up,.flujo-arrow-dn,.flujo-undo-btn')) return;
+    isDown = true;
+    wrap.classList.add('grabbing');
+    startX = e.pageX - wrap.offsetLeft;
+    startY = e.pageY - wrap.offsetTop;
+    scrollLeft = wrap.scrollLeft;
+    scrollTop  = wrap.scrollTop;
+    e.preventDefault();
+  });
+  wrap.addEventListener('mouseleave', () => { isDown=false; wrap.classList.remove('grabbing'); });
+  wrap.addEventListener('mouseup',    () => { isDown=false; wrap.classList.remove('grabbing'); });
+  wrap.addEventListener('mousemove', e => {
+    if (!isDown) return;
+    const x = e.pageX - wrap.offsetLeft;
+    const y = e.pageY - wrap.offsetTop;
+    wrap.scrollLeft = scrollLeft - (x - startX);
+    wrap.scrollTop  = scrollTop  - (y - startY);
+  });
+  // Touch (mobile)
+  let tStartX, tStartY, tScrollLeft, tScrollTop;
+  wrap.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    tStartX = e.touches[0].pageX; tStartY = e.touches[0].pageY;
+    tScrollLeft = wrap.scrollLeft; tScrollTop = wrap.scrollTop;
+  }, { passive:true });
+  wrap.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1) return;
+    wrap.scrollLeft = tScrollLeft - (e.touches[0].pageX - tStartX);
+    wrap.scrollTop  = tScrollTop  - (e.touches[0].pageY - tStartY);
+  }, { passive:true });
 }
 
 function flujoActualizarDepositos() {
