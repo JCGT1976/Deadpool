@@ -1606,7 +1606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
    auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.07.24.13';
+const APP_VERSION = '2026.07.24.14';
 
 const SB_URL  = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY  = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -5428,10 +5428,8 @@ function flujoNivEfectivo(r) {
 var _flujoDragClave = null;  // clave del concepto que se está arrastrando
 
 window.flujoDragStart = function flujoDragStart(ev, clave) {
-  // Guard: solo activar si el origen del evento es el handle ⋮⋮ o descendiente
-  var origen = ev.target;
-  var esHandle = origen && (origen.classList.contains('flujo-drag-handle') || !!origen.closest('.flujo-drag-handle'));
-  if (!esHandle) { ev.preventDefault(); return; }
+  // No iniciar drag si el click fue en input o botón
+  if (ev.target.closest('input,button,.flujo-undo-btn')) { ev.preventDefault(); return; }
   _flujoDragClave = clave;
   ev.dataTransfer.effectAllowed = 'move';
   ev.dataTransfer.setData('text/plain', 'flujo:' + clave);
