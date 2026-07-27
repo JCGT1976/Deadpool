@@ -2563,13 +2563,26 @@ function closeEntradasModal() {
 function parseMoney(str) {
   if (str === null || str === undefined || String(str).trim() === '') return NaN;
   const s = String(str).trim();
-  // Si es número ya (más común después de cellFormula:false)
-  const direct = parseFloat(s.replace(/[^0-9.\-]/g,''));
-  // Si empieza con = es fórmula no resuelta → intentar evaluar de forma segura (solo +/-)
-  if (s.startsWith('=') && /^[=0-9+\-*\/.() ]+$/.test(s)) {
-    try { const v = Function('"use strict"; return (' + s.slice(1) + ')')(); if (typeof v === 'number' && isFinite(v)) return v; } catch(e) {}
+  // Numero directo — caso mas comun cuando el Excel tiene cache de valores
+  if (!s.startsWith('=')) {
+    const direct = parseFloat(s.replace(/,/g, '').replace(/[^0-9.\-]/g, ''));
+    return isNaN(direct) ? NaN : direct;
   }
-  return isNaN(direct) ? NaN : direct;
+  // Formula sin cache — evaluar aritmetica segura
+  // Si tiene referencias a Table o celdas (letras) → sustituir por 0 y evaluar el resto
+  // Ej: =Table245[[#This Row],[TOTAL]]*0.25  →  =0*0.25  → 0
+  // Ej: =281732-24751  →  evalua normalmente
+  var expr = s.slice(1)
+    .replace(/Table\d*\[\[[^\]]*\]\s*,\s*\[[^\]]*\]\]/gi, '0')
+    .replace(/[A-Za-z_][A-Za-z0-9_]*/g, '0')
+    .replace(/%/g, '/100');
+  if (/^[0-9+\-*\/.()\s]+$/.test(expr)) {
+    try {
+      var v = Function('"use strict"; return (' + expr + ')')();
+      if (typeof v === 'number' && isFinite(v)) return v;
+    } catch(e) {}
+  }
+  return NaN;
 }
 
 /* Formatea un <input> con separadores de miles en vivo mientras se escribe.
