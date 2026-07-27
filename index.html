@@ -2272,19 +2272,31 @@ let gastosEfectuadosData = [];
 let gastosEfectuadosLoaded = false;
 
 function getWeekKey(date) {
+  // Cálculo ISO 8601 — mismo estándar que usa el input type="week" del navegador.
+  // Semana 1 = la semana que contiene el primer jueves del año.
   const d = date ? new Date(date) : new Date();
-  const jan1 = new Date(d.getFullYear(), 0, 1);
-  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
-  return d.getFullYear() + '-W' + String(week).padStart(2, '0');
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7;          // lunes=0 … domingo=6
+  target.setDate(target.getDate() - dayNr + 3); // jueves de esta semana
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  const week = 1 + Math.ceil((firstThursday - target) / 604800000);
+  // El año ISO puede diferir del año calendario en semanas 52/53/1
+  const isoYear = new Date(firstThursday).getFullYear();
+  return isoYear + '-W' + String(week).padStart(2, '0');
 }
 
 function getWeekLabel(weekKey) {
+  // Calcula el lunes de la semana ISO indicada (YYYY-Www)
   const [year, wStr] = weekKey.split('-W');
-  const w = parseInt(wStr);
-  const jan1 = new Date(parseInt(year), 0, 1);
-  const dayOfWeek = jan1.getDay() || 7;
-  const monday = new Date(jan1);
-  monday.setDate(jan1.getDate() + (w - 1) * 7 - (dayOfWeek - 1));
+  const w = parseInt(wStr, 10);
+  const y = parseInt(year, 10);
+  // 4 de enero siempre cae en la semana 1 ISO
+  const jan4 = new Date(y, 0, 4);
+  const jan4day = (jan4.getDay() + 6) % 7; // lunes=0
+  const monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - jan4day + (w - 1) * 7);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   const opts = { day: 'numeric', month: 'short' };
