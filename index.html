@@ -3412,7 +3412,10 @@ async function cxpHandleFile(e) {
     const ab = await file.arrayBuffer();
     // ✅ CORRECCIÓN: No pasar { sheet: 'Gastos' } a read() — no es válido
     // En su lugar, leemos el workbook completo y luego detectamos los sheets
-    const wb = XLSX.read(ab, { cellFormula: false, cellNF: false });
+    // cellFormula:true → SheetJS lee tanto la fórmula como el valor cacheado (.v).
+    // Sin esto, celdas con fórmulas (=A1+B1, Table245 refs, etc.) devuelven undefined
+    // y parseMoney las convierte en 0, dejando el plan vacío.
+    const wb = XLSX.read(ab, { cellFormula: true, cellNF: false });
     
     // ✅ Detección inteligente de sheet
     // Buscar "Gastos", "RepCxC" o cualquier sheet que tenga "CXC", "CUENTAS", "PAGOS"
