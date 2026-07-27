@@ -3753,7 +3753,16 @@ async function cxpSyncToSupabase(rows) {
     const esNomina = r => /\bnomina\b|\bsalario/.test(norm((r.categoria||'')+' '+(r.concepto||'')));
 
     // ── PASO 1: Leer pagos reales ─────────────────────────────────────────────
-    const { data: pagosDB } = await sb.from('gastos_efectuados').select('concepto_key,monto_pagado,moneda,tc');
+    // select('*') evita 400 si alguna columna (tc/moneda) no existe en el schema.
+    let pagosDB = null;
+    {
+      const res = await sb.from('gastos_efectuados').select('*');
+      if (res.error) {
+        console.warn('Lectura gastos_efectuados falló (se asume sin pagos):', res.error.message);
+      } else {
+        pagosDB = res.data;
+      }
+    }
     const pagosData = Array.isArray(pagosDB) ? pagosDB : [];
     const tcGlobal = parseFloat(localStorage.getItem('mitech_tc')) || 17;
     const pagadoPorClave = {};
@@ -3766,6 +3775,11 @@ async function cxpSyncToSupabase(rows) {
     // ── PASO 2: Leer plan actual e identificar conceptos LIQUIDADOS a preservar ─
     const { data: planDB } = await sb.from('catalogo_cxp').select('*');
     const planActual = Array.isArray(planDB) ? planDB : [];
+
+    // Detectar columnas reales del schema AHORA (antes del purge, mientras hay filas)
+    const colsValidas = (planActual.length > 0)
+      ? new Set(Object.keys(planActual[0]))
+      : null;
 
     const clavesLiquidadas = new Set(); // claves de conceptos 100% pagados → PRESERVAR
     const idxLiquidadoPorNorm = {};     // norm(concepto) → clave liquidada (para respetar clave)
@@ -3845,12 +3859,20 @@ async function cxpSyncToSupabase(rows) {
     // ── PASO 5: INSERT del plan nuevo completo ────────────────────────────────
     let insertados = 0;
     if (toInsert.length > 0) {
-      // Cascada de variantes por compatibilidad de schema (columnas opcionales)
+      // Filtrar cada payload a solo columnas que existen en el schema (evita 400
+      // por columnas inexistentes como 'semana' o 'tc_ref').
+      const filtrar = arr => colsValidas
+        ? arr.map(row => {
+            const out = {};
+            for (const k of Object.keys(row)) if (colsValidas.has(k)) out[k] = row[k];
+            return out;
+          })
+        : arr;
+
       let ok = false;
       for (const payload of [
-        toInsert,
-        toInsert.map(({moneda, tc_ref, ...x}) => x),
-        toInsert.map(({moneda, tc_ref, semana, ...x}) => x),
+        filtrar(toInsert),
+        toInsert.map(({moneda, tc_ref, semana, ...x}) => x), // fallback mínimo garantizado
       ]) {
         const { error } = await sb.from('catalogo_cxp').insert(payload);
         if (!error) { ok = true; insertados = toInsert.length; break; }
