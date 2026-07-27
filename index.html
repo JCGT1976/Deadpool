@@ -2826,6 +2826,16 @@ window.refreshDashboard = async function refreshDashboard() {
 };
 
 async function renderDashboard(c) {
+  // Si se llama sin contenedor (refresh post-carga, cierre semana, etc.),
+  // resolver el panel del dashboard automáticamente. Sin esto, c queda
+  // undefined y c.innerHTML crashea con "Cannot set properties of undefined".
+  if (!c) {
+    // Solo re-renderizar si el usuario está viendo el dashboard; si está en otro
+    // tab (ej. CxP tras cargar Excel), no hay que reescribir mainContent.
+    if (window._currentTab && window._currentTab !== 'dashboard') return;
+    c = document.getElementById('mainContent');
+    if (!c) { console.warn('renderDashboard: no se encontró #mainContent'); return; }
+  }
   const cat = allData.catalogo || [];
   const dat = allData.datos || [];
 
@@ -3726,27 +3736,26 @@ async function cxpInsertarGastoNuevo(row) {
 }
 
 async function cxpSyncToSupabase(rows) {
-  // ── ESTRATEGIA SIMPLE Y CONFIABLE ────────────────────────────────────────────
-  // 1) Leer gastos_efectuados de Supabase (pagos reales registrados)
-  // 2) Para cada fila del Excel:
-  //    - Si coincide con concepto pagado (por clave o nombre≈) → UPDATE supervivencia/montos
-  //      pero NO cambiar la clave → gastos_efectuados sigue vinculado
-  //    - Si no existe → INSERT nuevo
-  // 3) Conceptos del plan sin correspondencia en Excel → se conservan (arrastre)
-  // NUNCA se hace PURGE — así los pagos nunca quedan huérfanos
+  // ── ESTRATEGIA PURGE-AND-INSERT (limpia y confiable) ──────────────────────────
+  // Cada carga de Excel reemplaza el plan COMPLETO:
+  //   1) Se leen los pagos ya registrados (gastos_efectuados) para saber qué
+  //      conceptos ya fueron liquidados 100% — esos se PRESERVAN tal cual.
+  //   2) Se borra TODO el catalogo_cxp EXCEPTO los conceptos liquidados.
+  //   3) Se inserta el Excel completo, respetando la clave original de un
+  //      concepto liquidado si coincide (para no romper gastos_efectuados).
+  // Esto elimina duplicados, arrastre fantasma y los errores 400 por claves
+  // con caracteres especiales que causaban los UPDATE .eq('clave', ...).
   // ────────────────────────────────────────────────────────────────────────────
   try {
     const nivelToInt = v => { const n = parseInt((v||'').toString().replace(/\D/g,''),10); return isNaN(n)?0:n; };
     const norm = s => (s||'').toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    // Elimina "Sem #N", "Sem. #N" para comparar nóminas semanales
     const sinSem = s => norm(s).replace(/sem\.?\s*#?\s*\d+/gi,'').replace(/\s+/g,' ').trim();
     const esNomina = r => /\bnomina\b|\bsalario/.test(norm((r.categoria||'')+' '+(r.concepto||'')));
 
-    // ── PASO 1: Leer pagos reales desde Supabase ──────────────────────────────
+    // ── PASO 1: Leer pagos reales ─────────────────────────────────────────────
     const { data: pagosDB } = await sb.from('gastos_efectuados').select('concepto_key,monto_pagado,moneda,tc');
     const pagosData = Array.isArray(pagosDB) ? pagosDB : [];
     const tcGlobal = parseFloat(localStorage.getItem('mitech_tc')) || 17;
-    // Suma pagado en MXN por clave
     const pagadoPorClave = {};
     for (const p of pagosData) {
       const m = parseFloat(p.monto_pagado) || 0;
@@ -3754,43 +3763,46 @@ async function cxpSyncToSupabase(rows) {
       pagadoPorClave[p.concepto_key] = (pagadoPorClave[p.concepto_key] || 0) + mxn;
     }
 
-    // ── PASO 2: Leer plan actual de Supabase ──────────────────────────────────
+    // ── PASO 2: Leer plan actual e identificar conceptos LIQUIDADOS a preservar ─
     const { data: planDB } = await sb.from('catalogo_cxp').select('*');
     const planActual = Array.isArray(planDB) ? planDB : [];
 
-    // Índices del plan actual para búsqueda rápida
-    const idxPorClave  = {};
-    const idxPorNorm   = {};
-    const idxSinSem    = {};
+    const clavesLiquidadas = new Set(); // claves de conceptos 100% pagados → PRESERVAR
+    const idxLiquidadoPorNorm = {};     // norm(concepto) → clave liquidada (para respetar clave)
     for (const p of planActual) {
-      if (p.clave)    idxPorClave[p.clave] = p;
-      const n = norm(p.concepto);
-      if (n) idxPorNorm[n] = p;
-      const s = sinSem(p.concepto);
-      if (s.length > 6) idxSinSem[s] = p;
+      const clave = p.clave;
+      if (!clave) continue;
+      const pagado = pagadoPorClave[clave] || 0;
+      const montoP = parseFloat(p.supervivencia || p.total || 0);
+      if (montoP > 0 && pagado >= montoP) {
+        clavesLiquidadas.add(clave);
+        idxLiquidadoPorNorm[norm(p.concepto)] = clave;
+      }
     }
-    let ordenMax = planActual.reduce((m,r) => Math.max(m, parseInt(r.orden||0,10)), 0);
 
-    // ── PASO 3: Ordenar Excel (nóminas primero) y clasificar ──────────────────
+    // ── PASO 3: Preparar filas del Excel (nóminas primero) ─────────────────────
     const rowsSorted = rows.map((r,i) => ({r,i,nom:esNomina(r)}))
       .sort((a,b) => a.nom===b.nom ? a.i-b.i : (a.nom?-1:1))
       .map(x => x.r);
 
+    // Construir los registros a insertar. Si una fila del Excel corresponde a un
+    // concepto ya liquidado (misma clave o mismo nombre normalizado), se OMITE
+    // del insert porque ese registro se conserva intacto en la tabla.
+    let orden = 0;
     const toInsert = [];
-    const toUpdate = []; // { claveOriginal, campos }
-    const ignorados = [];
-
+    const omitidosLiquidados = [];
     for (const r of rowsSorted) {
-      const nExcel   = norm(r.concepto);
-      const sExcel   = sinSem(r.concepto);
-
-      // Buscar coincidencia en plan actual (3 niveles)
-      const match = idxPorClave[r._key]
-                 || idxPorNorm[nExcel]
-                 || (sExcel.length > 6 ? idxSinSem[sExcel] : null)
-                 || null;
-
-      const campos = {
+      const claveExcel = r._key;
+      const nExcel = norm(r.concepto);
+      // ¿Este concepto ya está liquidado en la tabla? → no lo re-insertamos
+      if (clavesLiquidadas.has(claveExcel) || idxLiquidadoPorNorm[nExcel]) {
+        omitidosLiquidados.push(r.concepto);
+        continue;
+      }
+      orden++;
+      toInsert.push({
+        clave:         claveExcel,
+        orden:         orden,
         tipo:          r.tipo || '',
         nivel:         nivelToInt(r.nivel),
         categoria:     r.categoria || 'General',
@@ -3801,80 +3813,60 @@ async function cxpSyncToSupabase(rows) {
         urgente:       parseFloat(r.urgente) || 0,
         supervivencia: parseFloat(r.supervivencia) || 0,
         semana:        r._semana || null,
-      };
-
-      if (!match) {
-        // Nuevo concepto — INSERT
-        ordenMax++;
-        toInsert.push({ ...campos, clave: r._key, orden: ordenMax,
-          moneda: r.moneda||'MXN', tc_ref: r.tc_ref!=null?parseFloat(r.tc_ref):null });
-      } else {
-        // Existe — verificar si está 100% pagado
-        const claveOriginal = match.clave || match._key || r._key;
-        const pagado  = pagadoPorClave[claveOriginal] || 0;
-        const montoP  = parseFloat(match.supervivencia || match.total || 0);
-        const liquidado = montoP > 0 && pagado >= montoP;
-
-        if (liquidado) {
-          // Ya pagado completamente — NO tocar
-          ignorados.push(r.concepto);
-        } else {
-          // Actualizar montos/nivel PERO usando la clave ORIGINAL del plan
-          // Así gastos_efectuados sigue vinculado aunque el nombre cambió (Sem#28→#29)
-          toUpdate.push({ claveOriginal, campos });
-        }
-      }
-      // Conceptos del plan que NO están en el Excel → se conservan solos (arrastre)
+        moneda:        r.moneda || 'MXN',
+        tc_ref:        r.tc_ref != null ? parseFloat(r.tc_ref) : null,
+      });
     }
 
-    console.log(`cxpSync → INSERT:${toInsert.length} UPDATE:${toUpdate.length} IGNORADOS:${ignorados.length} ARRASTRE:${planActual.length - toUpdate.length - ignorados.length}`);
-    if (ignorados.length) console.log('Ignorados (liquidados):', ignorados.join(', '));
+    // ── PASO 4: PURGE — borrar todo EXCEPTO los conceptos liquidados ───────────
+    // Borramos por clave para no tocar los liquidados. Si no hay liquidados,
+    // hacemos un DELETE global (más rápido y sin problemas de escaping).
+    if (clavesLiquidadas.size === 0) {
+      // Borrado total: neq a un valor imposible garantiza que aplica a todas las filas
+      const { error: delErr } = await sb.from('catalogo_cxp').delete().neq('clave', '___nunca_existe___');
+      if (delErr) {
+        console.error('PURGE total falló:', delErr.message);
+        return { ok: false, message: 'No se pudo limpiar el plan anterior: ' + delErr.message };
+      }
+    } else {
+      // Borrar solo las claves que NO están liquidadas
+      const clavesABorrar = planActual
+        .map(p => p.clave)
+        .filter(c => c && !clavesLiquidadas.has(c));
+      // Borrar en lotes con .in() (Supabase escapa correctamente el array)
+      const LOTE = 100;
+      for (let i = 0; i < clavesABorrar.length; i += LOTE) {
+        const lote = clavesABorrar.slice(i, i + LOTE);
+        const { error: delErr } = await sb.from('catalogo_cxp').delete().in('clave', lote);
+        if (delErr) console.warn('PURGE lote falló:', delErr.message);
+      }
+    }
 
-    // ── PASO 4: Ejecutar cambios ──────────────────────────────────────────────
-
-    // A) INSERT nuevos
+    // ── PASO 5: INSERT del plan nuevo completo ────────────────────────────────
+    let insertados = 0;
     if (toInsert.length > 0) {
-      // Cascada de variantes por compatibilidad de schema
+      // Cascada de variantes por compatibilidad de schema (columnas opcionales)
+      let ok = false;
       for (const payload of [
         toInsert,
-        toInsert.map(({ajuste,  ...x}) => x),
         toInsert.map(({moneda, tc_ref, ...x}) => x),
+        toInsert.map(({moneda, tc_ref, semana, ...x}) => x),
       ]) {
         const { error } = await sb.from('catalogo_cxp').insert(payload);
-        if (!error) break;
-        if (!/column|schema|does not exist/i.test(error.message||'')) break;
+        if (!error) { ok = true; insertados = toInsert.length; break; }
+        if (!/column|schema|does not exist/i.test(error.message||'')) {
+          console.error('INSERT plan falló:', error.message);
+          return { ok: false, message: 'Error al insertar el plan: ' + error.message };
+        }
       }
+      if (!ok) return { ok: false, message: 'No se pudo insertar el plan (schema incompatible)' };
     }
 
-    // B) UPDATE existentes — solo montos/nivel, clave original intacta
-    for (const { claveOriginal, campos } of toUpdate) {
-      let { error } = await sb.from('catalogo_cxp').update(campos).eq('clave', claveOriginal);
-      if (error && /column|schema|does not exist/i.test(error.message||'')) {
-        const { ajuste, semana, ...camposMin } = campos;
-        ({ error } = await sb.from('catalogo_cxp').update(camposMin).eq('clave', claveOriginal));
-      }
-      if (error) console.warn('UPDATE', claveOriginal, ':', error.message);
-    }
-
-    // C) Primera carga (tabla vacía) — INSERT directo todos
-    if (planActual.length === 0 && toInsert.length === 0 && rows.length > 0) {
-      const first = rowsSorted.map((r,i) => ({
-        clave: r._key, orden: i+1, tipo: r.tipo||'',
-        nivel: nivelToInt(r.nivel), categoria: r.categoria||'General',
-        concepto: r.concepto||'', nota: r.nota||'',
-        total: parseFloat(r.total)||0, recomendado: parseFloat(r.recomendado)||0,
-        urgente: parseFloat(r.urgente)||0, supervivencia: parseFloat(r.supervivencia)||0,
-        semana: r._semana||null, moneda: r.moneda||'MXN',
-        tc_ref: r.tc_ref!=null?parseFloat(r.tc_ref):null,
-      }));
-      for (const p of [first, first.map(({moneda,tc_ref,...x})=>x)]) {
-        const { error } = await sb.from('catalogo_cxp').insert(p);
-        if (!error) break;
-      }
-    }
+    console.log(`cxpSync PURGE-INSERT → insertados:${insertados} preservados(liquidados):${clavesLiquidadas.size} omitidos:${omitidosLiquidados.length}`);
+    if (omitidosLiquidados.length) console.log('Omitidos (ya liquidados, se conservaron):', omitidosLiquidados.join(', '));
 
     try { cxpEsperadoLimpiar(); } catch(e){}
-    return { ok: true, insertados: toInsert.length, actualizados: toUpdate.length, ignorados: ignorados.length };
+    return { ok: true, insertados: insertados, actualizados: 0, ignorados: omitidosLiquidados.length };
 
   } catch(err) {
     console.error('cxpSyncToSupabase:', err);
