@@ -1486,7 +1486,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
         <div style="font-size:18px;font-weight:800;color:var(--text);">💸 Gastos Efectuados — Detalle</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Historial de pagos registrados</div>
       </div>
-      <button onclick="closeGastosDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">✕</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="compartirGastosWhatsApp()" title="Enviar lista de gastos pagados por WhatsApp" style="background:rgba(37,211,102,.12);color:#25d366;border:1px solid rgba(37,211,102,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;">📲 WhatsApp</button>
+        <button onclick="closeGastosDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">✕</button>
+      </div>
     </div>
     <div id="gastosDetalleResumen" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;"></div>
     <div id="gastosDetalleBody" style="overflow-x:auto;"></div>
@@ -6999,6 +7002,36 @@ function openGastosDetalleModal() {
 function closeGastosDetalleModal() {
   document.getElementById('gastosDetalleModal').classList.remove('open');
 }
+
+/* Genera un listado en texto plano de los Gastos Efectuados (lo pagado)
+   y abre WhatsApp Web/App con el mensaje precargado para compartirlo.
+   No requiere un número específico: wa.me/?text= abre el selector de chat. */
+function compartirGastosWhatsApp() {
+  if (!gastosEfectuadosData || gastosEfectuadosData.length === 0) {
+    toast('No hay gastos pagados registrados para compartir', 'err');
+    return;
+  }
+  const data = [...gastosEfectuadosData].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  const { mxnRaw, usdRaw, totalMXN } = gastosEfectuadosTotalMonedas();
+  const hoy = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const lineas = [`*💸 GASTOS PAGADOS — ${hoy}*`, ''];
+  data.forEach(g => {
+    const moneda = g.moneda || 'MXN';
+    const monto = parseFloat(g.monto_pagado) || 0;
+    const fecha = g.fecha ? new Date(g.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+    const montoTxt = moneda === 'USD' ? `$${monto.toFixed(2)} USD` : fmt(monto);
+    lineas.push(`${fecha} — ${g.concepto || '—'}: ${montoTxt}`);
+  });
+  lineas.push('');
+  lineas.push(`*Total: ${fmt(totalMXN)}*` + (usdRaw > 0 ? ` (incl. $${usdRaw.toFixed(2)} USD)` : ''));
+  lineas.push(`${data.length} registro${data.length > 1 ? 's' : ''}`);
+
+  const texto = lineas.join('\n');
+  const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
+  window.open(url, '_blank');
+}
+window.compartirGastosWhatsApp = compartirGastosWhatsApp;
 
 /* ══════════════════════════════════════════
    BORRADO / EDICIÓN DE GASTOS EFECTUADOS
