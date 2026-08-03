@@ -3891,6 +3891,7 @@ async function cxpSyncToSupabase(rows) {
     if (omitidosLiquidados.length) console.log('Omitidos (ya liquidados, se conservaron):', omitidosLiquidados.join(', '));
 
     try { cxpEsperadoLimpiar(); } catch(e){}
+    try { localStorage.removeItem('mitech_flujo_ajuste_esperado'); localStorage.removeItem('mitech_flujo_monto_orig'); } catch(e){}
     return { ok: true, insertados: insertados, actualizados: 0, ignorados: omitidosLiquidados.length };
 
   } catch(err) {
@@ -6138,6 +6139,25 @@ function flujoSyncPlanPagoState() {
   }
 }
 
+/* Evita destruir el input de OTRA fila que el usuario esta editando en este
+   momento: reconstruir el tbody completo (flujoRenderTabla) mientras otro
+   <input class="flujo-monto-input"> tiene el foco le borra el texto que
+   estaba escribiendo (por eso "al pasar a otra se regresa como estaba").
+   Si hay otro campo activo, se posterga el refresco visual: se aplicara solo
+   a las columnas que no dependen del render (KPIs), y la tabla se refrescara
+   completa en cuanto ese otro campo se guarde (blur). */
+function flujoHayOtroInputActivo(inputElActual) {
+  var act = document.activeElement;
+  return !!(act && act !== inputElActual && act.classList && act.classList.contains('flujo-monto-input'));
+}
+function flujoRenderTablaSeguro(inputElActual) {
+  if (flujoHayOtroInputActivo(inputElActual)) {
+    console.log('[flujo] refresco de tabla postergado: otro campo esta en edicion');
+    return;
+  }
+  flujoRenderTabla();
+}
+
 /* Guarda un nuevo monto en Supabase para la columna del plan activo */
 window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inputEl) {
   const raw = parseMoney(inputEl.value);
@@ -6156,21 +6176,19 @@ window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inpu
   try {
     const upd = {};
     upd[colPlan] = raw;
-    const { data, error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave).select();
+    const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
     if (error) throw error;
     // Actualizar local
     fila[colPlan] = raw;
-    if (!data || data.length === 0) {
-      // El UPDATE no afecto ninguna fila en Supabase (tipicamente RLS
-      // restrictivo en catalogo_cxp). Conservamos el ajuste localmente para
-      // que no se revierta al recargar, y lo marcamos para reintentar.
-      flujoAjusteEsperadoSet(clave, colPlan, raw);
-      console.warn('[flujoMontoGuardar] UPDATE sin filas afectadas en catalogo_cxp (posible RLS) para', clave, colPlan);
-    } else {
-      flujoAjusteEsperadoClear(clave, colPlan);
-    }
+    // Respaldo local SIEMPRE: PostgREST/Supabase no reporta error aunque RLS
+    // bloquee el UPDATE y no afecte ninguna fila (comportamiento conocido,
+    // ya documentado en cxpEsperadoAplicar para el cierre de semana). Este
+    // respaldo evita que el ajuste se revierta al recargar, sin importar
+    // cuantas veces se repita. Si el UPDATE si aterrizo, no tiene efecto
+    // (el valor esperado y el real ya coinciden).
+    flujoAjusteEsperadoSet(clave, colPlan, raw);
     toast('💾 Monto actualizado en el plan', 'ok');
-    flujoRenderTabla();
+    flujoRenderTablaSeguro(inputEl);
     // Refrescar KPI de brecha del dashboard
     if (typeof renderDashboard === 'function') renderDashboard();
     // Propagar el ajuste al modal Plan de Pagos (si esta abierto)
@@ -6193,16 +6211,16 @@ window.flujoMontoDeshacer = async function flujoMontoDeshacer(clave, colPlan) {
   try {
     const upd = {};
     upd[colPlan] = original;
-    const { data, error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave).select();
+    const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
     if (error) throw error;
     fila[colPlan] = original;
     flujoMontoOriginalClear(clave, colPlan);
-    flujoAjusteEsperadoClear(clave, colPlan);
-    if (!data || data.length === 0) {
-      console.warn('[flujoMontoDeshacer] UPDATE sin filas afectadas en catalogo_cxp (posible RLS) para', clave, colPlan);
-    }
+    // El "deshacer" es en si mismo un ajuste (al valor original): se
+    // respalda igual que un ajuste normal para que tampoco se revierta si
+    // el UPDATE de la restauracion no aterriza en Supabase.
+    flujoAjusteEsperadoSet(clave, colPlan, original);
     toast('↺ Monto restaurado al original', 'ok');
-    flujoRenderTabla();
+    flujoRenderTablaSeguro(null);
     if (typeof renderDashboard === 'function') renderDashboard();
     flujoSyncPlanPagoState();
   } catch(e) {
