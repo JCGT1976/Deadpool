@@ -157,6 +157,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 .topbar-logo img{height:100%;width:auto;display:block}
 .topbar-title{font-size:14px;font-weight:700;color:var(--text);flex:1}
 .topbar-user{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.sync-badge{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block}
+.user-chip{display:flex;align-items:center;gap:8px;background:var(--surface2, rgba(0,0,0,.04));border-radius:20px;padding:4px 10px 4px 4px}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:#ffb703;color:#1a1a1a;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
+.user-meta{display:flex;flex-direction:column;line-height:1.15}
+.user-meta .name{font-size:11.5px;font-weight:600}
+.user-meta .role{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+
 .role-badge{
   font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.06em;
 }
@@ -918,20 +926,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     </div>
     <div class="topbar-title">Mi Technologies</div>
     <div class="topbar-user">
+  <span class="sync-badge"><span class="sync-dot"></span><span id="dpSyncTxt">Conectado</span></span>
+  <div class="user-chip">
+    <div class="user-avatar" id="dpUserAvatar">—</div>
+    <div class="user-meta">
       <span class="name" id="topName"></span>
-      <span class="role-badge" id="topRole"></span>
-      <button class="btn-icon" onclick="toggleLang()" id="langToggleBtn" title="Language / Idioma" style="min-width:auto;padding:6px 8px;">
-        <span style="font-size:14px;">🌐</span>
-        <span class="label" id="langCodeLbl" style="font-weight:700;font-size:11px;">ES</span>
-      </button>
-      <button class="btn-icon" onclick="toggleTheme()" id="themeToggleBtn" title="Theme / Tema" style="min-width:auto;padding:6px 8px;">
-        <span id="themeIconLbl" style="font-size:14px;">🌙</span>
-      </button>
-      <button class="btn-icon" onclick="doLogout()">
-        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        <span class="label" data-i18n="btn.logout">Salir</span>
-      </button>
+      <span class="role" id="topRole"></span>
     </div>
+  </div>
+  <button class="btn-icon" onclick="toggleTheme()" title="Tema">🌓</button>
+  <button class="btn-icon" onclick="toggleLang()" id="langToggleBtn" title="Language / Idioma" style="min-width:auto;padding:6px 8px;font-weight:700;">EN</button>
+  <button class="btn-icon" onclick="volverPortal()">← Portal</button>
+  <button class="btn-icon" onclick="doLogout()">Salir</button>
+</div>
   </div>
 
   <!-- session bar -->
@@ -1925,14 +1932,55 @@ function applyI18n() {
 }
 
 /* Toggle Español ↔ English */
-function toggleLang() {
-  window.APP_LANG = (window.APP_LANG === 'es') ? 'en' : 'es';
-  localStorage.setItem('mitech_lang', window.APP_LANG);
-  applyI18n();
-  // Re-render de tabs dinámicos para actualizar strings hardcoded que aún no usan data-i18n
-  if (typeof window._currentTab === 'string' && typeof showTab === 'function') {
-    try { showTab(window._currentTab); } catch(e){}
-  }
+var DP_ES2EN = {"Mi Technologies":"Mi Technologies","ADMON MASTER":"ADMIN MASTER","Salir":"Log out","Conectado":"Connected","Sesión activa · expira en":"Active session · expires in","Renovar":"Renew","📊 Dashboard":"📊 Dashboard","💳 CxP":"💳 AP","🔄 Actualizar":"🔄 Refresh","Actualizar":"Refresh","🇲🇽 PRESUPUESTO SEMANAL":"🇲🇽 WEEKLY BUDGET","✅ En rango":"✅ On track","Ejecutado (gastos efectuados)":"Executed (expenses incurred)","🏦 SALDO BANCARIO":"🏦 BANK BALANCE","Entradas menos gastos efectuados":"Income minus expenses incurred","🇲🇽 Gastos MXN":"🇲🇽 Expenses MXN","🇺🇸 Equiv. USD":"🇺🇸 USD Equiv.","💳 DEUDA TOTAL":"💳 TOTAL DEBT","conceptos · columna TOTAL":"items · TOTAL column","Pagado":"Paid","Pendiente":"Pending","Plan activo:":"Active plan:","🆘 Supervivencia":"🆘 Survival","📋 Clic para ver reporte semanal":"📋 Click to view weekly report","Indicadores Clave":"Key Indicators","entradas":"entries","💵 ENTRADAS":"💵 INCOME","registro":"record","📑 PLAN DE PAGOS":"📑 PAYMENT PLAN","🆘 Supervivencia · Mínimo crítico":"🆘 Survival · Critical minimum","Pendiente por pagar":"Pending payment","🔎 Clic para ver detalle":"🔎 Click to view detail","💸 GASTOS EFECTUADOS":"💸 EXPENSES INCURRED","— Sin gastos —":"— No expenses —","Total MXN equivalente · Clic para ver detalle":"Total MXN equivalent · Click to view detail","🇲🇽 En pesos MXN":"🇲🇽 In MXN pesos","🔎 Clic para ver historial":"🔎 Click to view history","📐 BRECHA ENTRADAS VS. PLAN":"📐 INCOME VS. PLAN GAP","⚠️ Faltan recursos para cubrir el pendiente":"⚠️ Insufficient funds to cover the pending amount","Entradas":"Income","Pendiente del plan":"Plan pending","🪙 Clic para ver Flujo de Efectivo":"🪙 Click to view Cash Flow","📂":"📂","Cargar Archivo de CxP":"Upload AP File","📅 SEMANA QUE VAS A CARGAR":"📅 WEEK YOU ARE UPLOADING","📂 Cargar Excel de CxP · Arrastra o haz clic":"📂 Upload AP Excel · Drag or click","Formato .xlsx · columnas: TIPO, CATEGORIA, CONCEPTO, TOTAL, RECOMENDADO, URGENTE, SUPERVIVENCIA":"Format .xlsx · columns: TYPE, CATEGORY, ITEM, TOTAL, RECOMMENDED, URGENT, SURVIVAL","conceptos cargados · semana":"items loaded · week","Indicadores de CxP":"AP Indicators","💰 TOTAL GENERAL":"💰 GRAND TOTAL","conceptos":"items","del total":"of total","✅ RECOMENDADO":"✅ RECOMMENDED","Pago óptimo":"Optimal payment","⚠️ URGENTE":"⚠️ URGENT","Pago inmediato":"Immediate payment","🆘 SUPERVIVENCIA":"🆘 SURVIVAL","Mínimo crítico":"Critical minimum","📊 Mostrando TOTAL GENERAL — todos los conceptos y montos completos":"📊 Showing GRAND TOTAL — all items and full amounts","Cuentas por Pagar — Detalle":"Accounts Payable — Detail","Todos":"All","Convenios proveedores":"Vendor agreements","General":"General","Impuestos":"Taxes","Operativos":"Operations","Proveedores":"Vendors","Proyectos":"Projects","Rentas":"Rent","Salarios":"Payroll","Servicios":"Services","CONCEPTO":"ITEM","CATEGORÍA":"CATEGORY","TOTAL":"TOTAL","Maquila":"Maquiladora","Language / Idioma":"Language / Idioma","Tema":"Theme","← Portal":"← Portal"};
+function dpTranslateNode(root, lang){
+  if (!root) return;
+  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(node){
+      var p = node.parentElement;
+      if (!p) return NodeFilter.FILTER_REJECT;
+      var tag = p.tagName;
+      if (tag==="SCRIPT"||tag==="STYLE"||tag==="NOSCRIPT") return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  var nodes = [];
+  var n;
+  while (n = walker.nextNode()) nodes.push(n);
+  nodes.forEach(function(node){
+    if (node.__i18nOriginal === undefined) node.__i18nOriginal = node.nodeValue;
+    var original = node.__i18nOriginal;
+    var trimmed = original.trim();
+    if (!trimmed) return;
+    if (lang === "en") {
+      var translated = DP_ES2EN[trimmed];
+      if (translated !== undefined) node.nodeValue = original.split(trimmed).join(translated);
+      else node.nodeValue = original;
+    } else {
+      node.nodeValue = original;
+    }
+  });
+}
+function dpApplyLang(lang){
+  try { localStorage.setItem("sif_lang", lang); } catch(e){}
+  dpTranslateNode(document.body, lang);
+  var btn = document.getElementById("langToggleBtn");
+  if (btn) btn.textContent = lang === "es" ? "EN" : "ES";
+}
+function toggleLang(){
+  var cur = "es";
+  try { cur = localStorage.getItem("sif_lang") || "es"; } catch(e){}
+  dpApplyLang(cur === "es" ? "en" : "es");
+}
+document.addEventListener("DOMContentLoaded", function(){
+  var saved = "es";
+  try { saved = localStorage.getItem("sif_lang") || "es"; } catch(e){}
+  if (saved === "en") dpApplyLang("en");
+});
+if (document.readyState !== "loading") {
+  var __dpSavedNow = "es";
+  try { __dpSavedNow = localStorage.getItem("sif_lang") || "es"; } catch(e){}
+  if (__dpSavedNow === "en") dpApplyLang("en");
 }
 
 /* Toggle tema oscuro ↔ claro */
@@ -2128,6 +2176,7 @@ async function loginSuccess(userData) {
   document.getElementById('app').style.display = 'flex';
   document.getElementById('app').style.flexDirection = 'column';
   document.getElementById('topName').textContent = userData.nombre;
+  try{var __dpNameEl=document.getElementById("topName");var __dpInit=(__dpNameEl.textContent||"").trim().split(/\s+/).map(function(w){return w[0]||"";}).slice(0,2).join("").toUpperCase();var __dpAv=document.getElementById("dpUserAvatar");if(__dpAv)__dpAv.textContent=__dpInit||"?";}catch(e){}
   const rb = document.getElementById('topRole');
   const ROLE_LABELS_TOP = { admin_master:'Admon Master', admin:'Admin', cohost:'Cohost', view:'View', income:'Income' };
   rb.textContent = ROLE_LABELS_TOP[userData.rol] || userData.rol;
@@ -2160,6 +2209,8 @@ async function doLogout() {
   // Redirigir al SIF-Portal (replace: no queda en el history para evitar "back")
   window.location.replace(PORTAL_URL);
 }
+
+function volverPortal(){ try{ window.location.href = (typeof PORTAL_URL !== "undefined" ? PORTAL_URL : "https://jcgt1976.github.io/SIF-Portal/"); }catch(e){ window.location.href = "https://jcgt1976.github.io/SIF-Portal/"; } }
 
 /* ══════════════════════════════════════════
    CARGAR DATOS
