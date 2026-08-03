@@ -1980,6 +1980,17 @@ function dpApplyLang(lang){
   var btn = document.getElementById("langToggleBtn");
   if (btn) btn.textContent = lang === "es" ? "EN" : "ES";
 }
+
+var __dpTranslating = false;
+new MutationObserver(function(muts){
+  if (__dpTranslating) return;
+  var lang = "es"; try { lang = localStorage.getItem("sif_lang") || "es"; } catch(e){}
+  if (lang !== "en") return;
+  var onlyText = muts.every(function(m){ return m.type === "characterData"; });
+  if (onlyText) return;
+  __dpTranslating = true;
+  try { dpTranslateNode(document.body, "en"); } finally { __dpTranslating = false; }
+}).observe(document.body, {childList:true, subtree:true});
 function toggleLang(){
   var cur = "es";
   try { cur = localStorage.getItem("sif_lang") || "es"; } catch(e){}
