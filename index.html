@@ -3966,6 +3966,7 @@ async function cxpFetchSupabaseData() {
     // planificables al valor esperado guardado en localStorage. Sin esto, cada
     // refresh del navegador restauraría la deuda original desde Supabase.
     try { cxpEsperadoAplicar(cxpData); } catch(e) { console.warn('cxpEsperadoAplicar:', e); }
+    try { flujoAjusteEsperadoAplicar(cxpData); } catch(e) { console.warn('flujoAjusteEsperadoAplicar:', e); }
     // Persistir en cache local para que el plan sobreviva si Supabase falla o
     // devuelve vacío en la próxima sesión (JC: "no cambies el plan cuando la
     // sesión se acaba"). Guardamos junto con la semana para NO restaurar el plan
@@ -6087,6 +6088,56 @@ function flujoMontoOriginalClear(clave, colPlan) {
   try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
 }
 
+/* Cache local de ajustes "esperados": cuando el UPDATE a Supabase no aterriza
+   (tipicamente por RLS restrictivo en catalogo_cxp -- el mismo problema ya
+   documentado en cxpEsperadoAplicar para el cierre de semana), el ajuste del
+   usuario se perderia al recargar. Este mapa persiste el valor ajustado en
+   localStorage y se reaplica sobre cxpData en cada recarga desde Supabase,
+   para que el ajuste se quede grabado sin importar cuantas veces se repita. */
+function flujoAjusteEsperadoGet() {
+  try { return JSON.parse(localStorage.getItem('mitech_flujo_ajuste_esperado') || '{}'); } catch(e) { return {}; }
+}
+function flujoAjusteEsperadoSet(clave, colPlan, valor) {
+  var map = flujoAjusteEsperadoGet();
+  map[clave + '::' + colPlan] = { valor: valor, ts: Date.now() };
+  try { localStorage.setItem('mitech_flujo_ajuste_esperado', JSON.stringify(map)); } catch(e) {}
+}
+function flujoAjusteEsperadoClear(clave, colPlan) {
+  var map = flujoAjusteEsperadoGet();
+  delete map[clave + '::' + colPlan];
+  try { localStorage.setItem('mitech_flujo_ajuste_esperado', JSON.stringify(map)); } catch(e) {}
+}
+/* Reaplica los ajustes pendientes sobre filas recien cargadas de Supabase */
+function flujoAjusteEsperadoAplicar(rows) {
+  var map = flujoAjusteEsperadoGet();
+  var keys = Object.keys(map);
+  if (keys.length === 0) return 0;
+  var aplicadas = 0;
+  var cols = ['total','recomendado','urgente','supervivencia'];
+  rows.forEach(function(r) {
+    var clave = r._key;
+    cols.forEach(function(col) {
+      var entry = map[clave + '::' + col];
+      if (entry && Math.abs((parseFloat(r[col]) || 0) - entry.valor) > 0.01) {
+        r[col] = entry.valor;
+        aplicadas++;
+      }
+    });
+  });
+  if (aplicadas > 0) console.log('[flujoAjusteEsperado] ' + aplicadas + ' columna(s) reaplicadas (ajuste local pendiente de confirmar en Supabase)');
+  return aplicadas;
+}
+
+/* Refresca el snapshot del modal Plan de Pagos (si esta abierto) para que un
+   ajuste hecho desde Flujo de Efectivo se vea reflejado ahi sin tener que
+   cerrar y reabrir el modal. */
+function flujoSyncPlanPagoState() {
+  if (window._planPagoState) {
+    window._planPagoState.rows = cxpData.filter(function(r) { return r.concepto && r.total !== undefined; });
+    if (typeof planPagoRenderTabla === 'function') { try { planPagoRenderTabla(); } catch(e) { console.warn('planPagoRenderTabla:', e); } }
+  }
+}
+
 /* Guarda un nuevo monto en Supabase para la columna del plan activo */
 window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inputEl) {
   const raw = parseMoney(inputEl.value);
@@ -6105,14 +6156,25 @@ window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inpu
   try {
     const upd = {};
     upd[colPlan] = raw;
-    const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
+    const { data, error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave).select();
     if (error) throw error;
     // Actualizar local
     fila[colPlan] = raw;
+    if (!data || data.length === 0) {
+      // El UPDATE no afecto ninguna fila en Supabase (tipicamente RLS
+      // restrictivo en catalogo_cxp). Conservamos el ajuste localmente para
+      // que no se revierta al recargar, y lo marcamos para reintentar.
+      flujoAjusteEsperadoSet(clave, colPlan, raw);
+      console.warn('[flujoMontoGuardar] UPDATE sin filas afectadas en catalogo_cxp (posible RLS) para', clave, colPlan);
+    } else {
+      flujoAjusteEsperadoClear(clave, colPlan);
+    }
     toast('💾 Monto actualizado en el plan', 'ok');
     flujoRenderTabla();
     // Refrescar KPI de brecha del dashboard
     if (typeof renderDashboard === 'function') renderDashboard();
+    // Propagar el ajuste al modal Plan de Pagos (si esta abierto)
+    flujoSyncPlanPagoState();
   } catch(e) {
     console.error('flujoMontoGuardar:', e);
     toast('Error al guardar: ' + (e.message || e), 'err');
@@ -6131,13 +6193,18 @@ window.flujoMontoDeshacer = async function flujoMontoDeshacer(clave, colPlan) {
   try {
     const upd = {};
     upd[colPlan] = original;
-    const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
+    const { data, error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave).select();
     if (error) throw error;
     fila[colPlan] = original;
     flujoMontoOriginalClear(clave, colPlan);
+    flujoAjusteEsperadoClear(clave, colPlan);
+    if (!data || data.length === 0) {
+      console.warn('[flujoMontoDeshacer] UPDATE sin filas afectadas en catalogo_cxp (posible RLS) para', clave, colPlan);
+    }
     toast('↺ Monto restaurado al original', 'ok');
     flujoRenderTabla();
     if (typeof renderDashboard === 'function') renderDashboard();
+    flujoSyncPlanPagoState();
   } catch(e) {
     console.error('flujoMontoDeshacer:', e);
     toast('Error al deshacer: ' + (e.message || e), 'err');
@@ -7621,6 +7688,7 @@ async function confirmarResetTotal() {
   } catch(e) { console.warn('[reset] presupuestos wipe:', e); }
   // Limpiar estado esperado post-cierre (los descuentos acumulados de cierres previos)
   cxpEsperadoLimpiar();
+  try { localStorage.removeItem('mitech_flujo_ajuste_esperado'); localStorage.removeItem('mitech_flujo_monto_orig'); } catch(e){}
 
   closeResetTotalModal();
   toast('♻️ Reset total ejecutado — todo limpio');
