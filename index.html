@@ -951,6 +951,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   <div class="nav" id="navTabs">
     <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard" data-i18n="nav.dashboard">📊 Dashboard</button>
     <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp" data-i18n="nav.cxp">💳 CxP</button>
+    <button class="nav-tab" onclick="showTab('cxp-fiscal')" data-tab="cxp-fiscal">🧾 CXP Fiscal</button>
 
   </div>
 
@@ -2279,6 +2280,7 @@ function showTab(tab) {
   switch(tab) {
     case 'dashboard': renderDashboard(c); break;
     case 'cxp':       renderCxP(c); break;
+    case 'cxp-fiscal': renderCxpFiscal(c); break;
   }
   // Restaurar el estado abierto/cerrado de acordeones (evita que se colapsen
   // al re-renderizar después de agregar gasto, registrar pago, cerrar semana, etc.)
@@ -8691,6 +8693,255 @@ window.planPagoBorrarConcepto = async function planPagoBorrarConcepto(rowKeyIdx)
   }
   setTimeout(addPortalBtn, 800);
   setTimeout(addPortalBtn, 2000);
+/* ── CXP FISCAL ──────────────────────────────────────── */
+.cxpf-wrap{padding:16px;max-width:100%;overflow-x:auto}
+.cxpf-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.cxpf-header h2{font-size:18px;font-weight:700;margin:0}
+.cxpf-filters{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px;background:var(--bg-card,#1a1d27);border:1px solid var(--border,#2e3350);border-radius:10px;padding:14px}
+.cxpf-filters label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:600;color:var(--text-muted,#64748b);text-transform:uppercase;letter-spacing:.04em}
+.cxpf-filters select{background:var(--bg,#0f1117);border:1px solid var(--border,#2e3350);color:var(--text,#e2e8f0);border-radius:7px;padding:7px 10px;font-size:13px;cursor:pointer}
+.btn-add{padding:8px 16px;background:var(--accent,#4f7cff);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;align-self:flex-end}
+.btn-add:hover{opacity:.85}
+.cxpf-msg{padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.cxpf-msg-ok{background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
+.cxpf-msg-error{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.cxpf-table-wrap{overflow-x:auto;border:1px solid var(--border,#2e3350);border-radius:10px}
+.cxpf-table{width:100%;border-collapse:collapse;font-size:13px}
+.cxpf-table th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--text-muted,#64748b);text-transform:uppercase;letter-spacing:.05em;background:var(--bg-card2,#21253a);border-bottom:1px solid var(--border,#2e3350)}
+.cxpf-table td{padding:10px 14px;border-bottom:1px solid var(--border,#2e3350);color:var(--text,#e2e8f0)}
+.cxpf-table tr:last-child td{border-bottom:none}
+.cxpf-table tr:hover td{background:rgba(79,124,255,.05)}
+.cxpf-empresa{font-weight:600}
+.cxpf-num{text-align:right;font-variant-numeric:tabular-nums}
+.cxpf-input{width:110px;padding:5px 8px;background:var(--bg,#0f1117);border:1px solid var(--border,#2e3350);color:var(--text,#e2e8f0);border-radius:6px;font-size:12px;text-align:right}
+.cxpf-input:focus{border-color:var(--accent,#4f7cff);outline:none}
+.cxpf-btn-save{padding:4px 10px;background:var(--accent,#4f7cff);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer}
+.cxpf-btn-save:hover{opacity:.85}
+.cxpf-empty{text-align:center;color:var(--text-muted,#64748b);padding:24px}
+.cxpf-error{text-align:center;color:#ef4444;padding:16px}
+/* fin CXP Fiscal */
+
+// ── CXP FISCAL MODULE ─────────────────────────────────────────────────
+
+window.renderCxpFiscal = function renderCxpFiscal(c) {
+  if (!c) { c = document.getElementById('mainContent'); if (!c) return; }
+  var canEdit = currentUser && (currentUser.rol === 'admin_master' || currentUser.rol === 'admin' || currentUser.rol === 'cohost');
+  var now = new Date();
+  var añoActual = now.getFullYear();
+  var mesActual = now.getMonth() + 1;
+  var añoOpts = '';
+  for (var y = añoActual; y >= añoActual - 4; y--) {
+    añoOpts += '<option value="' + y + '"' + (y === añoActual ? ' selected' : '') + '>' + y + '</option>';
+  }
+  var MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var mesOpts = MESES.map(function(n, i) {
+    var v = i + 1;
+    return '<option value="' + v + '"' + (v === mesActual ? ' selected' : '') + '>' + n + '</option>';
+  }).join('');
+  var editBadge = canEdit
+    ? '<span class="role-badge" style="background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">✏️ Edición habilitada</span>'
+    : '<span class="role-badge" style="background:rgba(100,116,139,.15);color:#64748b;border:1px solid rgba(100,116,139,.3);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">👁 Solo lectura</span>';
+  var initBtn = canEdit ? '<button class="btn-add" onclick="cxpFiscalInicializar()">➕ Inicializar mes</button>' : '';
+  var thGuardar = canEdit ? '<th>Guardar</th>' : '';
+  c.innerHTML =
+    '<div class="cxpf-wrap">' +
+      '<div class="cxpf-header"><h2>🧾 CXP Fiscal</h2>' + editBadge + '</div>' +
+      '<div class="cxpf-filters">' +
+        '<label>Año<select id="cxpFiscalAnio" onchange="cxpFiscalCargar()">' + añoOpts + '</select></label>' +
+        '<label>Mes<select id="cxpFiscalMes" onchange="cxpFiscalCargar()">' + mesOpts + '</select></label>' +
+        initBtn +
+      '</div>' +
+      '<div id="cxpFiscalStatus" style="display:none" class="cxpf-msg"></div>' +
+      '<div class="cxpf-table-wrap">' +
+        '<table class="cxpf-table"><thead><tr>' +
+          '<th>Empresa</th><th>IVA Acreditable</th><th>ISR Retenido</th><th>IVA Retenido</th><th>Ajuste</th>' +
+          thGuardar +
+        '</tr></thead><tbody id="cxpFiscalBody"><tr><td colspan="6" class="cxpf-empty">Cargando…</td></tr></tbody></table>' +
+      '</div>' +
+    '</div>';
+  cxpFiscalCargar();
+};
+
+window.cxpFiscalCargar = async function cxpFiscalCargar() {
+  var anioEl = document.getElementById('cxpFiscalAnio');
+  var mesEl  = document.getElementById('cxpFiscalMes');
+  if (!anioEl || !mesEl) return;
+  var anio = parseInt(anioEl.value);
+  var mes  = parseInt(mesEl.value);
+  var body = document.getElementById('cxpFiscalBody');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="6" class="cxpf-empty">Cargando…</td></tr>';
+  var q = await sb.from('cxp_impuestos').select('*').eq('anio', anio).eq('mes', mes).order('empresa');
+  if (q.error) {
+    body.innerHTML = '<tr><td colspan="6" class="cxpf-error">Error al cargar datos.</td></tr>';
+    return;
+  }
+  var canEdit = currentUser && (currentUser.rol === 'admin_master' || currentUser.rol === 'admin' || currentUser.rol === 'cohost');
+  var rows = q.data || [];
+  if (rows.length === 0) {
+    var hint = canEdit ? ' Usa "➕ Inicializar mes" para crear los registros.' : '';
+    body.innerHTML = '<tr><td colspan="6" class="cxpf-empty">Sin registros para este período.' + hint + '</td></tr>';
+    return;
+  }
+  var fmt = function(v) { return Number(v || 0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+  var rowsHtml = rows.map(function(row) {
+    var campos = ['iva_acreditable','isr_retenido','iva_retenido','ajuste'];
+    var cells = campos.map(function(campo) {
+      if (canEdit) {
+        return '<td><input class="cxpf-input" type="number" step="0.01" min="0" ' +
+          'data-campo="' + campo + '" data-id="' + row.id + '" ' +
+          'value="' + (row[campo] || 0) + '"></td>';
+      }
+      return '<td class="cxpf-num"> ══════════════════════════════════════════
+     MODAL: COMPARATIVO EXCEL vs PLAN
+══════════════════════════════════════════ -->
+<div id="comparativoExcelModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);overflow-y:auto;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:820px;margin:40px auto;padding:0;overflow:hidden;">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);padding:18px 24px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:16px;font-weight:800;color:#fff;">📊 Comparativo Excel vs Plan de Pagos</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.75);margin-top:2px;">Revisa las coincidencias antes de aplicar cambios</div>
+      </div>
+      <button onclick="cerrarComparativoExcel()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;cursor:pointer;border-radius:6px;padding:4px 10px;">✕</button>
+    </div>
+    <!-- Leyenda -->
+    <div style="display:flex;gap:16px;padding:14px 24px 0;flex-wrap:wrap;">
+      <span style="font-size:11px;display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;"></span>Match exacto</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>Match parcial (monto difiere)</span>
+      <span style="font-size:11px;display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;"></span>Sin match — se agregará al plan</span>
+    </div>
+    <!-- Tabla -->
+    <div style="padding:14px 24px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;" id="comparativoTabla">
+        <thead>
+          <tr style="background:var(--bg);border-bottom:2px solid var(--border);">
+            <th style="text-align:center;padding:8px 6px;width:28px;">#</th>
+            <th style="text-align:left;padding:8px 6px;">Concepto Excel</th>
+            <th style="text-align:right;padding:8px 6px;">Monto Excel</th>
+            <th style="text-align:left;padding:8px 6px;">Concepto Plan</th>
+            <th style="text-align:right;padding:8px 6px;">Monto Plan</th>
+            <th style="text-align:center;padding:8px 6px;">Estado</th>
+            <th style="text-align:center;padding:8px 6px;">Nivel (nuevos)</th>
+          </tr>
+        </thead>
+        <tbody id="comparativoTbody"></tbody>
+      </table>
+    </div>
+    <!-- Footer -->
+    <div style="padding:14px 24px 20px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);">
+      <div id="comparativoResumen" style="font-size:12px;color:var(--muted);"></div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="cerrarComparativoExcel()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 20px;border-radius:8px;font-size:13px;cursor:pointer;">Cancelar</button>
+        <button onclick="aplicarComparativoExcel()" id="btnAplicarComparativo" style="background:#3b82f6;border:none;color:#fff;padding:9px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">✅ Aplicar al Plan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODAL: ASIGNACIÓN DE NIVEL A GASTOS NUEVOS
+══════════════════════════════════════════ -->
+<div id="modalNivelesNuevos" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.75);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:460px;max-width:94vw;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.5);">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:16px 22px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:14px;font-weight:800;color:#fff;">🏷️ Asignar Nivel a Gastos Nuevos</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.75);margin-top:2px;">Cada gasto nuevo necesita un nivel de prioridad</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="nivelesNuevosProgress" style="font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:20px;"></span>
+        <button onclick="cerrarModalNivelesNuevos()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:16px;cursor:pointer;border-radius:6px;padding:3px 9px;">✕</button>
+      </div>
+    </div>
+    <!-- Concepto -->
+    <div style="padding:20px 22px 10px;">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Concepto</div>
+      <div id="nivelesNuevosConcepto" style="font-size:15px;font-weight:700;color:var(--text);line-height:1.3;"></div>
+      <div id="nivelesNuevosMonto" style="font-size:13px;color:#3b82f6;font-weight:600;margin-top:4px;"></div>
+    </div>
+    <!-- Botones de nivel -->
+    <div style="padding:10px 22px 16px;">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Selecciona el nivel de prioridad:</div>
+      <div id="nivelesNuevosBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+    <!-- Navegación -->
+    <div style="padding:14px 22px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <button id="btnNivelesAnterior" onclick="nivelesNuevosAnterior()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 18px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;">◄ Anterior</button>
+      <button id="btnNivelesSiguiente" onclick="nivelesNuevosSiguiente()" style="background:#7c3aed;border:none;color:#fff;padding:8px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Siguiente ►</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ + fmt(row[campo]) + '</td>';
+    }).join('');
+    var saveBtn = canEdit
+      ? '<td><button class="cxpf-btn-save" onclick="cxpFiscalGuardarFila(\"' + row.id + '\")">💾</button></td>'
+      : '';
+    return '<tr data-id="' + row.id + '"><td class="cxpf-empresa">' + row.empresa + '</td>' + cells + saveBtn + '</tr>';
+  }).join('');
+  body.innerHTML = rowsHtml;
+};
+
+window.cxpFiscalGuardarFila = async function cxpFiscalGuardarFila(id) {
+  var canEdit = currentUser && (currentUser.rol === 'admin_master' || currentUser.rol === 'admin' || currentUser.rol === 'cohost');
+  if (!canEdit) { cxpFiscalMsg('Sin permiso de edición.', 'error'); return; }
+  var tr = document.querySelector('tr[data-id="' + id + '"]');
+  if (!tr) { cxpFiscalMsg('Fila no encontrada.', 'error'); return; }
+  var inputs = tr.querySelectorAll('.cxpf-input');
+  var payload = { updated_by: currentUser.username || currentUser.nombre || '', updated_at: new Date().toISOString() };
+  inputs.forEach(function(inp) { payload[inp.dataset.campo] = parseFloat(inp.value) || 0; });
+  var q = await sb.from('cxp_impuestos').update(payload).eq('id', id);
+  if (q.error) { cxpFiscalMsg('Error al guardar: ' + (q.error.message || ''), 'error'); return; }
+  cxpFiscalMsg('✅ Guardado', 'ok');
+};
+
+window.cxpFiscalInicializar = async function cxpFiscalInicializar() {
+  var canEdit = currentUser && (currentUser.rol === 'admin_master' || currentUser.rol === 'admin' || currentUser.rol === 'cohost');
+  if (!canEdit) { cxpFiscalMsg('Sin permiso.', 'error'); return; }
+  var anio = parseInt(document.getElementById('cxpFiscalAnio').value);
+  var mes  = parseInt(document.getElementById('cxpFiscalMes').value);
+  var empresas = ['Internacional','Ariitranst','Autobot','Boughts','Comercial'];
+  var registros = empresas.map(function(emp) {
+    return { empresa: emp, anio: anio, mes: mes,
+      iva_acreditable: 0, isr_retenido: 0, iva_retenido: 0, ajuste: 0,
+      updated_by: currentUser.username || '' };
+  });
+  var q = await sb.from('cxp_impuestos').upsert(registros, { onConflict: 'empresa,anio,mes', ignoreDuplicates: true });
+  if (q.error) { cxpFiscalMsg('Error: ' + (q.error.message || ''), 'error'); return; }
+  cxpFiscalMsg('✅ Mes inicializado para las 5 empresas', 'ok');
+  cxpFiscalCargar();
+};
+
+window.cxpFiscalMsg = function cxpFiscalMsg(txt, tipo) {
+  var el = document.getElementById('cxpFiscalStatus');
+  if (!el) return;
+  el.textContent = txt;
+  el.className = 'cxpf-msg cxpf-msg-' + (tipo || 'ok');
+  el.style.display = 'block';
+  setTimeout(function() { el.style.display = 'none'; }, 3500);
+};
+
+// ── FIN CXP FISCAL ─────────────────────────────────────────────
+
 })();
 </script>
 
