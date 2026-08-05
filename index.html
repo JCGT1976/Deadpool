@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
 <meta name="theme-color" content="#0f1923">
 <!-- Etapa 5.1 Â· Anti-cachÃ©: HTML NUNCA se guarda localmente. Los usuarios ven la Ãºltima versiÃ³n sin Ctrl+Shift+R. -->
@@ -1118,7 +1118,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
       </button>
       <button onclick="confirmPlanPago('urgente')"
         style="text-align:left;padding:14px;border-radius:10px;border:2px solid rgba(240,136,62,.4);background:rgba(240,136,62,.07);cursor:pointer;color:var(--text);">
-        <div style="font-weight:800;font-size:14px;color:#f0883e;">â ï¸ Urgente</div>
+        <div style="font-weight:800;font-size:14px;color:#f0883e;">⚠️ Urgente</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">Pago de atenciÃ³n inmediata</div>
       </button>
       <button onclick="confirmPlanPago('supervivencia')"
@@ -1372,7 +1372,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 
       <!-- SecciÃ³n gastos pendientes -->
       <div class="flujo-section-header">
-        <div class="flujo-section-title">â ï¸ <span>Gastos pendientes por cubrir</span></div>
+        <div class="flujo-section-title">⚠️ <span>Gastos pendientes por cubrir</span></div>
         <div class="flujo-section-total" id="flujoSectionTotal">$0</div>
       </div>
 
@@ -1412,7 +1412,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
     <div style="font-size:12px;color:var(--muted);margin-bottom:18px;">Archiva la semana actual y reinicia los contadores para la prÃ³xima semana.</div>
     <div id="cierreSemanaResumen" style="margin-bottom:18px;"></div>
     <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--yellow);margin-bottom:18px;">
-      â ï¸ Esta acciÃ³n eliminarÃ¡ las entradas y gastos efectuados de esta semana de los KPIs. El historial queda guardado localmente. Los conceptos del plan <strong>no pagados se acumulan como arrastre</strong> para la prÃ³xima semana.
+      ⚠️ Esta acciÃ³n eliminarÃ¡ las entradas y gastos efectuados de esta semana de los KPIs. El historial queda guardado localmente. Los conceptos del plan <strong>no pagados se acumulan como arrastre</strong> para la prÃ³xima semana.
     </div>
     <div class="budget-field" style="margin-bottom:18px;">
       <label>Nota del cierre (opcional)</label>
@@ -1756,7 +1756,7 @@ const I18N = {
   'kpi.click_weekly':   { es:'ð Clic para ver reporte semanal', en:'ð Click for weekly report' },
   'brecha.no_plan':     { es:'Activa un plan para calcular la brecha', en:'Activate a plan to calculate the gap' },
   'brecha.ok':          { es:'â Las entradas cubren el pendiente', en:'â Income covers pending' },
-  'brecha.err':         { es:'â ï¸ Faltan recursos para cubrir el pendiente', en:'â ï¸ Not enough to cover pending' },
+  'brecha.err':         { es:'⚠️ Faltan recursos para cubrir el pendiente', en:'⚠️ Not enough to cover pending' },
   'saldo.sub':          { es:'Entradas menos gastos efectuados', en:'Income minus expenses paid' },
   'saldo.usd_equiv':    { es:'ðºð¸ Equiv. USD',           en:'ðºð¸ USD Equiv.' },
   'saldo.gastos_mxn':   { es:'ð²ð½ Gastos MXN',           en:'ð²ð½ MXN Expenses' },
@@ -1765,7 +1765,7 @@ const I18N = {
   'budget.of':          { es:'de',                      en:'of' },
   'budget.setup':       { es:'âï¸ Clic para configurar',  en:'âï¸ Click to configure' },
   'budget.help':        { es:'Define tu presupuesto semanal para ver el progreso de gasto en tiempo real.', en:'Set your weekly budget to see spending progress in real time.' },
-  'budget.exceeded':    { es:'â ï¸ Excedido',              en:'â ï¸ Exceeded' },
+  'budget.exceeded':    { es:'⚠️ Excedido',              en:'⚠️ Exceeded' },
   'budget.close':       { es:'â¡ Cerca del lÃ­mite',      en:'â¡ Close to limit' },
   'budget.in_range':    { es:'â En rango',              en:'â In range' },
   'arrastre.none':      { es:'Sin arrastre de semanas anteriores', en:'No rollover from previous weeks' },
@@ -1826,7 +1826,7 @@ const I18N = {
   'pay.hint_partial':   { es:'Si seleccionaste varios conceptos y el pago es parcial, el monto se reparte proporcionalmente entre ellos segÃºn lo pendiente de cada uno.', en:'If you selected multiple items and the payment is partial, the amount is split proportionally by each item\'s pending balance.' },
   'pay.pending_label':  { es:'pendiente',               en:'pending' },
   'pay.registered':     { es:'Pago registrado â',       en:'Payment registered â' },
-  'pay.mixed_warn':     { es:'â ï¸ Conceptos con monedas mezcladas â el modal usa MXN por defecto; cambia manualmente si aplica.', en:'â ï¸ Items in mixed currencies â modal defaults to MXN; change manually if needed.' },
+  'pay.mixed_warn':     { es:'⚠️ Conceptos con monedas mezcladas â el modal usa MXN por defecto; cambia manualmente si aplica.', en:'⚠️ Items in mixed currencies â modal defaults to MXN; change manually if needed.' },
   // ââ Modal Agregar Gasto ââ
   'add.title':          { es:'â Agregar Gasto al Plan', en:'â Add Expense to Plan' },
   'add.subtitle':       { es:'Se agregarÃ¡ al catÃ¡logo con nivel automÃ¡tico segÃºn categorÃ­a y monto en todos los planes (Total, Recomendado, Urgente, Supervivencia).', en:'Added to the catalog with automatic level by category and amount across all plans (Total, Recommended, Urgent, Survival).' },
@@ -1871,7 +1871,7 @@ const I18N = {
   'flow.deposits':      { es:'DepÃ³sitos por enviar',    en:'Pending deposits' },
   'flow.total_avail':   { es:'Total disponible',        en:'Total available' },
   'flow.covered':       { es:'â Cubiertos:',            en:'â Covered:' },
-  'flow.uncovered':     { es:'â ï¸ Sin cubrir:',           en:'â ï¸ Uncovered:' },
+  'flow.uncovered':     { es:'⚠️ Sin cubrir:',           en:'⚠️ Uncovered:' },
   'flow.shortage':      { es:'Falta:',                  en:'Short:' },
   'flow.surplus':       { es:'Sobrante:',               en:'Surplus:' },
 
@@ -1945,7 +1945,7 @@ var DP_ES2EN = {
 "URGENTE":"URGENT",
 "SUPERVIVENCIA":"SURVIVAL",
 "Dashboard":"Dashboard",
-"1 entradas":"1 entries","Mi Technologies":"Mi Technologies","ADMON MASTER":"ADMIN MASTER","Salir":"Log out","Conectado":"Connected","SesiÃ³n activa Â· expira en":"Active session Â· expires in","Renovar":"Renew","ð Dashboard":"ð Dashboard","ð³ CxP":"ð³ AP","ð Actualizar":"ð Refresh","Actualizar":"Refresh","ð²ð½ PRESUPUESTO SEMANAL":"ð²ð½ WEEKLY BUDGET","â En rango":"â On track","Ejecutado (gastos efectuados)":"Executed (expenses incurred)","ð¦ SALDO BANCARIO":"ð¦ BANK BALANCE","Entradas menos gastos efectuados":"Income minus expenses incurred","ð²ð½ Gastos MXN":"ð²ð½ Expenses MXN","ðºð¸ Equiv. USD":"ðºð¸ USD Equiv.","ð³ DEUDA TOTAL":"ð³ TOTAL DEBT","conceptos Â· columna TOTAL":"items Â· TOTAL column","Pagado":"Paid","Pendiente":"Pending","Plan activo:":"Active plan:","ð Supervivencia":"ð Survival","ð Clic para ver reporte semanal":"ð Click to view weekly report","Indicadores Clave":"Key Indicators","entradas":"entries","ðµ ENTRADAS":"ðµ INCOME","registro":"record","ð PLAN DE PAGOS":"ð PAYMENT PLAN","ð Supervivencia Â· MÃ­nimo crÃ­tico":"ð Survival Â· Critical minimum","Pendiente por pagar":"Pending payment","ð Clic para ver detalle":"ð Click to view detail","ð¸ GASTOS EFECTUADOS":"ð¸ EXPENSES INCURRED","â Sin gastos â":"â No expenses â","Total MXN equivalente Â· Clic para ver detalle":"Total MXN equivalent Â· Click to view detail","ð²ð½ En pesos MXN":"ð²ð½ In MXN pesos","ð Clic para ver historial":"ð Click to view history","ð BRECHA ENTRADAS VS. PLAN":"ð INCOME VS. PLAN GAP","â ï¸ Faltan recursos para cubrir el pendiente":"â ï¸ Insufficient funds to cover the pending amount","Entradas":"Income","Pendiente del plan":"Plan pending","ðª Clic para ver Flujo de Efectivo":"ðª Click to view Cash Flow","ð":"ð","Cargar Archivo de CxP":"Upload AP File","ð SEMANA QUE VAS A CARGAR":"ð WEEK YOU ARE UPLOADING","ð Cargar Excel de CxP Â· Arrastra o haz clic":"ð Upload AP Excel Â· Drag or click","Formato .xlsx Â· columnas: TIPO, CATEGORIA, CONCEPTO, TOTAL, RECOMENDADO, URGENTE, SUPERVIVENCIA":"Format .xlsx Â· columns: TYPE, CATEGORY, ITEM, TOTAL, RECOMMENDED, URGENT, SURVIVAL","conceptos cargados Â· semana":"items loaded Â· week","Indicadores de CxP":"AP Indicators","ð° TOTAL GENERAL":"ð° GRAND TOTAL","conceptos":"items","del total":"of total","â RECOMENDADO":"â RECOMMENDED","Pago Ã³ptimo":"Optimal payment","â ï¸ URGENTE":"â ï¸ URGENT","Pago inmediato":"Immediate payment","ð SUPERVIVENCIA":"ð SURVIVAL","MÃ­nimo crÃ­tico":"Critical minimum","ð Mostrando TOTAL GENERAL â todos los conceptos y montos completos":"ð Showing GRAND TOTAL â all items and full amounts","Cuentas por Pagar â Detalle":"Accounts Payable â Detail","Todos":"All","Convenios proveedores":"Vendor agreements","General":"General","Impuestos":"Taxes","Operativos":"Operations","Proveedores":"Vendors","Proyectos":"Projects","Rentas":"Rent","Salarios":"Payroll","Servicios":"Services","CONCEPTO":"ITEM","CATEGORÃA":"CATEGORY","TOTAL":"TOTAL","Maquila":"Maquiladora","Language / Idioma":"Language / Idioma","Tema":"Theme","â Portal":"â Portal",
+"1 entradas":"1 entries","Mi Technologies":"Mi Technologies","ADMON MASTER":"ADMIN MASTER","Salir":"Log out","Conectado":"Connected","SesiÃ³n activa Â· expira en":"Active session Â· expires in","Renovar":"Renew","ð Dashboard":"ð Dashboard","ð³ CxP":"ð³ AP","ð Actualizar":"ð Refresh","Actualizar":"Refresh","ð²ð½ PRESUPUESTO SEMANAL":"ð²ð½ WEEKLY BUDGET","â En rango":"â On track","Ejecutado (gastos efectuados)":"Executed (expenses incurred)","ð¦ SALDO BANCARIO":"ð¦ BANK BALANCE","Entradas menos gastos efectuados":"Income minus expenses incurred","ð²ð½ Gastos MXN":"ð²ð½ Expenses MXN","ðºð¸ Equiv. USD":"ðºð¸ USD Equiv.","ð³ DEUDA TOTAL":"ð³ TOTAL DEBT","conceptos Â· columna TOTAL":"items Â· TOTAL column","Pagado":"Paid","Pendiente":"Pending","Plan activo:":"Active plan:","ð Supervivencia":"ð Survival","ð Clic para ver reporte semanal":"ð Click to view weekly report","Indicadores Clave":"Key Indicators","entradas":"entries","ðµ ENTRADAS":"ðµ INCOME","registro":"record","ð PLAN DE PAGOS":"ð PAYMENT PLAN","ð Supervivencia Â· MÃ­nimo crÃ­tico":"ð Survival Â· Critical minimum","Pendiente por pagar":"Pending payment","ð Clic para ver detalle":"ð Click to view detail","ð¸ GASTOS EFECTUADOS":"ð¸ EXPENSES INCURRED","â Sin gastos â":"â No expenses â","Total MXN equivalente Â· Clic para ver detalle":"Total MXN equivalent Â· Click to view detail","ð²ð½ En pesos MXN":"ð²ð½ In MXN pesos","ð Clic para ver historial":"ð Click to view history","ð BRECHA ENTRADAS VS. PLAN":"ð INCOME VS. PLAN GAP","⚠️ Faltan recursos para cubrir el pendiente":"⚠️ Insufficient funds to cover the pending amount","Entradas":"Income","Pendiente del plan":"Plan pending","ðª Clic para ver Flujo de Efectivo":"ðª Click to view Cash Flow","ð":"ð","Cargar Archivo de CxP":"Upload AP File","ð SEMANA QUE VAS A CARGAR":"ð WEEK YOU ARE UPLOADING","ð Cargar Excel de CxP Â· Arrastra o haz clic":"ð Upload AP Excel Â· Drag or click","Formato .xlsx Â· columnas: TIPO, CATEGORIA, CONCEPTO, TOTAL, RECOMENDADO, URGENTE, SUPERVIVENCIA":"Format .xlsx Â· columns: TYPE, CATEGORY, ITEM, TOTAL, RECOMMENDED, URGENT, SURVIVAL","conceptos cargados Â· semana":"items loaded Â· week","Indicadores de CxP":"AP Indicators","ð° TOTAL GENERAL":"ð° GRAND TOTAL","conceptos":"items","del total":"of total","â RECOMENDADO":"â RECOMMENDED","Pago Ã³ptimo":"Optimal payment","⚠️ URGENTE":"⚠️ URGENT","Pago inmediato":"Immediate payment","ð SUPERVIVENCIA":"ð SURVIVAL","MÃ­nimo crÃ­tico":"Critical minimum","ð Mostrando TOTAL GENERAL â todos los conceptos y montos completos":"ð Showing GRAND TOTAL â all items and full amounts","Cuentas por Pagar â Detalle":"Accounts Payable â Detail","Todos":"All","Convenios proveedores":"Vendor agreements","General":"General","Impuestos":"Taxes","Operativos":"Operations","Proveedores":"Vendors","Proyectos":"Projects","Rentas":"Rent","Salarios":"Payroll","Servicios":"Services","CONCEPTO":"ITEM","CATEGORÃA":"CATEGORY","TOTAL":"TOTAL","Maquila":"Maquiladora","Language / Idioma":"Language / Idioma","Tema":"Theme","â Portal":"â Portal",
   "ð²ð½ Presupuesto Semanal": "ð²ð½ Weekly Budget",
   "ð¦ Saldo Bancario": "ð¦ Bank Balance",
   "ð³ Deuda Total": "ð³ Total Debt",
@@ -3330,7 +3330,7 @@ function renderCxP(c) {
       </svg>
       <p><strong>ð Cargar Excel de CxP</strong> Â· Arrastra o haz clic</p>
       <p style="font-size:11px;margin-top:4px;">Formato .xlsx Â· columnas: TIPO, CATEGORIA, CONCEPTO, TOTAL, RECOMENDADO, URGENTE, SUPERVIVENCIA</p>
-      <div class="cxp-upload-status" id="cxpUploadStatus">${cxpData.length > 0 ? 'â '+cxpData.length+' conceptos cargados' + (cxpSemanaSeleccionada ? ' Â· semana '+getWeekLabel(cxpSemanaSeleccionada) : '') : 'ð Sin archivo cargado Â· usando Supabase como fallback'}</div>
+      <div class="cxp-upload-status" id="cxpUploadStatus">${cxpData.length > 0 ? '✔ '+cxpData.length+' conceptos cargados' + (cxpSemanaSeleccionada ? ' Â· semana '+getWeekLabel(cxpSemanaSeleccionada) : '') : 'ð Sin archivo cargado Â· usando Supabase como fallback'}</div>
     </div>
     <input type="file" id="cxpFileInput" accept=".xlsx,.xls" onchange="cxpHandleFile(event)">
     
@@ -3557,7 +3557,7 @@ async function cxpHandleFile(e) {
         const testData = XLSX.utils.sheet_to_json(ws, { defval: '' });
         if (testData.length > 0) {
           sheetName = sn;
-          statusEl.innerHTML = `â ï¸ Sheet "Gastos"/"RepCxC" no encontrado â usando "${sheetName}"`;
+          statusEl.innerHTML = `⚠️ Sheet "Gastos"/"RepCxC" no encontrado â usando "${sheetName}"`;
           break;
         }
       }
@@ -3639,7 +3639,7 @@ async function cxpHandleFile(e) {
     
     const semanaInput = document.getElementById('cxpSemanaInput');
     if (!semanaInput.value) {
-      statusEl.innerHTML = 'â ï¸ Selecciona una semana primero';
+      statusEl.innerHTML = '⚠️ Selecciona una semana primero';
       return;
     }
     
@@ -3721,7 +3721,7 @@ async function cxpHandleFile(e) {
     }
 
     if (cxpDataNew.length === 0) {
-      statusEl.innerHTML = 'â ï¸ No se cargaron gastos vÃ¡lidos (revisar formato)';
+      statusEl.innerHTML = '⚠️ No se cargaron gastos vÃ¡lidos (revisar formato)';
       return;
     }
 
@@ -3993,7 +3993,7 @@ window.recargarPlan = async function() {
   cxpData = [];
   try { localStorage.removeItem('mitech_plan_cache'); } catch(e){}
   const ok = await cxpFetchSupabaseData();
-  console.log(ok ? 'â Plan recargado desde Supabase (' + cxpData.length + ' conceptos)' : 'â ï¸ Supabase no devolviÃ³ datos');
+  console.log(ok ? 'â Plan recargado desde Supabase (' + cxpData.length + ' conceptos)' : '⚠️ Supabase no devolviÃ³ datos');
   // Refrescar el dashboard si estÃ¡ visible
   if (typeof window._currentTab === 'string' && typeof showTab === 'function') {
     try { showTab(window._currentTab); } catch(e){}
@@ -4114,7 +4114,7 @@ async function cxpLoadSupabase() {
     document.getElementById('cxpBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted)">Sin datos en Supabase. Carga un Excel para comenzar.</td></tr>';
     return;
   }
-  document.getElementById('cxpUploadStatus').textContent = 'â Supabase Â· catalogo_cxp Â· ' + cxpData.length + ' conceptos';
+  document.getElementById('cxpUploadStatus').textContent = '✔ Supabase Â· catalogo_cxp Â· ' + cxpData.length + ' conceptos';
   cxpRenderAll();
   // Etapa 2 â Sincronizar baseline desde Supabase (best-effort, no bloqueante)
   try { sincronizarBaselineDesdeSupabase(); } catch(e) { /* ignora */ }
@@ -4132,7 +4132,7 @@ function cxpRenderKPIs(rows) {
   const kpis = [
     { id:'all',          label:'ð° Total General',    val:tot, sub:n+' conceptos', pct:100,           barW:100,                  barC:'#58a6ff', cls:'', txtC:'c-total' },
     { id:'recomendado',  label:'â Recomendado',       val:rec, sub:'Pago Ã³ptimo', pct:tot?rec/tot*100:0, barW:tot?rec/tot*100:0, barC:'#3fb950', cls:'active-recom', txtC:'c-recom' },
-    { id:'urgente',      label:'â ï¸ Urgente',           val:urg, sub:'Pago inmediato', pct:tot?urg/tot*100:0, barW:tot?urg/tot*100:0, barC:'#f0883e', cls:'active-urg', txtC:'c-urg' },
+    { id:'urgente',      label:'⚠️ Urgente',           val:urg, sub:'Pago inmediato', pct:tot?urg/tot*100:0, barW:tot?urg/tot*100:0, barC:'#f0883e', cls:'active-urg', txtC:'c-urg' },
     { id:'supervivencia',label:'ð Supervivencia',     val:srv, sub:'MÃ­nimo crÃ­tico', pct:tot?srv/tot*100:0, barW:tot?srv/tot*100:0, barC:'#ff4d6d', cls:'active-surv', txtC:'c-surv' },
   ];
 
@@ -4165,7 +4165,7 @@ function cxpRenderTabla(rows) {
   const bannerCfg = {
     all:          { cls:'ban-all',   txt:'ð Mostrando TOTAL GENERAL â todos los conceptos y montos completos' },
     recomendado:  { cls:'ban-recom', txt:'â Plan RECOMENDADO â monto Ã³ptimo sugerido para cada concepto' },
-    urgente:      { cls:'ban-urg',   txt:'â ï¸ Plan URGENTE â pagos de atenciÃ³n inmediata' },
+    urgente:      { cls:'ban-urg',   txt:'⚠️ Plan URGENTE â pagos de atenciÃ³n inmediata' },
     supervivencia:{ cls:'ban-surv',  txt:'ð Plan SUPERVIVENCIA â monto mÃ­nimo crÃ­tico para operar' },
   };
   const bc = bannerCfg[col] || bannerCfg.all;
@@ -4379,7 +4379,7 @@ function nivelEsInferido(row) {
 const PLAN_PAGO_CFG = {
   all:          { label:'ð° Total General',  color:'#58a6ff', sub:'Todos los conceptos' },
   recomendado:  { label:'â Recomendado',     color:'var(--green)', sub:'Pago Ã³ptimo sugerido' },
-  urgente:      { label:'â ï¸ Urgente',         color:'#f0883e', sub:'AtenciÃ³n inmediata' },
+  urgente:      { label:'⚠️ Urgente',         color:'#f0883e', sub:'AtenciÃ³n inmediata' },
   supervivencia:{ label:'ð Supervivencia',   color:'var(--red)', sub:'MÃ­nimo crÃ­tico' },
 };
 
@@ -4846,7 +4846,7 @@ function cambiarNivelPreview() {
   let msg = '';
   if (brecha < 0 && sumPendiente > 0) {
     if (subiendoPrioridad) {
-      msg = `â ï¸ La brecha actual es negativa (${fmt(brecha)}). Subir la prioridad de este monto (${fmt(sumPendiente)}) empujarÃ¡ otros gastos hacia atrÃ¡s en el orden de pago.`;
+      msg = `⚠️ La brecha actual es negativa (${fmt(brecha)}). Subir la prioridad de este monto (${fmt(sumPendiente)}) empujarÃ¡ otros gastos hacia atrÃ¡s en el orden de pago.`;
     } else if (bajandoPrioridad) {
       msg = `â¹ï¸ La brecha actual es negativa (${fmt(brecha)}). Bajar la prioridad ayuda a liberar cupo para pagos mÃ¡s urgentes.`;
     }
@@ -5046,7 +5046,7 @@ function confirmarCambioNivel(state, nivelDestino) {
   const labelOrigen = nivelLabel ? nivelLabel(state.nivelOrigen) : nOrigen;
   const labelDestino = nivelLabel ? nivelLabel(nivelDestino) : nDestino;
   const msg =
-    'â ï¸  CAMBIO DE NIVEL DE PRIORIDAD\n\n' +
+    '⚠️  CAMBIO DE NIVEL DE PRIORIDAD\n\n' +
     state.titulo + '\n\n' +
     'De: ' + nOrigen + ' â ' + labelOrigen + '\n' +
     'A:  ' + nDestino + ' â ' + labelDestino + '\n\n' +
@@ -5240,7 +5240,7 @@ async function planPagoPersistirNivelesInferidos() {
   if (errCount === 0) {
     toast(`â ${okCount} nivel${okCount>1?'es':''} persistido${okCount>1?'s':''} en Supabase`);
   } else {
-    toast(`â ï¸ ${okCount} OK, ${errCount} fallo${errCount>1?'s':''}`, 'err');
+    toast(`⚠️ ${okCount} OK, ${errCount} fallo${errCount>1?'s':''}`, 'err');
   }
 
   // Re-renderizar detalle del plan
@@ -5352,7 +5352,7 @@ async function openDiagnosticoModal() {
   if (duplicados.length > 0 || duplicadosClave.length > 0) {
     html += `
       <div style="background:rgba(255,77,109,.06);border:1px solid rgba(255,77,109,.35);border-radius:10px;padding:14px;margin-bottom:14px;">
-        <div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:8px;">â ï¸ Duplicados detectados</div>
+        <div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:8px;">⚠️ Duplicados detectados</div>
     `;
     if (duplicadosClave.length > 0) {
       html += `<div style="font-size:11px;color:var(--text);margin-bottom:6px;"><b>Por clave (_key):</b> ${duplicadosClave.length}</div>`;
@@ -5378,7 +5378,7 @@ async function openDiagnosticoModal() {
   if (anomalos.length > 0) {
     html += `
       <div style="background:rgba(255,193,7,.06);border:1px solid rgba(255,193,7,.35);border-radius:10px;padding:14px;margin-bottom:14px;">
-        <div style="font-size:13px;font-weight:800;color:var(--yellow);margin-bottom:8px;">â ï¸ Datos anÃ³malos (${anomalos.length})</div>
+        <div style="font-size:13px;font-weight:800;color:var(--yellow);margin-bottom:8px;">⚠️ Datos anÃ³malos (${anomalos.length})</div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Conceptos donde la jerarquÃ­a Total â¥ Recomendado â¥ Urgente â¥ Supervivencia no se cumple.</div>
         <div style="font-size:10px;color:var(--text);max-height:120px;overflow-y:auto;">
     `;
@@ -5408,7 +5408,7 @@ async function diagnosticoPurgarYRecargar() {
   if (currentUser?.rol !== 'admin' && currentUser?.rol !== 'admin_master') {
     toast('Solo admin puede purgar el catÃ¡logo', 'err'); return;
   }
-  const confirmacion = prompt('â ï¸ Vas a BORRAR todos los conceptos de catalogo_cxp en Supabase. DespuÃ©s deberÃ¡s cargar el Excel de nuevo en el tab CxP.\n\nEscribe "PURGAR" para confirmar:');
+  const confirmacion = prompt('⚠️ Vas a BORRAR todos los conceptos de catalogo_cxp en Supabase. DespuÃ©s deberÃ¡s cargar el Excel de nuevo en el tab CxP.\n\nEscribe "PURGAR" para confirmar:');
   if (confirmacion !== 'PURGAR') { toast('Cancelado', 'err'); return; }
 
   try {
@@ -6471,7 +6471,7 @@ function flujoRenderTabla() {
     } else {
       brechaCard.classList.remove('brecha-pos');
       brechaCard.classList.add('brecha-neg');
-      brechaLabel.innerHTML = 'â ï¸ Falta cubrir';
+      brechaLabel.innerHTML = '⚠️ Falta cubrir';
       brechaValue.textContent = fmt(Math.abs(brechaFinal));
     }
   }
@@ -6574,7 +6574,7 @@ function abrirRegistroPagoSeleccion() {
         <span>${it.concepto}${badgeUSD}</span><span style="color:var(--muted);">${fmt(it.pendiente)} pendiente</span>
       </div>`;
     }).join('') + (hayMixto
-      ? `<div style="font-size:10px;color:var(--yellow);margin-top:6px;">â ï¸ Conceptos con monedas mezcladas â el modal usa MXN por defecto; cambia manualmente si aplica.</div>`
+      ? `<div style="font-size:10px;color:var(--yellow);margin-top:6px;">⚠️ Conceptos con monedas mezcladas â el modal usa MXN por defecto; cambia manualmente si aplica.</div>`
       : '');
   document.getElementById('registroPagoTotalPendiente').textContent = fmt(totalPendiente);
 
@@ -7699,7 +7699,7 @@ async function confirmarCierreSemana() {
       if (res && res.ok) {
         toast('ð¥ ' + res.fileName + ' descargado (' + res.rows + ' conceptos)', 'ok');
       } else if (res && res.reason === 'empty_catalog') {
-        toast('â ï¸ CatÃ¡logo vacÃ­o â no se generÃ³ Excel semanal', 'warn');
+        toast('⚠️ CatÃ¡logo vacÃ­o â no se generÃ³ Excel semanal', 'warn');
       } else {
         console.warn('Plan semanal Excel no generado:', res);
       }
@@ -8064,7 +8064,7 @@ const PERMS_DEFAULT = {
 /* Marca de reset Ãºnico de permisos: al subir esta versiÃ³n, TODO usuario NO
    admin_master vuelve una sola vez a los permisos default de su rol en cada
    dispositivo, sin importar toggles previos guardados localmente.
-   â ï¸ Bumpear este stamp cuando se cambien los defaults de PERMS_DEFAULT. */
+   ⚠️ Bumpear este stamp cuando se cambien los defaults de PERMS_DEFAULT. */
 const PERMS_FORCE_RESET_STAMP = '2026-07-04-role-hardening-v3';
 
 /* Obtiene permisos del usuario: custom si existen, sino defaults del rol.
@@ -8183,7 +8183,7 @@ function resumenEjecutivoAlertas() {
     if (urgentesSinPagar.length > 0) {
       const monto = urgentesSinPagar.reduce((s,r) =>
         s + Math.max(cxpMontoMXN(r,'urgente') - gastosEfectuadosTotalPorClave(r._key), 0), 0);
-      alertas.push({ tipo:'warn', icono:'â ï¸',
+      alertas.push({ tipo:'warn', icono:'⚠️',
         titulo: urgentesSinPagar.length + ' urgente(s) sin cubrir',
         texto:'Faltan '+fmt(monto)+' del bloque Urgente', color:'var(--yellow)' });
     }
