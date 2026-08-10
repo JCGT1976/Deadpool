@@ -856,7 +856,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  .topbar-user span.name{display:none}
  .nav-tab{padding:9px 10px;font-size:11.5px}
 }
-</style>
+
+    /* SIF close buttons */
+    .sif-btn-close {
+      width: 32px; height: 32px; padding: 0;
+      background: transparent; border: 1px solid var(--border, #ddd);
+      border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text, #666); flex-shrink: 0;
+      transition: background .15s, color .15s;
+    }
+    .sif-btn-close:hover { background: rgba(0,0,0,.08); color: #333; }
+    .sif-btn-close svg { pointer-events: none; }
+  </style>
 </head>
 <body>
 
@@ -938,7 +949,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   <span id="langCodeLbl">ES</span>
  </button>
  <button class="btn-ghost" onclick="volverPortal()">← Portal</button>
- <button class="btn-ghost" onclick="doLogout()" data-i18n="btn.logout">Cerrar sesión</button>
+ <button class="btn-ghost" onclick="doLogout()" data-i18n="btn.logout" class="sif-btn-close" title="Cerrar sesión"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
 
@@ -1095,7 +1106,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  </div>
 
  <div style="margin-top:14px;text-align:right;">
- <button onclick="closeEntradasModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 20px;font-size:13px;cursor:pointer;">Cerrar</button>
+ <button onclick="closeEntradasModal()" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
 </div>
@@ -1147,7 +1158,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  <button id="planPagoBtnAgregarGasto" onclick="openAgregarGastoPlanModal()" style="display:none;background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">Agregar gasto</button>
  <button onclick="openDiagnosticoModal()" style="background:rgba(255,193,7,.12);color:var(--yellow);border:1px solid rgba(255,193,7,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">Diagnóstico</button>
  <button id="planPagoBtnCambiarPlan" onclick="cambiarPlanPago()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap;" title="Solo administrador puede cambiar el plan activo">Cambiar plan</button>
- <button onclick="closePlanPagoDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;" title="Cerrar"></button>
+ <button onclick="closePlanPagoDetalleModal()" title="Cerrar" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
 
@@ -1177,12 +1188,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  <div style="font-size:18px;font-weight:800;color:var(--text);">Diagnóstico del Catálogo</div>
  <div style="font-size:12px;color:var(--muted);margin-top:2px;">Compara lo que está en Supabase contra tu Excel original</div>
  </div>
- <button onclick="closeDiagnosticoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;line-height:1;"></button>
+ <button onclick="closeDiagnosticoModal()" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  <div id="diagnosticoContent"></div>
  <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
  <button onclick="diagnosticoPurgarYRecargar()" id="btnPurgarYRecargar" style="display:none;background:rgba(255,77,109,.10);color:var(--red);border:1px solid rgba(255,77,109,.4);border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;font-weight:700;">Purgar catálogo Supabase (recarga limpia)</button>
- <button onclick="closeDiagnosticoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:12px;cursor:pointer;">Cerrar</button>
+ <button onclick="closeDiagnosticoModal()" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
 </div>
@@ -1333,7 +1344,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  <div style="display:flex;align-items:center;gap:8px;">
  <button onclick="abrirComparativoExcel()" style="font-size:12px;padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:7px;cursor:pointer;font-weight:600;" title="Importar orden desde Excel">Excel</button>
  <button onclick="flujoImprimir()" style="font-size:12px;padding:6px 14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:7px;cursor:pointer;font-weight:600;" title="Imprimir">Imprimir</button>
- <button onclick="closeFlujoEfectivoModal()" class="flujo-close" title="Cerrar"></button>
+ <button onclick="closeFlujoEfectivoModal()" title="Cerrar" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
 
@@ -1399,7 +1410,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  <div class="flujo-footer-actions">
  <button onclick="abrirComparativoExcel()" class="flujo-btn flujo-btn-secondary" title="Importar orden desde Excel">Excel</button>
  <button onclick="flujoImprimir()" class="flujo-btn flujo-btn-secondary">Imprimir</button>
- <button onclick="closeFlujoEfectivoModal()" class="flujo-btn flujo-btn-primary">Cerrar</button>
+ <button onclick="closeFlujoEfectivoModal()" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
  </div>
@@ -1460,7 +1471,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  </div>
  <div style="display:flex;gap:8px;align-items:center;">
  <button onclick="reporteImprimir()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">Imprimir</button>
- <button onclick="closeReporteSemanaModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;"></button>
+ <button onclick="closeReporteSemanaModal()" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
  <div id="reporteSemanaBody"></div>
@@ -1478,7 +1489,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  <div style="display:flex;gap:8px;align-items:center;">
  <button onclick="resumenEjecutivoCopiar()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;" data-i18n="exec.copy">Copiar texto</button>
  <button onclick="reporteImprimir()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;" data-i18n="exec.print">Imprimir</button>
- <button onclick="closeResumenEjecutivoModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;"></button>
+ <button onclick="closeResumenEjecutivoModal()" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
  <div id="resumenEjecutivoBody"></div>
@@ -1496,7 +1507,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  </div>
  <div style="display:flex;gap:8px;align-items:center;">
  <button onclick="compartirGastosWhatsApp()" title="Enviar lista de gastos pagados por WhatsApp" style="background:rgba(37,211,102,.12);color:#25d366;border:1px solid rgba(37,211,102,.4);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;">WhatsApp</button>
- <button onclick="closeGastosDetalleModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;"></button>
+ <button onclick="closeGastosDetalleModal()" class="sif-btn-close" title="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg></button>
  </div>
  </div>
  <div id="gastosDetalleResumen" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;"></div>
