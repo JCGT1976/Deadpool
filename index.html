@@ -1628,7 +1628,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
  auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.08.12.1';
+const APP_VERSION = '2026.08.12.2';
 
 const SB_URL = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2704,7 +2704,7 @@ function entradasRenderList() {
  // Si viene de Supabase tiene e.id; si es legacy localStorage usamos el índice
  const delArg = (e.id != null) ? `${e.id}` : `'idx:${i}'`;
  const autorTag = e.usuario ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">por ${e.usuario}</div>` : '';
- const btnDelete = (currentUser?.rol === 'admin_master') ? `<button onclick="deleteEntrada(${delArg})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;"></button>` : '';
+ const btnDelete = (currentUser?.rol === 'admin_master') ? `<button onclick="deleteEntrada(${delArg})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;padding:2px 6px;font-weight:bold;line-height:1;">×</button>` : '';
  return `<div class="entrada-row ${cls}">
  <div style="display:flex;justify-content:space-between;align-items:center;">
  <span style="font-size:12px;font-weight:700;color:${clrMain};">${e.fuente}</span>
