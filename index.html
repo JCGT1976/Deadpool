@@ -2139,8 +2139,11 @@ async function doFirstChange(userData) {
 }
 
 async function loginSuccess(userData) {
- // Cargar permisos personalizados (o defaults del rol)
- userData.permisos = permisosGet(userData.id || userData.username, userData.rol);
+ // Permisos: Supabase usuarios.permisos (JSONB) > PERMS_DEFAULT[rol]
+ // Si la columna no existe o es NULL → sbPerms = {} → solo defaults del rol.
+ // Esto garantiza que rol cohost SIEMPRE tenga reg_pago:true, entradas:true, etc.
+ const _sbPerms = (userData.permisos && typeof userData.permisos === 'object' && !Array.isArray(userData.permisos)) ? userData.permisos : {};
+ userData.permisos = Object.assign({}, PERMS_DEFAULT[userData.rol] || PERMS_DEFAULT.view, _sbPerms);
  currentUser = userData;
  sessionStorage.setItem('mitech_user', JSON.stringify(userData));
  // Remover el boot-loader (verificación de sesión completada exitosamente)
@@ -7919,30 +7922,12 @@ const PERMS_DEFAULT = {
  'income': Object.fromEntries(PERMS_MODULOS.map(m => [m.id, ['dashboard','entradas'].includes(m.id)])),
 };
 
-/* Marca de reset único de permisos: al subir esta versión, TODO usuario NO
- admin_master vuelve una sola vez a los permisos default de su rol en cada
- dispositivo, sin importar toggles previos guardados localmente.
- Bumpear este stamp cuando se cambien los defaults de PERMS_DEFAULT. */
-const PERMS_FORCE_RESET_STAMP = '2026-08-12-cohost-reg-pago-fix-v4';
-
-/* Obtiene permisos del usuario: custom si existen, sino defaults del rol.
- Al bumpear PERMS_FORCE_RESET_STAMP, todo usuario NO admin_master se
- recalibra una vez a los defaults de su rol actual (elimina permisos
- huérfanos si el admin_master cambió el rol del usuario). */
+/* permisosGet — fuente de verdad: Supabase usuarios.permisos (JSONB) + PERMS_DEFAULT[rol].
+ SQL para agregar columna: ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos JSONB DEFAULT NULL;
+ SQL para override: UPDATE usuarios SET permisos = '{"reg_pago":false}' WHERE username='x';
+ NULL o columna inexistente = solo PERMS_DEFAULT del rol. */
 function permisosGet(userId, rol) {
- const all = JSON.parse(localStorage.getItem('mitech_permisos_v1') || '{}');
- if (rol !== 'admin_master') {
- const resets = JSON.parse(localStorage.getItem('mitech_permisos_reset_log') || '{}');
- if (resets[userId] !== PERMS_FORCE_RESET_STAMP) {
- const defaults = { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
- all[userId] = defaults;
- localStorage.setItem('mitech_permisos_v1', JSON.stringify(all));
- resets[userId] = PERMS_FORCE_RESET_STAMP;
- localStorage.setItem('mitech_permisos_reset_log', JSON.stringify(resets));
- return defaults;
- }
- }
- return all[userId] || { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
+  return { ...(PERMS_DEFAULT[rol] || PERMS_DEFAULT.view) };
 }
 
 
