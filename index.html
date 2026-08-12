@@ -4600,7 +4600,7 @@ function planPagoRenderTabla() {
  <td style="color:${pendiente>0?'var(--red)':'var(--muted)'};">${pendiente>0?fmt(pendiente):'—'}</td>
  <td style="text-align:center;white-space:nowrap;">
  <span style="margin-right:4px;">${liquidado ? '' : (pagado>0 ? '' : '⏳')}</span>
- ${!liquidado && canAccess('reg_pago') ? `<button onclick="abrirRegistroPagoFila(${rowKeyIdx})" title="Registrar pago de este gasto" style="background:transparent;color:var(--accent);border:none;font-size:14px;cursor:pointer;padding:1px 3px;" ondragstart="event.preventDefault();event.stopPropagation();"></button>` : ''}
+ ${!liquidado && canAccess('reg_pago') ? `<button onclick="abrirRegistroPagoFila(${rowKeyIdx})" title="Registrar pago de este gasto" style="background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;" ondragstart="event.preventDefault();event.stopPropagation();">Pagar</button>` : ''}
  ${pagado === 0 && canAccess('cxp') ? `<button onclick="planPagoBorrarConcepto(${rowKeyIdx})" title="Quitar del plan (sin pagos registrados)" style="background:transparent;color:var(--red);border:none;font-size:13px;cursor:pointer;padding:1px 3px;" ondragstart="event.preventDefault();event.stopPropagation();"></button>` : ''}
  </td>
  </tr>`;
