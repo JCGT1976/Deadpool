@@ -7938,8 +7938,12 @@ function permisosGet(userId, rol) {
 function canAccess(modId) {
  if (!currentUser) return false;
  if (currentUser.rol === 'admin_master') return true;
- const perms = currentUser.permisos || PERMS_DEFAULT[currentUser.rol] || {};
- return !!perms[modId];
+ // Base: PERMS_DEFAULT del rol (garantiza permisos correctos incluso con sesión vieja).
+ // Supabase overrides (currentUser.permisos) se aplican encima si existen.
+ const roleBase = PERMS_DEFAULT[currentUser.rol] || PERMS_DEFAULT.view;
+ const stored = (currentUser.permisos && typeof currentUser.permisos === 'object') ? currentUser.permisos : {};
+ const merged = Object.assign({}, roleBase, stored);
+ return !!merged[modId];
 }
 
 /* Guardián para acciones sensibles: muestra toast y retorna false si no autorizado. */
