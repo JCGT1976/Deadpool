@@ -2899,7 +2899,7 @@ async function renderDashboard(c) {
  }).filter(x => x.n > 0);
 
  // Gastos Totales: SOLO pagos efectuados reales (gastos_efectuados)
- const totalGastosEfectuados = gastosEfectuadosTotalGeneral();
+ const totalGastosEfectuados = gastosEfectuadosVsPlan();
  const { mxnRaw: gastosMXNraw, usdRaw: gastosUSDraw } = gastosEfectuadosTotalMonedas();
  const saldoMXN = totalEntradasMXN - totalGastosEfectuados;
  const saldoUSD = tcGlobal > 0 ? saldoMXN / tcGlobal : 0;
@@ -3087,7 +3087,7 @@ async function renderDashboard(c) {
  <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
  <div style="display:flex;justify-content:space-between;">
  <span style="color:var(--muted);">${t('kpi.in_mxn')}</span>
- <span style="color:var(--red);font-weight:700;">${fmt(gastosMXNraw)}</span>
+ <span style="color:var(--red);font-weight:700;">${fmt(totalGastosEfectuados)}</span>
  </div>
  ${gastosUSDraw > 0 ? `
  <div style="display:flex;justify-content:space-between;">
@@ -6924,6 +6924,14 @@ function gastosEfectuadosTotalPorClave(clave) {
 /* Suma total en MXN equiv. de todos los gastos */
 function gastosEfectuadosTotalGeneral() {
  return gastosEfectuadosData.reduce((s,g) => s + gastoToMXN(g), 0);
+}
+
+/* Suma de lo pagado contra el plan: solo conceptos en cxpData, capeado a mTot */
+function gastosEfectuadosVsPlan() {
+  if (!cxpData || cxpData.length === 0) return gastosEfectuadosTotalGeneral();
+  return cxpData
+    .filter(function(r){ return r.concepto && r.total !== undefined; })
+    .reduce(function(s,r){ return s + Math.min(gastosEfectuadosTotalPorClave(r._key), cxpMontoMXN(r,'total')); }, 0);
 }
 
 /* Totales desglosados por moneda original */
