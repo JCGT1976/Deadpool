@@ -7761,7 +7761,7 @@ function renderReporteSemanaModal() {
  { l:'Entradas', v:fmt(totalE), c:'var(--green)' },
  { l:'Plan activo', v:planAct?fmt(planMntR):'—', c:'var(--accent)' },
  { l:'Plan total', v:fmt(planTotAll), c:'var(--muted)' },
- { l:'Pagado', v:fmt(totalG), c:'var(--red)' },
+ { l:'Pagado', v:fmt(gPagado), c:'var(--red)' },
  { l:'⏳ Pendiente', v:fmt(planPndR), c:planPndR>0?'var(--red)':'var(--muted)' },
  { l:'Brecha', v:fmt(brecha), c:brecha>=0?'var(--green)':'var(--red)' },
  { l:'% Ejecutado', v:pctEjec.toFixed(1)+'%', c:pctEjec>=80?'var(--green)':'var(--yellow)' },
