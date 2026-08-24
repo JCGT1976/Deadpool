@@ -3133,6 +3133,82 @@ async function renderDashboard(c) {
           ${canAccess('reset') ? `<button onclick="openResetTotalModal()" style="background:rgba(220,38,38,.9);color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 18px;font-size:12px;cursor:pointer;font-weight:600;letter-spacing:.3px;box-shadow:0 2px 8px rgba(0,0,0,.35);" onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='rgba(220,38,38,.9)'">${t('btn.reset')}</button>` : ''}
         </div>
       </div>
+
+    <!-- Grid Entradas / Gastos Efectuados -->
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+
+      <!-- ENTRADAS -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="background:linear-gradient(90deg,#0a1e3d,#0d2b5a);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:#fff;font-weight:700;font-size:12px;letter-spacing:.5px;">ENTRADAS</span>
+          <span style="color:var(--green);font-weight:800;font-size:13px;">${entradasData.length>0?fmt(totalEntradasMXN):'—'}</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead>
+              <tr style="background:rgba(255,255,255,.04);">
+                <th style="text-align:left;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Fuente</th>
+                <th style="text-align:right;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Monto</th>
+                <th style="text-align:center;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${entradasData.length===0
+                ? '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--muted);font-size:11px;">Sin entradas registradas</td></tr>'
+                : [...entradasData].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).map(e=>{
+                    const tc=parseFloat(e.tc||localStorage.getItem('mitech_tc')||'17');
+                    const mxn=e.moneda==='USD'?parseFloat(e.monto||0)*tc:parseFloat(e.monto||0);
+                    const fecha=e.fecha?new Date(e.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit'}):'—';
+                    const badge=e.moneda==='USD'?'<span style="background:rgba(96,165,250,.15);color:#60a5fa;border-radius:3px;padding:1px 4px;font-size:9px;margin-left:4px;">USD</span>':'';
+                    return '<tr style="border-bottom:1px solid var(--border);">'
+                      +'<td style="padding:7px 10px;color:var(--text);">'+((e.fuente||'—').substring(0,28))+''+badge+'</td>'
+                      +'<td style="padding:7px 10px;text-align:right;color:var(--green);font-weight:700;">'+fmt(mxn)+'</td>'
+                      +'<td style="padding:7px 10px;text-align:center;color:var(--muted);">'+fecha+'</td>'
+                      +'</tr>';
+                  }).join('')
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- GASTOS EFECTUADOS -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="background:linear-gradient(90deg,#2a0a1e,#3d0d1a);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:#fff;font-weight:700;font-size:12px;letter-spacing:.5px;">GASTOS EFECTUADOS</span>
+          <span style="color:var(--red);font-weight:800;font-size:13px;">${gastosEfectuadosData.length>0?fmt(totalGastosEfectuados):'—'}</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead>
+              <tr style="background:rgba(255,255,255,.04);">
+                <th style="text-align:left;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Concepto</th>
+                <th style="text-align:right;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Pagado</th>
+                <th style="text-align:center;padding:7px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);">Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${gastosEfectuadosData.length===0
+                ? '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--muted);font-size:11px;">Sin gastos registrados</td></tr>'
+                : [...gastosEfectuadosData].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).map(g=>{
+                    const tc=parseFloat(g.tc||localStorage.getItem('mitech_tc')||'17');
+                    const mxn=((g.moneda||'MXN')==='USD')?parseFloat(g.monto_pagado||0)*tc:parseFloat(g.monto_pagado||0);
+                    const fecha=g.fecha?new Date(g.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit'}):'—';
+                    const badge=(g.moneda||'MXN')==='USD'?'<span style="background:rgba(96,165,250,.15);color:#60a5fa;border-radius:3px;padding:1px 4px;font-size:9px;margin-left:4px;">USD</span>':'';
+                    const concepto=(g.concepto||g.concepto_key||'—').substring(0,28);
+                    return '<tr style="border-bottom:1px solid var(--border);">'
+                      +'<td style="padding:7px 10px;color:var(--text);">'+concepto+badge+'</td>'
+                      +'<td style="padding:7px 10px;text-align:right;color:var(--red);font-weight:700;">'+fmt(mxn)+'</td>'
+                      +'<td style="padding:7px 10px;text-align:center;color:var(--muted);">'+fecha+'</td>'
+                      +'</tr>';
+                  }).join('')
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
  `;
 
 }
