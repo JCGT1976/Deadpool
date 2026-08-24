@@ -945,7 +945,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
   </div>
  </div>
  <button class="btn-ghost" onclick="toggleTheme()" id="themeToggleBtn" title="Tema">
-  <span id="themeIconLbl"></span>
+  <span id="themeIconLbl"><svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:middle" aria-hidden="true"><clipPath id="ttL2"><rect x="0" y="0" width="12" height="24"/></clipPath><clipPath id="ttR2"><rect x="12" y="0" width="12" height="24"/></clipPath><g clip-path="url(#ttL2)"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="5.2"/><line x1="12" y1="18.8" x2="12" y2="21"/><line x1="3" y1="12" x2="5.2" y2="12"/><line x1="5.6" y1="5.6" x2="7.1" y2="7.1"/><line x1="5.6" y1="18.4" x2="7.1" y2="16.9"/></g></g><g clip-path="url(#ttR2)"><path d="M17.5 8.2a5 5 0 1 0 4.3 7.9 6 6 0 0 1 -4.3 -7.9z" fill="currentColor"/></g></svg></span>
  </button>
  <button class="btn-ghost" onclick="toggleLang()" id="langToggleBtn">
   <span id="langCodeLbl">ES</span>
@@ -1641,7 +1641,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
  auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.08.12.2';
+const APP_VERSION = '2026.08.24.1';
 
 const SB_URL = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -1976,7 +1976,7 @@ function toggleTheme() {
  localStorage.setItem('mitech_theme', window.APP_THEME);
  document.documentElement.setAttribute('data-theme', window.APP_THEME);
  const icon = document.getElementById('themeIconLbl');
- if (icon) icon.textContent = (window.APP_THEME === 'dark') ? '' : '';
+ /* icono estatico dia/noche - no se reescribe en cada toggle */
 }
 
 /* Aplicar tema e idioma inmediatamente al cargar el script */
@@ -8614,7 +8614,7 @@ window.exportarPlanSemanalExcel = async function exportarPlanSemanalExcel(anio, 
 try {
  applyI18n();
  const themeIcon = document.getElementById('themeIconLbl');
- if (themeIcon) themeIcon.textContent = (window.APP_THEME === 'dark') ? '' : '';
+ /* icono estatico dia/noche - no se reescribe al iniciar */
 } catch(e) { console.warn('i18n init:', e); }
 
 (async function bootstrap() {
