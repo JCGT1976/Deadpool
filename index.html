@@ -6929,9 +6929,11 @@ function gastosEfectuadosTotalGeneral() {
 /* Suma de lo pagado contra el plan: solo conceptos en cxpData, capeado a mTot */
 function gastosEfectuadosVsPlan() {
   if (!cxpData || cxpData.length === 0) return gastosEfectuadosTotalGeneral();
+  var _planActivo = planPagoGetActivo();
+  var _colPlan = (!_planActivo || _planActivo === 'all') ? 'total' : _planActivo;
   return cxpData
-    .filter(function(r){ return r.concepto && r.total !== undefined; })
-    .reduce(function(s,r){ return s + Math.min(gastosEfectuadosTotalPorClave(r._key), cxpMontoMXN(r,'total')); }, 0);
+    .filter(function(r){ return r.concepto && (parseFloat(r[_colPlan]) || 0) > 0; })
+    .reduce(function(s,r){ return s + Math.min(gastosEfectuadosTotalPorClave(r._key), cxpMontoMXN(r, _colPlan)); }, 0);
 }
 
 /* Totales desglosados por moneda original */
