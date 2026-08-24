@@ -4546,16 +4546,11 @@ function planPagoRenderTabla() {
  // Todos los conceptos con monto en este plan (base para totales)
  const todas = (categoria ? rows.filter(r => r.categoria === categoria) : rows)
  .filter(r => (parseFloat(r[colPlan]) || 0) > 0);
- // Solo los pendientes (excluye los 100% liquidados)
- const filtradas = todas.filter(r =>
- Math.max(cxpMontoMXN(r, colPlan) - gastosEfectuadosTotalPorClave(r._key), 0) > 0
- );
- const nLiquidados = todas.length - filtradas.length;
 
  // Ordenar por 'orden' sin agrupar por nivel (lista plana)
- filtradas.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
+ todas.sort((a, b) => (a.orden ?? 9999) - (b.orden ?? 9999));
 
- // Totales calculados sobre TODAS las filas (incl. liquidadas) para el pie
+ // Totales calculados sobre TODAS las filas para el pie
  let grandPlan = 0, grandPagado = 0, grandPendiente = 0;
  todas.forEach(r => {
  const mp = cxpMontoMXN(r, colPlan);
@@ -4566,7 +4561,7 @@ function planPagoRenderTabla() {
  let html = '';
  const puedeArrastrar = canAccess('catalogo');
 
- filtradas.forEach(r => {
+ todas.forEach(r => {
  const montoTotal = cxpMontoMXN(r, 'total');
  const montoTotalRaw = parseFloat(r.total) || 0;
  const montoPlan = cxpMontoMXN(r, colPlan);
@@ -4611,12 +4606,6 @@ function planPagoRenderTabla() {
  </tr>`;
  });
 
- // Banner de liquidados ocultos
- if (nLiquidados > 0) {
- html += `<tr><td colspan="99" style="text-align:center;padding:8px;font-size:11px;color:var(--muted);background:rgba(63,185,80,.05);border-top:1px solid var(--border);">
- ${nLiquidados} concepto${nLiquidados>1?'s':''} liquidado${nLiquidados>1?'s':''} ocult${nLiquidados>1?'os':'o'} del plan
- </td></tr>`;
- }
  // Total general considerando montoTotal (columna Total) y montoPlan (columna Plan activo)
  const grandTotalCol = todas.reduce((s,r) => s + cxpMontoMXN(r, 'total'), 0);
  html += `<tr class="cxp-total">
