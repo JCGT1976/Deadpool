@@ -2948,7 +2948,7 @@ async function renderDashboard(c) {
 
  // KPI Brecha: Entradas (caja disponible) vs. lo que aún falta cubrir del
  // Plan de Pagos activo. Positivo = alcanza; negativo = falta dinero.
- const brecha = planActivo ? (totalEntradasMXN - planPendiente) : null;
+ const brecha = planActivo ? (saldoMXN - planPendiente) : null;
  const brechaColor = brecha === null ? 'var(--border)' : brecha >= 0 ? 'var(--green)' : 'var(--red)';
  const brechaTxtColor = brecha === null ? 'var(--accent)' : brecha >= 0 ? 'var(--green)' : 'var(--red)';
  const brechaStatus = brecha === null ? t('brecha.no_plan')
@@ -3120,7 +3120,7 @@ async function renderDashboard(c) {
  <div class="kpi-sub" style="margin-top:4px;">${brechaStatus}</div>
  ${brecha !== null ? `
  <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
- <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">${t('kpi.income_short')}</span><span style="color:var(--green);font-weight:700;">${fmt(totalEntradasMXN)}</span></div>
+ <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">${t('kpi.saldo_banco')}</span><span style="color:var(--green);font-weight:700;">${fmt(saldoMXN)}</span></div>
  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">${t('kpi.plan_pending')}</span><span style="color:var(--red);font-weight:700;">${fmt(planPendiente)}</span></div>
  </div>
  <div class="kpi-click-hint" style="margin-top:6px;">${t('kpi.click_cashflow')}</div>` : ''}
