@@ -1641,7 +1641,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
  auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.08.24.1';
+const APP_VERSION = '2026.09.01.1';
 
 const SB_URL = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2157,7 +2157,12 @@ async function loginSuccess(userData) {
  // Esto garantiza que rol cohost SIEMPRE tenga reg_pago:true, entradas:true, etc.
  const _sbPerms = (userData.permisos && typeof userData.permisos === 'object' && !Array.isArray(userData.permisos)) ? userData.permisos : {};
  userData.permisos = Object.assign({}, PERMS_DEFAULT[userData.rol] || PERMS_DEFAULT.view, _sbPerms);
- currentUser = userData;
+ // ── Auto-clear localStorage stale por cambio de rol/versión ──
+    try {
+      localStorage.removeItem('mitech_cxp_esperado');
+      localStorage.removeItem('mitech_plan_cache');
+    } catch(_){}
+    currentUser = userData;
  sessionStorage.setItem('mitech_user', JSON.stringify(userData));
  // Remover el boot-loader (verificación de sesión completada exitosamente)
  const bl = document.getElementById('bootLoader');
