@@ -6382,10 +6382,10 @@ function flujoRenderTabla() {
  const estaAjustado = montoOriginal !== undefined && Math.abs(montoOriginal - valorActualPlan) > 0.01;
  const ajusteBadge = estaAjustado ? '<span class="flujo-ajuste-badge" title="Monto original: ' + fmt(montoOriginal) + '">ajustado</span>' : '';
 
- // Celda de monto: muestra el monto del plan (igual que Excel), no solo el pendiente
+ // Celda de monto: usa _pendiente (MXN) para que coincida con el Saldo tras pago
  let montoCell;
  if (puedeAjustar) {
- const valStr = valorActualPlan > 0 ? Math.round(valorActualPlan).toLocaleString('es-MX') : '';
+ const valStr = r._pendiente > 0 ? Math.round(r._pendiente).toLocaleString('es-MX') : '';
  const monedaHint = (r.moneda && r.moneda !== 'MXN') ? ' <span style="font-size:9px;color:var(--muted);">' + r.moneda + '</span>' : '';
  montoCell = '<input type="text" inputmode="decimal" class="flujo-monto-input' + (estaAjustado ? ' ajustado' : '') + '"'
  + ' value="' + valStr + '"'
