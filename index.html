@@ -6343,8 +6343,9 @@ function flujoRenderTabla() {
  const claveEsc = (r._key || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
  const nivColorVal = nivelColor(nivKey);
 
+ const montoMXN = cxpMontoMXN(r, colPlan);
  const prevRunning = running;
- running = running - r._pendiente;
+ running = running - montoMXN;
  totalGastos += r._pendiente;
  const seCruza = prevRunning >= 0 && running < 0;
  if (seCruza && cruceCubierto === null) cruceCubierto = i;
