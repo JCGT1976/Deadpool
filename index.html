@@ -6346,7 +6346,7 @@ function flujoRenderTabla() {
  const montoMXN = cxpMontoMXN(r, colPlan);
  const prevRunning = running;
  running = running - montoMXN;
- totalGastos += r._pendiente;
+ totalGastos += montoMXN;
  const seCruza = prevRunning >= 0 && running < 0;
  if (seCruza && cruceCubierto === null) cruceCubierto = i;
  // NOTA: se quitó la fila visual "Línea de corte" — la columna
@@ -6385,7 +6385,7 @@ function flujoRenderTabla() {
  // Celda de monto: muestra el pendiente (lo que falta pagar = Monto - ya pagado)
  let montoCell;
  if (puedeAjustar) {
- const valStr = r._pendiente > 0 ? Math.round(r._pendiente).toLocaleString('es-MX') : '';
+ const valStr = montoMXN > 0 ? Math.round(montoMXN).toLocaleString('es-MX') : '';
  const monedaHint = (r.moneda && r.moneda !== 'MXN') ? ' <span style="font-size:9px;color:var(--muted);">' + r.moneda + '</span>' : '';
  montoCell = '<input type="text" inputmode="decimal" class="flujo-monto-input' + (estaAjustado ? ' ajustado' : '') + '"'
  + ' value="' + valStr + '"'
@@ -6394,7 +6394,7 @@ function flujoRenderTabla() {
  + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
  + ' title="Editar y presionar Enter o salir del campo para guardar">' + monedaHint;
  } else {
- montoCell = '<span style="font-weight:600;">' + fmt(r._pendiente) + '</span>';
+ montoCell = '<span style="font-weight:600;">' + fmt(montoMXN) + '</span>';
  }
 
  // Botón deshacer (solo si hay backup Y admin/cohost)
