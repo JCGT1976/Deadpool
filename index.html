@@ -2295,7 +2295,9 @@ async function budgetFetch(force) {
  return budgetData;
  }
  if (Array.isArray(data)) {
- budgetData = data.map(row => ({
+ budgetData = data
+ .filter(row => !String(row.semana || '').startsWith('__')) // excluir filas de sistema (depositos, backups)
+ .map(row => ({
  id: row.id,
  semana: row.semana,
  moneda: row.moneda || 'MXN',
@@ -5477,14 +5479,15 @@ function flujoGetDepositosPorEnviar() {
 }
 function flujoSetDepositosPorEnviar(monto) {
  localStorage.setItem('mitech_depositos_por_enviar', String(monto || 0));
- // Sync a Supabase para que todos los usuarios vean el mismo valor
+ // Sync a Supabase (presupuestos_semanales, fila de sistema) para que todos vean el mismo valor.
+ // NUNCA usar catalogo_cxp: contamina los totales de Deuda/KPIs/Catálogo en toda la app.
  if (typeof sb !== 'undefined' && sb) {
- sb.from('catalogo_cxp').upsert([{
- clave: '__depositos_por_enviar__',
- concepto: '__depositos_por_enviar__',
- categoria: '__sistema__',
- total: monto || 0
- }], { onConflict: 'clave' }).then(function(res) {
+ sb.from('presupuestos_semanales').upsert([{
+ semana: '__depositos_por_enviar__',
+ monto: monto || 0,
+ moneda: 'MXN',
+ label: '__sistema__'
+ }], { onConflict: 'semana' }).then(function(res) {
  if (res.error) console.warn('flujoSetDepositos Supabase:', res.error.message);
  });
  }
@@ -5492,10 +5495,10 @@ function flujoSetDepositosPorEnviar(monto) {
 async function flujoSyncDepositosDesdeSupabase() {
  if (typeof sb === 'undefined' || !sb) return;
  try {
- const { data, error } = await sb.from('catalogo_cxp')
- .select('total').eq('clave', '__depositos_por_enviar__').maybeSingle();
+ const { data, error } = await sb.from('presupuestos_semanales')
+ .select('monto').eq('semana', '__depositos_por_enviar__').maybeSingle();
  if (error || !data) return;
- const monto = parseFloat(data.total) || 0;
+ const monto = parseFloat(data.monto) || 0;
  localStorage.setItem('mitech_depositos_por_enviar', String(monto));
  const depInput = document.getElementById('flujoDepositosInput');
  if (depInput) depInput.value = monto > 0 ? Math.round(monto).toLocaleString('es-MX') : '';
@@ -6223,14 +6226,15 @@ function flujoMontoOriginalSet(clave, colPlan, valor) {
  if (backup[k] === undefined) {
  backup[k] = valor;
  try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
- // Sync a Supabase para que todos los usuarios vean el mismo backup/badge
+ // Sync a Supabase (presupuestos_semanales, fila de sistema) para que todos vean el mismo backup/badge.
+ // NUNCA usar catalogo_cxp: contamina los totales de Deuda/KPIs/Catálogo en toda la app.
  if (typeof sb !== 'undefined' && sb) {
- sb.from('catalogo_cxp').upsert([{
- clave: '__monto_orig__' + k,
- concepto: '__monto_orig__',
- categoria: '__sistema__',
- total: valor
- }], { onConflict: 'clave' }).then(function(res) {
+ sb.from('presupuestos_semanales').upsert([{
+ semana: '__monto_orig__' + k,
+ monto: valor,
+ moneda: 'MXN',
+ label: '__sistema__'
+ }], { onConflict: 'semana' }).then(function(res) {
  if (res.error) console.warn('flujoMontoOriginalSet Supabase:', res.error.message);
  });
  }
@@ -6246,7 +6250,7 @@ function flujoMontoOriginalClear(clave, colPlan) {
  delete backup[k];
  try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
  if (typeof sb !== 'undefined' && sb) {
- sb.from('catalogo_cxp').delete().eq('clave', '__monto_orig__' + k).then(function(res) {
+ sb.from('presupuestos_semanales').delete().eq('semana', '__monto_orig__' + k).then(function(res) {
  if (res.error) console.warn('flujoMontoOriginalClear Supabase:', res.error.message);
  });
  }
@@ -6254,13 +6258,13 @@ function flujoMontoOriginalClear(clave, colPlan) {
 async function flujoSyncMontosOriginalesDesdeSupabase() {
  if (typeof sb === 'undefined' || !sb) return;
  try {
- const { data, error } = await sb.from('catalogo_cxp')
- .select('clave,total').like('clave', '__monto_orig__%');
+ const { data, error } = await sb.from('presupuestos_semanales')
+ .select('semana,monto').like('semana', '__monto_orig__%');
  if (error || !data) return;
  var backup = flujoMontoOriginalesGet();
  data.forEach(function(row) {
- var k = row.clave.replace('__monto_orig__', '');
- if (backup[k] === undefined) backup[k] = parseFloat(row.total) || 0;
+ var k = row.semana.replace('__monto_orig__', '');
+ if (backup[k] === undefined) backup[k] = parseFloat(row.monto) || 0;
  });
  try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
  } catch(e) { console.warn('flujoSyncMontosOriginales:', e); }
@@ -6350,7 +6354,7 @@ function flujoRenderTabla() {
 
  // Filtrar conceptos pendientes en el plan activo
  const filtradas = cxpData
- .filter(r => r.concepto && r.total !== undefined && r._key !== '__depositos_por_enviar__' && !String(r._key).startsWith('__monto_orig__'))
+ .filter(r => r.concepto && r.total !== undefined)
  .map(r => {
  const mp = cxpMontoMXN(r, colPlan);
  const pagado = gastosEfectuadosTotalPorClave(r._key);
