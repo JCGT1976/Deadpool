@@ -5478,6 +5478,30 @@ function flujoGetDepositosPorEnviar() {
 }
 function flujoSetDepositosPorEnviar(monto) {
  localStorage.setItem('mitech_depositos_por_enviar', String(monto || 0));
+ // Sync a Supabase para que todos los usuarios vean el mismo valor
+ if (typeof sb !== 'undefined' && sb) {
+ sb.from('catalogo_cxp').upsert([{
+ clave: '__depositos_por_enviar__',
+ concepto: '__depositos_por_enviar__',
+ categoria: '__sistema__',
+ total: monto || 0
+ }], { onConflict: 'clave' }).then(function(res) {
+ if (res.error) console.warn('flujoSetDepositos Supabase:', res.error.message);
+ });
+ }
+}
+async function flujoSyncDepositosDesdeSupabase() {
+ if (typeof sb === 'undefined' || !sb) return;
+ try {
+ const { data, error } = await sb.from('catalogo_cxp')
+ .select('total').eq('clave', '__depositos_por_enviar__').maybeSingle();
+ if (error || !data) return;
+ const monto = parseFloat(data.total) || 0;
+ localStorage.setItem('mitech_depositos_por_enviar', String(monto));
+ const depInput = document.getElementById('flujoDepositosInput');
+ if (depInput) depInput.value = monto > 0 ? Math.round(monto).toLocaleString('es-MX') : '';
+ flujoRenderTabla();
+ } catch(e) { console.warn('flujoSyncDepositos:', e); }
 }
 
 async function openFlujoEfectivoModal() {
@@ -5487,7 +5511,9 @@ async function openFlujoEfectivoModal() {
  if (!ok) { toast('No hay datos de CxP disponibles', 'err'); return; }
  await gastosEfectuadosFetch(true);
 
- // Inicializar input de depósitos con último valor guardado
+ // Sincronizar depósitos desde Supabase primero (para que todos vean el mismo valor)
+ await flujoSyncDepositosDesdeSupabase();
+ // Inicializar input de depósitos con valor sincronizado
  const dep = flujoGetDepositosPorEnviar();
  const depInput = document.getElementById('flujoDepositosInput');
  if (depInput) depInput.value = dep > 0 ? Math.round(dep).toLocaleString('es-MX') : '';
@@ -6293,7 +6319,7 @@ function flujoRenderTabla() {
 
  // Filtrar conceptos pendientes en el plan activo
  const filtradas = cxpData
- .filter(r => r.concepto && r.total !== undefined)
+ .filter(r => r.concepto && r.total !== undefined && r._key !== '__depositos_por_enviar__')
  .map(r => {
  const mp = cxpMontoMXN(r, colPlan);
  const pagado = gastosEfectuadosTotalPorClave(r._key);
@@ -6356,11 +6382,10 @@ function flujoRenderTabla() {
  const estaAjustado = montoOriginal !== undefined && Math.abs(montoOriginal - valorActualPlan) > 0.01;
  const ajusteBadge = estaAjustado ? '<span class="flujo-ajuste-badge" title="Monto original: ' + fmt(montoOriginal) + '">ajustado</span>' : '';
 
- // Celda de monto: input editable si admin/cohost, texto si no
- // Siempre mostramos el pendiente en MXN para que coincida con el running balance
+ // Celda de monto: muestra el monto del plan (igual que Excel), no solo el pendiente
  let montoCell;
  if (puedeAjustar) {
- const valStr = r._pendiente > 0 ? Math.round(r._pendiente).toLocaleString('es-MX') : '';
+ const valStr = valorActualPlan > 0 ? Math.round(valorActualPlan).toLocaleString('es-MX') : '';
  const monedaHint = (r.moneda && r.moneda !== 'MXN') ? ' <span style="font-size:9px;color:var(--muted);">' + r.moneda + '</span>' : '';
  montoCell = '<input type="text" inputmode="decimal" class="flujo-monto-input' + (estaAjustado ? ' ajustado' : '') + '"'
  + ' value="' + valStr + '"'
