@@ -5668,9 +5668,10 @@ window.flujoMoverArriba = function flujoMoverArriba(clave) {
  const pos = vis.findIndex(x => x.row._key === clave);
  if (pos <= 0) return;
  const claveDestino = vis[pos - 1].row._key;
+ // Reordenar localmente primero para UI inmediata
  flujoMoverYReordenar(clave, claveDestino, true)
  .then(() => { flujoRenderTabla(); toast('↑ Subido', 'ok'); })
- .catch(e => toast('Error: ' + e.message, 'err'));
+ .catch(e => { flujoRenderTabla(); toast('Local ok, error Supabase: ' + (e.message||e), 'warn'); });
 };
 
 window.flujoMoverAbajo = function flujoMoverAbajo(clave) {
@@ -5678,9 +5679,10 @@ window.flujoMoverAbajo = function flujoMoverAbajo(clave) {
  const pos = vis.findIndex(x => x.row._key === clave);
  if (pos < 0 || pos >= vis.length - 1) return;
  const claveDestino = vis[pos + 1].row._key;
+ // Reordenar localmente primero para UI inmediata
  flujoMoverYReordenar(clave, claveDestino, false)
  .then(() => { flujoRenderTabla(); toast('↓ Bajado', 'ok'); })
- .catch(e => toast('Error: ' + e.message, 'err'));
+ .catch(e => { flujoRenderTabla(); toast('Local ok, error Supabase: ' + (e.message||e), 'warn'); });
 };
 
 async function flujoMoverYReordenar(clave, claveDestino, insertBefore) {
@@ -5737,7 +5739,8 @@ window.flujoDropEnRow = function flujoDropEnRow(ev, claveDestino, nivelDestino) 
  toast('Reordenado', 'ok');
  }).catch(function(e){
  console.error('flujo reorden:', e);
- toast('Error al reordenar: ' + (e.message || e), 'err');
+ flujoRenderTabla();
+ toast('Local ok, error Supabase: ' + (e.message || e), 'warn');
  });
 };
 
@@ -6354,11 +6357,10 @@ function flujoRenderTabla() {
  const ajusteBadge = estaAjustado ? '<span class="flujo-ajuste-badge" title="Monto original: ' + fmt(montoOriginal) + '">ajustado</span>' : '';
 
  // Celda de monto: input editable si admin/cohost, texto si no
- // NOTA: mostramos el valor en la moneda original de la fila (r[colPlan]),
- // no en MXN convertido, para que la edición sea directa
+ // Siempre mostramos el pendiente en MXN para que coincida con el running balance
  let montoCell;
  if (puedeAjustar) {
- const valStr = valorActualPlan > 0 ? Math.round(valorActualPlan).toLocaleString('es-MX') : '';
+ const valStr = r._pendiente > 0 ? Math.round(r._pendiente).toLocaleString('es-MX') : '';
  const monedaHint = (r.moneda && r.moneda !== 'MXN') ? ' <span style="font-size:9px;color:var(--muted);">' + r.moneda + '</span>' : '';
  montoCell = '<input type="text" inputmode="decimal" class="flujo-monto-input' + (estaAjustado ? ' ajustado' : '') + '"'
  + ' value="' + valStr + '"'
