@@ -6343,10 +6343,9 @@ function flujoRenderTabla() {
  const claveEsc = (r._key || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
  const nivColorVal = nivelColor(nivKey);
 
- const montoRunning = (estaAjustado && montoOriginal !== undefined) ? montoOriginal : valorActualPlan;
  const prevRunning = running;
- running = running - montoRunning;
- totalGastos += montoRunning;
+ running = running - valorActualPlan;
+ totalGastos += valorActualPlan;
  const seCruza = prevRunning >= 0 && running < 0;
  if (seCruza && cruceCubierto === null) cruceCubierto = i;
  // NOTA: se quitó la fila visual "Línea de corte" — la columna
@@ -6382,11 +6381,10 @@ function flujoRenderTabla() {
  const estaAjustado = montoOriginal !== undefined && Math.abs(montoOriginal - valorActualPlan) > 0.01;
  const ajusteBadge = estaAjustado ? '<span class="flujo-ajuste-badge" title="Monto original: ' + fmt(montoOriginal) + '">ajustado</span>' : '';
 
- // Celda de monto: muestra el pendiente (lo que falta pagar = Monto - ya pagado)
+ // Celda de monto: siempre el valor ACTUAL guardado en el plan (lo que realmente se debe)
  let montoCell;
  if (puedeAjustar) {
- const montoParaMostrar = (estaAjustado && montoOriginal !== undefined) ? montoOriginal : valorActualPlan;
- const valStr = montoParaMostrar > 0 ? Math.round(montoParaMostrar).toLocaleString('es-MX') : '';
+ const valStr = valorActualPlan > 0 ? Math.round(valorActualPlan).toLocaleString('es-MX') : '';
  const monedaHint = (r.moneda && r.moneda !== 'MXN') ? ' <span style="font-size:9px;color:var(--muted);">' + r.moneda + '</span>' : '';
  montoCell = '<input type="text" inputmode="decimal" class="flujo-monto-input' + (estaAjustado ? ' ajustado' : '') + '"'
  + ' value="' + valStr + '"'
@@ -6395,8 +6393,7 @@ function flujoRenderTabla() {
  + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
  + ' title="Editar y presionar Enter o salir del campo para guardar">' + monedaHint;
  } else {
- const montoParaMostrar2 = (estaAjustado && montoOriginal !== undefined) ? montoOriginal : valorActualPlan;
- montoCell = '<span style="font-weight:600;">' + fmt(montoParaMostrar2) + '</span>';
+ montoCell = '<span style="font-weight:600;">' + fmt(valorActualPlan) + '</span>';
  }
 
  // Botón deshacer (solo si hay backup Y admin/cohost)
