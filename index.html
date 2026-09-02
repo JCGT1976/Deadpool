@@ -5510,8 +5510,9 @@ async function openFlujoEfectivoModal() {
  if (!ok) { toast('No hay datos de CxP disponibles', 'err'); return; }
  await gastosEfectuadosFetch(true);
 
- // Sincronizar depósitos desde Supabase primero (para que todos vean el mismo valor)
+ // Sincronizar depósitos y montos ajustados desde Supabase (para que todos vean lo mismo)
  await flujoSyncDepositosDesdeSupabase();
+ await flujoSyncMontosOriginalesDesdeSupabase();
  // Inicializar input de depósitos con valor sincronizado
  const dep = flujoGetDepositosPorEnviar();
  const depInput = document.getElementById('flujoDepositosInput');
@@ -6222,6 +6223,17 @@ function flujoMontoOriginalSet(clave, colPlan, valor) {
  if (backup[k] === undefined) {
  backup[k] = valor;
  try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
+ // Sync a Supabase para que todos los usuarios vean el mismo backup/badge
+ if (typeof sb !== 'undefined' && sb) {
+ sb.from('catalogo_cxp').upsert([{
+ clave: '__monto_orig__' + k,
+ concepto: '__monto_orig__',
+ categoria: '__sistema__',
+ total: valor
+ }], { onConflict: 'clave' }).then(function(res) {
+ if (res.error) console.warn('flujoMontoOriginalSet Supabase:', res.error.message);
+ });
+ }
  }
 }
 function flujoMontoOriginalGet(clave, colPlan) {
@@ -6230,8 +6242,28 @@ function flujoMontoOriginalGet(clave, colPlan) {
 }
 function flujoMontoOriginalClear(clave, colPlan) {
  var backup = flujoMontoOriginalesGet();
- delete backup[clave + '::' + colPlan];
+ var k = clave + '::' + colPlan;
+ delete backup[k];
  try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
+ if (typeof sb !== 'undefined' && sb) {
+ sb.from('catalogo_cxp').delete().eq('clave', '__monto_orig__' + k).then(function(res) {
+ if (res.error) console.warn('flujoMontoOriginalClear Supabase:', res.error.message);
+ });
+ }
+}
+async function flujoSyncMontosOriginalesDesdeSupabase() {
+ if (typeof sb === 'undefined' || !sb) return;
+ try {
+ const { data, error } = await sb.from('catalogo_cxp')
+ .select('clave,total').like('clave', '__monto_orig__%');
+ if (error || !data) return;
+ var backup = flujoMontoOriginalesGet();
+ data.forEach(function(row) {
+ var k = row.clave.replace('__monto_orig__', '');
+ if (backup[k] === undefined) backup[k] = parseFloat(row.total) || 0;
+ });
+ try { localStorage.setItem('mitech_flujo_monto_orig', JSON.stringify(backup)); } catch(e) {}
+ } catch(e) { console.warn('flujoSyncMontosOriginales:', e); }
 }
 
 /* Guarda un nuevo monto en Supabase para la columna del plan activo */
@@ -6318,7 +6350,7 @@ function flujoRenderTabla() {
 
  // Filtrar conceptos pendientes en el plan activo
  const filtradas = cxpData
- .filter(r => r.concepto && r.total !== undefined && r._key !== '__depositos_por_enviar__')
+ .filter(r => r.concepto && r.total !== undefined && r._key !== '__depositos_por_enviar__' && !String(r._key).startsWith('__monto_orig__'))
  .map(r => {
  const mp = cxpMontoMXN(r, colPlan);
  const pagado = gastosEfectuadosTotalPorClave(r._key);
