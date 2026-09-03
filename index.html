@@ -2930,6 +2930,17 @@ async function renderDashboard(c) {
  await gastosEfectuadosFetch(true);
  await entradasFetch(true);
  await budgetFetch(true);
+ // FASE 3 (2026-09-03): Sync plan activo desde Supabase para que TODOS los usuarios
+ // vean la misma brecha independientemente de su localStorage local.
+ // confirmPlanPago() graba semana='__plan_activo__' en presupuestos_semanales,
+ // pero budgetFetch() filtra ese registro (startsWith '__'). Este fetch específico
+ // lo recupera y lo aplica al localStorage del usuario actual.
+ try {
+  const { data: _planRow } = await sb.from('presupuestos_semanales')
+   .select('label').eq('semana', '__plan_activo__').maybeSingle();
+  if (_planRow?.label) localStorage.setItem('mitech_plan_pago_activo', _planRow.label);
+  else localStorage.removeItem('mitech_plan_pago_activo');
+ } catch(_e) { console.warn('[plan_activo] sync:', _e); }
 
  const tcGlobal = parseFloat(localStorage.getItem('mitech_tc') || '17');
  const totalEntradasMXN = getEntradasTotal();
