@@ -1640,7 +1640,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
  auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.09.03.1';
+const APP_VERSION = '2026.09.03.2';
 
 const SB_URL = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2946,7 +2946,7 @@ async function renderDashboard(c) {
  // Gastos Totales: SOLO pagos efectuados reales (gastos_efectuados)
  const totalGastosEfectuados = gastosEfectuadosVsPlan();
  const { mxnRaw: gastosMXNraw, usdRaw: gastosUSDraw, totalMXN: gastosRealMXN } = gastosEfectuadosTotalMonedas();
- const saldoMXN = totalEntradasMXN - totalGastosEfectuados;
+ const saldoMXN = totalEntradasMXN - gastosRealMXN;
  const saldoUSD = tcGlobal > 0 ? saldoMXN / tcGlobal : 0;
  const saldoColor = saldoMXN >= 0 ? 'var(--green)' : 'var(--red)';
  // Arrastre: deuda acumulada de semanas anteriores
@@ -2957,7 +2957,7 @@ async function renderDashboard(c) {
  const nowWeekKey = getWeekKey();
  const budgetGen = budgetData.find(b => b.semana === nowWeekKey) || null;
  const budgetMonto = budgetGen ? budgetGen.monto : 0;
- const budgetEjec = totalGastosEfectuados;
+ const budgetEjec = gastosRealMXN;
  const budgetAlerta= budgetGen ? budgetGen.alerta : 80;
  const budgetPct = budgetMonto > 0 ? Math.min((budgetEjec / budgetMonto)*100, 100) : 0;
  const budgetColor = budgetPct >= 100 ? 'var(--red)' : budgetPct >= budgetAlerta ? 'var(--yellow)' : 'var(--green)';
@@ -3126,13 +3126,13 @@ async function renderDashboard(c) {
 
  <!-- KPI Gastos Efectuados — clickeable -->
  <div class="kpi-card kpi-clickable" onclick="openGastosDetalleModal()" style="margin:0;">
- <div class="kpi-label"><span class="kpi-status-dot ${totalGastosEfectuados>0?'err':''}"></span>${t('kpi.gastos_efect')}</div>
- <div class="kpi-value ${totalGastosEfectuados>0?'negative':'empty'}" style="${totalGastosEfectuados>0?'font-size:22px;':''}">${totalGastosEfectuados>0 ? fmt(totalGastosEfectuados) : '— Sin gastos —'}</div>
+ <div class="kpi-label"><span class="kpi-status-dot ${gastosRealMXN>0?'err':''}"></span>${t('kpi.gastos_efect')}</div>
+ <div class="kpi-value ${totalGastosEfectuados>0?'negative':'empty'}" style="${totalGastosEfectuados>0?'font-size:22px;':''}">${gastosRealMXN>0 ? fmt(gastosRealMXN) : '— Sin gastos —'}</div>
  <div class="kpi-sub">${t('kpi.gastos_sub')}</div>
  <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;">
  <div style="display:flex;justify-content:space-between;">
  <span style="color:var(--muted);">${t('kpi.in_mxn')}</span>
- <span style="color:var(--red);font-weight:700;">${fmt(totalGastosEfectuados)}</span>
+ <span style="color:var(--red);font-weight:700;">${fmt(gastosRealMXN)}</span>
  </div>
  ${gastosUSDraw > 0 ? `
  <div style="display:flex;justify-content:space-between;">
