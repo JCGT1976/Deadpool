@@ -4488,6 +4488,14 @@ function closePlanPagoModal() {
 /* Usuario confirma el plan elegido en el modal de selección */
 async function confirmPlanPago(plan) {
  planPagoSetActivo(plan);
+  // Sync plan activo a Supabase — todos los usuarios verán el mismo plan
+  if (typeof sb !== 'undefined' && sb) {
+    sb.from('presupuestos_semanales').upsert([{
+      semana: '__plan_activo__', label: plan, monto: 0, moneda: 'MXN'
+    }], { onConflict: 'semana' }).then(function(r){
+      if (r.error) console.warn('sync plan:', r.error.message);
+    });
+  }
  closePlanPagoModal();
  await gastosEfectuadosFetch(true); // refrescar para reflejar pagos en el nuevo plan
  toast('Plan "' + (PLAN_PAGO_CFG[plan]?.label || plan) + '" activado ');
@@ -5518,6 +5526,16 @@ function flujoSetDepositosPorEnviar(monto) {
  });
  }
 }
+async function flujoSyncPlanDesdeSupabase() {
+  if (typeof sb === 'undefined' || !sb) return;
+  try {
+    const { data, error } = await sb.from('presupuestos_semanales')
+      .select('label').eq('semana', '__plan_activo__').maybeSingle();
+    if (error || !data || !data.label) return;
+    localStorage.setItem('mitech_plan_pago_activo', data.label);
+  } catch(e) { console.warn('flujoSyncPlan:', e); }
+}
+
 async function flujoSyncDepositosDesdeSupabase() {
  if (typeof sb === 'undefined' || !sb) return;
  try {
@@ -5533,6 +5551,7 @@ async function flujoSyncDepositosDesdeSupabase() {
 }
 
 async function openFlujoEfectivoModal() {
+  await flujoSyncPlanDesdeSupabase(); // leer plan activo desde Supabase antes de renderizar
  const plan = planPagoGetActivo();
  if (!plan) { openPlanPagoModal(); return; }
  const ok = await cxpEnsureData();
