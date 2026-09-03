@@ -5538,6 +5538,7 @@ async function openFlujoEfectivoModal() {
  const ok = await cxpEnsureData();
  if (!ok) { toast('No hay datos de CxP disponibles', 'err'); return; }
  await gastosEfectuadosFetch(true);
+  await entradasFetch(true); // forzar refresh entradas para saldo correcto en todos los usuarios
 
  // Sincronizar depósitos y montos ajustados desde Supabase (para que todos vean lo mismo)
  await flujoSyncDepositosDesdeSupabase();
