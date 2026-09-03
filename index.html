@@ -4134,6 +4134,8 @@ async function cxpFetchSupabaseData() {
  // planificables al valor esperado guardado en localStorage. Sin esto, cada
  // refresh del navegador restauraría la deuda original desde Supabase.
  try { cxpEsperadoAplicar(cxpData); } catch(e) { console.warn('cxpEsperadoAplicar:', e); }
+ // Reaplicar ajustes inline del Flujo (sobreviven recargas de Excel)
+ try { await flujoAjustesReaplicarDesdeSupabase(); } catch(e) { console.warn('flujoAdj reapply:', e); }
  // Persistir en cache local para que el plan sobreviva si Supabase falla o
  // devuelve vacío en la próxima sesión (JC: "no cambies el plan cuando la
  // sesión se acaba"). Guardamos junto con la semana para NO restaurar el plan
@@ -5575,6 +5577,7 @@ async function openFlujoEfectivoModal() {
  // Sincronizar depósitos y montos ajustados desde Supabase (para que todos vean lo mismo)
  await flujoSyncDepositosDesdeSupabase();
  await flujoSyncMontosOriginalesDesdeSupabase();
+ await flujoAjustesReaplicarDesdeSupabase(); // reaplicar ajustes inline persistidos
  // Inicializar input de depósitos con valor sincronizado
  const dep = flujoGetDepositosPorEnviar();
  const depInput = document.getElementById('flujoDepositosInput');
@@ -6330,6 +6333,29 @@ async function flujoSyncMontosOriginalesDesdeSupabase() {
 }
 
 /* Guarda un nuevo monto en Supabase para la columna del plan activo */
+/* Persiste y reaplica ajustes inline del Flujo sobre cxpData.
+ Clave en presupuestos_semanales: '__flujo_adj__CONCEPTO::COL'
+ Se llama: al guardar ajuste, al abrir Flujo, y al final de cxpFetchSupabaseData. */
+async function flujoAjustesReaplicarDesdeSupabase() {
+ if (typeof sb === 'undefined' || !sb) return;
+ try {
+  const { data, error } = await sb.from('presupuestos_semanales')
+   .select('semana,monto').like('semana', '__flujo_adj__%');
+  if (error || !data || data.length === 0) return;
+  data.forEach(function(row) {
+   var partes = row.semana.replace('__flujo_adj__', '').split('::');
+   var colP = partes.pop();
+   var clave = partes.join('::');
+   var fila = cxpData.find(function(r) { return r._key === clave; });
+   if (fila && colP in fila) {
+    var ajustado = parseFloat(row.monto);
+    if (!isNaN(ajustado)) fila[colP] = ajustado;
+   }
+  });
+ } catch(e) { console.warn('[flujoAdj] reapply:', e); }
+}
+window.flujoAjustesReaplicarDesdeSupabase = flujoAjustesReaplicarDesdeSupabase;
+
 window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inputEl) {
  const raw = parseMoney(inputEl.value);
  if (isNaN(raw) || raw < 0) { toast('Monto inválido', 'err'); return; }
@@ -6351,6 +6377,8 @@ window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inpu
  if (error) throw error;
  // Actualizar local
  fila[colPlan] = raw;
+ // Persistir ajuste para sobrevivir recargas de Excel
+ try { sb.from('presupuestos_semanales').upsert([{ semana: '__flujo_adj__'+clave+'::'+colPlan, monto: raw, moneda:'MXN', label:'__sistema__' }],{onConflict:'semana'}).then(function(r){if(r.error)console.warn('[flujoAdj]',r.error.message);}); } catch(_e){}
  toast('Monto actualizado en el plan', 'ok');
  flujoRenderTabla();
  // Refrescar KPI de brecha del dashboard
@@ -6377,6 +6405,8 @@ window.flujoMontoDeshacer = async function flujoMontoDeshacer(clave, colPlan) {
  if (error) throw error;
  fila[colPlan] = original;
  flujoMontoOriginalClear(clave, colPlan);
+ // Borrar ajuste persistido en presupuestos_semanales
+ try { sb.from('presupuestos_semanales').delete().eq('semana','__flujo_adj__'+clave+'::'+colPlan).then(function(r){if(r.error)console.warn('[flujoAdj del]',r.error.message);}); } catch(_e){}
  toast('↺ Monto restaurado al original', 'ok');
  flujoRenderTabla();
  if (typeof renderDashboard === 'function') renderDashboard();
