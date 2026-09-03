@@ -4695,8 +4695,8 @@ function planPagoRenderTabla() {
  let grandPlan = 0, grandPagado = 0, grandPendiente = 0;
  todas.forEach(r => {
  const mp = cxpMontoMXN(r, colPlan);
- const pg = Math.min(gastosEfectuadosTotalPorClave(r._key), mp);
- grandPlan += mp; grandPagado += pg; grandPendiente += Math.max(mp - pg, 0);
+ const pgReal = gastosEfectuadosTotalPorClave(r._key);
+ grandPlan += mp; grandPagado += Math.min(pgReal, mp); grandPendiente += Math.max(mp - pgReal, 0);
  });
 
  let html = '';
@@ -4706,8 +4706,10 @@ function planPagoRenderTabla() {
  const montoTotal = cxpMontoMXN(r, 'total');
  const montoTotalRaw = parseFloat(r.total) || 0;
  const montoPlan = cxpMontoMXN(r, colPlan);
- const pagado = Math.min(gastosEfectuadosTotalPorClave(r._key), montoPlan);
- const pendiente = Math.max(montoPlan - pagado, 0);
+ const pagadoReal = gastosEfectuadosTotalPorClave(r._key);
+ const pagado = pagadoReal;
+ const pendiente = Math.max(montoPlan - pagadoReal, 0);
+ const sobrePago = pagadoReal > montoPlan + 0.01;
  const liquidado = pendiente <= 0 && montoPlan > 0;
  const esUSD = r.moneda === 'USD';
  const monedaBadge = esUSD
@@ -4737,7 +4739,7 @@ function planPagoRenderTabla() {
  <td style="text-align:right;color:var(--muted);font-size:11px">${r.tipo||''}</td>
  <td class="${plan==='all'?'col-active':''}">${fmt(montoTotal)}</td>
  ${mostrarPlanCol ? `<td class="col-active">${fmt(montoPlan)}</td>` : ''}
- <td style="color:var(--green);">${pagado>0?fmt(pagado):'—'}</td>
+ <td style="color:${sobrePago?'var(--yellow)':'var(--green)'};">${pagado>0?fmt(pagado):'—'}${sobrePago?`<span title="Pagado supera el plan activo" style="display:inline-block;background:rgba(251,191,36,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.5);border-radius:4px;padding:1px 4px;font-size:9px;font-weight:800;margin-left:4px;">+sobre</span>`:''}  </td>
  <td style="color:${pendiente>0?'var(--red)':'var(--muted)'};">${pendiente>0?fmt(pendiente):'—'}</td>
  <td style="text-align:center;white-space:nowrap;">
  <span style="margin-right:4px;">${liquidado ? '' : (pagado>0 ? '' : '⏳')}</span>
