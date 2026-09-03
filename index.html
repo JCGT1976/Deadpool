@@ -6334,7 +6334,7 @@ window.flujoMontoGuardar = async function flujoMontoGuardar(clave, colPlan, inpu
  try {
  const upd = {};
  upd[colPlan] = raw;
- const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
+ const { error } = await sb.from('catalogo_cxp').update(upd).eq('id', fila.id);
  if (error) throw error;
  // Actualizar local
  fila[colPlan] = raw;
@@ -6360,7 +6360,7 @@ window.flujoMontoDeshacer = async function flujoMontoDeshacer(clave, colPlan) {
  try {
  const upd = {};
  upd[colPlan] = original;
- const { error } = await sb.from('catalogo_cxp').update(upd).eq('clave', clave);
+ const { error } = await sb.from('catalogo_cxp').update(upd).eq('id', fila.id);
  if (error) throw error;
  fila[colPlan] = original;
  flujoMontoOriginalClear(clave, colPlan);
