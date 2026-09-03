@@ -2211,10 +2211,36 @@ async function doLogout() {
 /* ══════════════════════════════════════════
  CARGAR DATOS
 ══════════════════════════════════════════ */
+/* Sincroniza mitech_arrastre con el último cierre guardado en Supabase.
+ Garantiza que todos los dispositivos/usuarios vean el mismo arrastre
+ aunque no hayan sido ellos quienes ejecutaron el cierre de semana. */
+async function arrastreSyncDesdeSupabase() {
+ try {
+ if (!sb) return;
+ const { data, error } = await sb.from('cierres_hist')
+  .select('arrastre_monto, arrastre_cierres, fecha')
+  .order('fecha', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+ if (error || !data) return;
+ const localArr = JSON.parse(localStorage.getItem('mitech_arrastre') || '{"monto":0,"cierres":0}');
+ // Solo actualizar si Supabase tiene más cierres que el local
+ if ((data.arrastre_cierres || 0) > (localArr.cierres || 0)) {
+  localStorage.setItem('mitech_arrastre', JSON.stringify({
+   monto: data.arrastre_monto || 0,
+   cierres: data.arrastre_cierres || 0
+  }));
+ }
+ } catch(e) { console.warn('[arrastre] sync desde Supabase:', e); }
+}
+window.arrastreSyncDesdeSupabase = arrastreSyncDesdeSupabase;
+
 async function loadAllData() {
  try {
  // Entradas — cargar desde Supabase para que sean compartidas entre usuarios/dispositivos
  await entradasFetch(true);
+ // Arrastre — sincronizar desde cierres_hist (por si otro dispositivo hizo el cierre)
+ await arrastreSyncDesdeSupabase();
  } catch(e) {
  console.error('Error cargando datos:', e);
  toast('Error al cargar datos', 'err');
