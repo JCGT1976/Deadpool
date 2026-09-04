@@ -4098,6 +4098,7 @@ async function cxpFetchSupabaseData() {
  }
  if (error || !data || data.length === 0) return false;
  cxpData = data.map(r => ({
+ id: r.id ?? null,
  clave: r.clave || null,
  orden: (r.orden == null || isNaN(parseInt(r.orden))) ? 9999 : parseInt(r.orden),
  tipo: r.tipo || '',
