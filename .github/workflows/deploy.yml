@@ -1,6 +1,6 @@
 name: Deploy to Pages (auto-retry)
 
-# Se dispara con cada push a main y también manualmente desde la UI de Actions.
+# Se dispara con cada push a main y tambiÃ©n manualmente desde la UI de Actions.
 # Reemplaza al workflow auto-generado "pages build and deployment" (una vez que
 # GitHub detecta este archivo, deja de correr el default).
 on:
@@ -12,7 +12,7 @@ on:
 # cancelarlo (evita el race condition que causa fallos de 10s).
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -20,9 +20,9 @@ permissions:
   id-token: write
 
 jobs:
-  # ─────────────────────────────────────────
+  # âââââââââââââââââââââââââââââââââââââââââ
   # BUILD: prepara el artifact con el sitio
-  # ─────────────────────────────────────────
+  # âââââââââââââââââââââââââââââââââââââââââ
   build:
     runs-on: ubuntu-latest
     steps:
@@ -37,12 +37,12 @@ jobs:
         with:
           path: .
 
-  # ─────────────────────────────────────────
+  # âââââââââââââââââââââââââââââââââââââââââ
   # DEPLOY: publica el artifact con AUTO-RETRY
   # 3 intentos con esperas escalonadas para
-  # defeat el flake típico de la API de Pages
-  # (falla en 10s sin razón aparente).
-  # ─────────────────────────────────────────
+  # defeat el flake tÃ­pico de la API de Pages
+  # (falla en 10s sin razÃ³n aparente).
+  # âââââââââââââââââââââââââââââââââââââââââ
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
       url: ${{ steps.d1.outputs.page_url || steps.d2.outputs.page_url || steps.d3.outputs.page_url }}
     steps:
       # Intento 1 (inmediato)
-      - name: Deploy — attempt 1/3
+      - name: Deploy â attempt 1/3
         id: d1
         uses: actions/deploy-pages@v4
         continue-on-error: true
@@ -59,11 +59,11 @@ jobs:
       - name: Wait 30s before retry
         if: steps.d1.outcome == 'failure'
         run: |
-          echo "::warning::Attempt 1 failed. Waiting 30s before retry…"
+          echo "::warning::Attempt 1 failed. Waiting 30s before retryâ¦"
           sleep 30
 
-      # Intento 2 (después de 30s)
-      - name: Deploy — attempt 2/3
+      # Intento 2 (despuÃ©s de 30s)
+      - name: Deploy â attempt 2/3
         id: d2
         if: steps.d1.outcome == 'failure'
         uses: actions/deploy-pages@v4
@@ -72,11 +72,11 @@ jobs:
       - name: Wait 60s before final retry
         if: steps.d1.outcome == 'failure' && steps.d2.outcome == 'failure'
         run: |
-          echo "::warning::Attempts 1 & 2 failed. Waiting 60s before final retry…"
+          echo "::warning::Attempts 1 & 2 failed. Waiting 60s before final retryâ¦"
           sleep 60
 
-      # Intento 3 (después de 60s) — si este falla, el job falla
-      - name: Deploy — attempt 3/3 (final)
+      # Intento 3 (despuÃ©s de 60s) â si este falla, el job falla
+      - name: Deploy â attempt 3/3 (final)
         id: d3
         if: steps.d1.outcome == 'failure' && steps.d2.outcome == 'failure'
         uses: actions/deploy-pages@v4
@@ -85,7 +85,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "### 📊 Deploy attempts" >> $GITHUB_STEP_SUMMARY
+          echo "### ð Deploy attempts" >> $GITHUB_STEP_SUMMARY
           echo "| Attempt | Outcome |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
           echo "| 1 | ${{ steps.d1.outcome }} |" >> $GITHUB_STEP_SUMMARY
