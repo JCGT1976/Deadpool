@@ -965,6 +965,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
  <div class="nav" id="navTabs">
  <button class="nav-tab active" onclick="showTab('dashboard')" data-tab="dashboard" data-i18n="nav.dashboard">Dashboard</button>
  <button class="nav-tab" onclick="showTab('cxp')" data-tab="cxp" data-i18n="nav.cxp">CxP</button>
+  <button class="nav-tab" onclick="showTab('matriz')" data-tab="matriz">Matriz</button>
 
  </div>
 
@@ -1640,7 +1641,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
  auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.09.03.2';
+const APP_VERSION = '2026.10.05.1';
 
 const SB_URL = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -2252,12 +2253,12 @@ async function loadAllData() {
 ══════════════════════════════════════════ */
 function showTab(tab) {
  // VALIDACIÓN DE ACCESO: mapa tab → permiso requerido
- const TAB_PERM = { dashboard:'dashboard', cxp:'cxp' };
+ const TAB_PERM = { dashboard:'dashboard', cxp:'cxp', matriz:'matriz' };
  const permId = TAB_PERM[tab];
  if (permId && !canAccess(permId)) {
  toast(t('toast.no_permission') || 'Sin permisos para esta sección', 'err');
  // Fallback: primer tab permitido, o cerrar sesión si ninguno
- const fallback = ['dashboard','cxp'].find(x => canAccess(TAB_PERM[x]));
+ const fallback = ['dashboard','cxp','matriz'].find(x => canAccess(TAB_PERM[x]));
  if (!fallback) { doLogout(); return; }
  tab = fallback;
  }
@@ -2269,6 +2270,7 @@ function showTab(tab) {
  switch(tab) {
  case 'dashboard': renderDashboard(c); break;
  case 'cxp': renderCxP(c); break;
+      case 'matriz': renderMatriz(c); break;
  }
  // Restaurar el estado abierto/cerrado de acordeones (evita que se colapsen
  // al re-renderizar después de agregar gasto, registrar pago, cerrar semana, etc.)
@@ -2280,7 +2282,7 @@ function showTab(tab) {
 /* Filtra visualmente los tabs de la barra de navegación según permisos */
 function aplicarVisibilidadTabs() {
  if (!currentUser) return;
- const map = { dashboard:'dashboard', cxp:'cxp' };
+ const map = { dashboard:'dashboard', cxp:'cxp', matriz:'matriz' };
  document.querySelectorAll('.nav-tab').forEach(btn => {
  const tab = btn.dataset.tab;
  const perm = map[tab];
@@ -6632,6 +6634,34 @@ function flujoImprimir() {
 
 
 
+
+<!-- ══════════ MODAL MATRIZ DE CONTROL ══════════ -->
+<div id="matrizModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center;">
+  <div style="background:#1e2a3a;border-radius:12px;padding:28px;width:480px;max-width:95vw;border:1px solid rgba(255,255,255,.12);">
+    <h3 id="matrizModalTitle" style="margin:0 0 18px;color:#e8eaf6;font-size:15px;font-weight:700;"></h3>
+    <div style="display:grid;gap:14px;">
+      <div>
+        <label style="color:#9ab;font-size:11px;font-weight:600;letter-spacing:.5px;">ESTADO</label>
+        <select id="matrizEstado" style="width:100%;margin-top:6px;padding:10px;background:#0d1b2a;border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#e8eaf6;font-size:13px;">
+          <option value="sin_asignar">Sin asignar</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="en_revision">En revisión</option>
+          <option value="aprobado">Aprobado ✅</option>
+          <option value="con_observacion">Con observación ⚠️</option>
+        </select>
+      </div>
+      <div>
+        <label style="color:#9ab;font-size:11px;font-weight:600;letter-spacing:.5px;">OBSERVACIONES</label>
+        <textarea id="matrizObs" rows="3" placeholder="Notas..." style="width:100%;margin-top:6px;padding:10px;background:#0d1b2a;border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#e8eaf6;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+      <button onclick="matrizCerrarModal()" style="padding:9px 20px;background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#aaa;font-size:13px;cursor:pointer;">Cancelar</button>
+      <button onclick="matrizGuardar()" style="padding:9px 22px;background:#1a56db;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Guardar</button>
+    </div>
+  </div>
+</div>
+
 </body></html>`);
  w.document.close();
  setTimeout(() => { w.print(); }, 200);
@@ -8309,6 +8339,7 @@ const PERMS_MODULOS = [
  { id:'reset', label:'Reset Total', desc:'Reiniciar todo a cero' },
  { id:'usuarios', label:'Gestión Usuarios', desc:'Crear/editar usuarios' },
  { id:'catalogo', label:'Catálogo CxP', desc:'Editar catálogo de conceptos' },
+  { id:'matriz', label:'Matriz de Control', desc:'Control de obligaciones por sucursal' },
 ];
 
 const PERMS_DEFAULT = {
@@ -8930,6 +8961,193 @@ window.planPagoBorrarConcepto = async function planPagoBorrarConcepto(rowKeyIdx)
 <script>
 (function(){
  })();
+
+// ══════════ MATRIZ DE CONTROL ══════════
+var CTRL_TIPOS = [
+  {id:'isn',     nombre:'ISN — Pago y comprobante',       periodo:'Mensual'},
+  {id:'bancos',  nombre:'Conciliación bancaria',           periodo:'Mensual'},
+  {id:'flujo',   nombre:'Reportes flujo de efectivo',           periodo:'Semanal'},
+  {id:'cfdi',    nombre:'CFDI nómina — timbrado correcto', periodo:'Quincenal'},
+  {id:'ret',     nombre:'Retenciones ISR/IMSS pagadas',          periodo:'Mensual'},
+  {id:'activos', nombre:'Inventario de activos',                 periodo:'Semestral'},
+  {id:'cxp',     nombre:'Revisión de CxP',                 periodo:'Mensual'}
+];
+var CTRL_SUCURSALES = [
+  {empresa:'Ariitranst',    ciudad:'Tijuana',    tasa:4.25},
+  {empresa:'Autobot',       ciudad:'Tijuana',    tasa:4.25},
+  {empresa:'Boughts',       ciudad:'Tijuana',    tasa:4.25},
+  {empresa:'Comercial',     ciudad:'Tijuana',    tasa:4.25},
+  {empresa:'Internacional', ciudad:'Tijuana',    tasa:4.25},
+  {empresa:'Internacional', ciudad:'Monterrey',  tasa:3.00},
+  {empresa:'Internacional', ciudad:'Cuautitlán', tasa:3.00}
+];
+var _matrizData = [];
+var _matrizEditing = null;
+
+window.renderMatriz = function renderMatriz(container) {
+  var c = container || document.getElementById('mainContent');
+  if (!c) return;
+  var now = new Date();
+  var periodoDefault = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  c.innerHTML = '<div style="padding:20px 24px;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">' +
+      '<h2 style="margin:0;font-size:18px;color:#e8eaf6;font-weight:700;">Matriz de Control de Obligaciones</h2>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+        '<select id="mzFiltroEmp" onchange="matrizFiltrar()" style="padding:8px 12px;background:#1e2a3a;border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#e8eaf6;font-size:12px;">' +
+          '<option value="">Todas las empresas</option>' +
+          Array.from(new Set(CTRL_SUCURSALES.map(function(s){return s.empresa;}))).map(function(e){return '<option value="'+e+'">'+e+'</option>';}).join('') +
+        '</select>' +
+        '<input id="mzFiltroPer" type="month" value="'+periodoDefault+'" onchange="matrizFiltrar()" style="padding:8px 12px;background:#1e2a3a;border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#e8eaf6;font-size:12px;">' +
+        '<select id="mzFiltroEst" onchange="matrizFiltrar()" style="padding:8px 12px;background:#1e2a3a;border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#e8eaf6;font-size:12px;">' +
+          '<option value="">Todos los estados</option>' +
+          '<option value="sin_asignar">Sin asignar</option>' +
+          '<option value="pendiente">Pendiente</option>' +
+          '<option value="en_revision">En revisión</option>' +
+          '<option value="aprobado">Aprobado</option>' +
+          '<option value="con_observacion">Con observación</option>' +
+        '</select>' +
+      '</div>' +
+    '</div>' +
+    '<div id="mzResumen" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;"></div>' +
+    '<div id="mzTabla" style="overflow-x:auto;"></div>' +
+  '</div>';
+  matrizFiltrar();
+};
+
+window.matrizFiltrar = function matrizFiltrar() {
+  var periodo = (document.getElementById('mzFiltroPer') || {}).value || '';
+  var filtEmp = (document.getElementById('mzFiltroEmp') || {}).value || '';
+  var filtEst = (document.getElementById('mzFiltroEst') || {}).value || '';
+  var sucsFiltradas = CTRL_SUCURSALES.filter(function(s){ return !filtEmp || s.empresa === filtEmp; });
+
+  sb.from('ctrl_matriz').select('*').eq('periodo', periodo).then(function(res){
+    var rows = (res.data || []);
+    // Build lookup
+    var lookup = {};
+    rows.forEach(function(r){ lookup[r.empresa+'|'+r.ciudad+'|'+r.tipo_control] = r; });
+
+    // Resumen
+    var total = sucsFiltradas.length * CTRL_TIPOS.length;
+    var aprobados = 0; var pendientes = 0; var obs = 0; var sinAsignar = 0;
+    sucsFiltradas.forEach(function(s){
+      CTRL_TIPOS.forEach(function(t){
+        var key = s.empresa+'|'+s.ciudad+'|'+t.id;
+        var est = (lookup[key] || {}).estado || 'sin_asignar';
+        if (est==='aprobado') aprobados++;
+        else if (est==='con_observacion') obs++;
+        else if (est==='pendiente'||est==='en_revision') pendientes++;
+        else sinAsignar++;
+      });
+    });
+
+    var colores = {aprobados:'#0e9a53',pendientes:'#1a56db',obs:'#d97706',sinAsignar:'#4b5563'};
+    var resEl = document.getElementById('mzResumen');
+    if (resEl) resEl.innerHTML = [
+      {l:'Aprobados',v:aprobados,c:colores.aprobados},
+      {l:'Pendientes',v:pendientes,c:colores.pendientes},
+      {l:'Con observación',v:obs,c:colores.obs},
+      {l:'Sin asignar',v:sinAsignar,c:colores.sinAsignar},
+      {l:'Total',v:total,c:'#374151'}
+    ].map(function(b){
+      return '<div style="background:'+b.c+';border-radius:10px;padding:10px 18px;min-width:100px;text-align:center;">' +
+        '<div style="font-size:22px;font-weight:800;color:#fff;">'+b.v+'</div>' +
+        '<div style="font-size:10px;color:rgba(255,255,255,.8);font-weight:600;letter-spacing:.5px;">'+b.l.toUpperCase()+'</div>' +
+      '</div>';
+    }).join('');
+
+    // Table
+    var estadoColors = {aprobado:'#0e9a53',con_observacion:'#d97706',pendiente:'#1a56db',en_revision:'#7c3aed',sin_asignar:'#4b5563'};
+    var estadoLabels = {aprobado:'Aprobado ✅',con_observacion:'Observación ⚠️',pendiente:'Pendiente',en_revision:'En revisión',sin_asignar:'Sin asignar'};
+
+    var hdr = '<tr style="background:#0d1b2a;">' +
+      '<th style="padding:10px 14px;text-align:left;color:#9ab;font-size:11px;font-weight:700;letter-spacing:.5px;white-space:nowrap;">EMPRESA</th>' +
+      '<th style="padding:10px 14px;text-align:left;color:#9ab;font-size:11px;font-weight:700;letter-spacing:.5px;">CIUDAD</th>' +
+      CTRL_TIPOS.map(function(t){
+        return '<th style="padding:10px 8px;text-align:center;color:#9ab;font-size:10px;font-weight:700;letter-spacing:.3px;white-space:nowrap;">'+t.nombre+'<br><span style="color:#556;font-weight:400;">'+t.periodo+'</span></th>';
+      }).join('') +
+    '</tr>';
+
+    var rows2 = sucsFiltradas.filter(function(s){
+      if (!filtEst) return true;
+      return CTRL_TIPOS.some(function(t){
+        var key = s.empresa+'|'+s.ciudad+'|'+t.id;
+        return ((lookup[key]||{}).estado||'sin_asignar') === filtEst;
+      });
+    });
+
+    var body = rows2.map(function(s,i){
+      var bg = i%2===0 ? '#1e2a3a' : '#18232f';
+      var cells = CTRL_TIPOS.map(function(t){
+        var key = s.empresa+'|'+s.ciudad+'|'+t.id;
+        var row = lookup[key] || {};
+        var est = row.estado || 'sin_asignar';
+        var color = estadoColors[est] || '#4b5563';
+        var label = estadoLabels[est] || est;
+        var canEdit = currentUser && (currentUser.rol==='admin_master'||currentUser.rol==='admin'||currentUser.rol==='cohost');
+        var click = canEdit ? 'onclick="matrizEditar(''+s.empresa+'',''+s.ciudad+'',''+t.id+'',''+periodo+'')" style="cursor:pointer;"' : '';
+        return '<td style="padding:8px 6px;text-align:center;background:'+bg+';" '+click+'>' +
+          '<span style="display:inline-block;padding:3px 8px;border-radius:6px;background:'+color+';color:#fff;font-size:10px;font-weight:700;white-space:nowrap;">'+label+'</span>' +
+        '</td>';
+      }).join('');
+      return '<tr>' +
+        '<td style="padding:10px 14px;font-weight:600;color:#e8eaf6;font-size:12px;white-space:nowrap;background:'+bg+';">'+s.empresa+'</td>' +
+        '<td style="padding:10px 14px;color:#9ab;font-size:12px;background:'+bg+';">'+s.ciudad+'</td>' +
+        cells +
+      '</tr>';
+    }).join('');
+
+    var tablaEl = document.getElementById('mzTabla');
+    if (tablaEl) tablaEl.innerHTML = '<table style="width:100%;border-collapse:collapse;background:#1e2a3a;border-radius:10px;overflow:hidden;"><thead>'+hdr+'</thead><tbody>'+body+'</tbody></table>';
+  });
+};
+
+window.matrizEditar = function matrizEditar(empresa, ciudad, tipo_id, periodo) {
+  _matrizEditing = {empresa:empresa, ciudad:ciudad, tipo_id:tipo_id, periodo:periodo};
+  var tipo = CTRL_TIPOS.find(function(t){return t.id===tipo_id;}) || {};
+  var titleEl = document.getElementById('matrizModalTitle');
+  if (titleEl) titleEl.textContent = empresa + ' — ' + ciudad + ' | ' + tipo.nombre;
+  sb.from('ctrl_matriz').select('*').eq('empresa',empresa).eq('ciudad',ciudad).eq('tipo_control',tipo_id).eq('periodo',periodo).maybeSingle().then(function(res){
+    var row = res.data || {};
+    var estEl = document.getElementById('matrizEstado');
+    var obsEl = document.getElementById('matrizObs');
+    if (estEl) estEl.value = row.estado || 'pendiente';
+    if (obsEl) obsEl.value = row.observaciones || '';
+    var modal = document.getElementById('matrizModal');
+    if (modal) { modal.style.display = 'flex'; }
+  });
+};
+
+window.matrizCerrarModal = function matrizCerrarModal() {
+  var modal = document.getElementById('matrizModal');
+  if (modal) modal.style.display = 'none';
+  _matrizEditing = null;
+};
+
+window.matrizGuardar = async function matrizGuardar() {
+  if (!_matrizEditing) return;
+  var estEl = document.getElementById('matrizEstado');
+  var obsEl = document.getElementById('matrizObs');
+  var estado = estEl ? estEl.value : 'pendiente';
+  var obs = obsEl ? obsEl.value : '';
+  var username = currentUser ? currentUser.username : '';
+  var payload = {
+    empresa: _matrizEditing.empresa,
+    ciudad: _matrizEditing.ciudad,
+    tipo_control: _matrizEditing.tipo_id,
+    periodo: _matrizEditing.periodo,
+    estado: estado,
+    observaciones: obs,
+    revision_por: username,
+    fecha_revision: new Date().toISOString()
+  };
+  var res = await sb.from('ctrl_matriz').upsert(payload, {onConflict:'empresa,ciudad,tipo_control,periodo'});
+  if (res.error) { toast('Error: ' + res.error.message, 'err'); return; }
+  toast('Control guardado', 'ok');
+  matrizCerrarModal();
+  matrizFiltrar();
+};
+// ══════════ FIN MATRIZ ══════════
+
 </script>
 
 <!-- ══════════════════════════════════════════
