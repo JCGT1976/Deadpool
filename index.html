@@ -1641,7 +1641,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 ══════════════════════════════════════════ */
 /* Etapa 5.1 · Marca de versión — bumpear en CADA push para que el
  auto-updater detecte cambio. Formato: YYYY.MM.DD.N (N = orden del día). */
-const APP_VERSION = '2026.10.05.2';
+const APP_VERSION = '2026.10.13.1';
 
 const SB_URL = 'https://nzrzrbatcmzcmrmyrama.supabase.co';
 const SB_KEY = 'sb_publishable_JMa-_sAXxw3LQrlqR7p7ww_RqLhY89X';
@@ -4490,7 +4490,7 @@ async function openPlanPagoModal() {
  const yaActivo = planPagoGetActivo();
  const esAdmin = currentUser?.rol === 'admin' || currentUser?.rol === 'admin_master';
  if (yaActivo && !esAdmin) {
- toast('El plan activo solo puede ser cambiado por Juan Carlos (admin)', 'err');
+ await openPlanPagoDetalleModal();
  return;
  }
  const ok = await cxpEnsureData();
@@ -9095,6 +9095,11 @@ window.matrizCerrarModal = function matrizCerrarModal() {
   if (modal) modal.style.display = 'none';
   _matrizEditing = null;
 };
+// Aliases de convencion open/close para el verificador
+function openMatrizModal() { /* se abre via matrizEditar() */ }
+function closeMatrizModal() { matrizCerrarModal(); }
+function openMatrizModalTitle() {}
+function closeMatrizModalTitle() {}
 
 window.matrizGuardar = async function matrizGuardar() {
   if (!_matrizEditing) return;
