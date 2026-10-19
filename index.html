@@ -3807,7 +3807,15 @@ async function cxpHandleFile(e) {
  cxpDataNew.push(gastoMapeado);
  }
 
- if (cxpDataNew.length === 0) {
+ { 
+    const _srv=cxpDataNew.reduce((a,r)=>a+(parseFloat(r.supervivencia)||0),0);
+    const _tot=cxpDataNew.reduce((a,r)=>a+(parseFloat(r.total)||0),0);
+    console.log('[DIAG-1] Excel parseado: '+cxpDataNew.length+' filas | supervivencia='+_srv.toFixed(0)+' | total='+_tot.toFixed(0));
+    const _top=cxpDataNew.slice().sort((a,b)=>(parseFloat(b.supervivencia)||0)-(parseFloat(a.supervivencia)||0)).slice(0,8);
+    console.log('[DIAG-1] Top 8 por supervivencia:');
+    _top.forEach(r=>console.log('  '+r.concepto+' | srv='+r.supervivencia+' | tot='+r.total));
+  }
+  if (cxpDataNew.length === 0) {
  statusEl.innerHTML = 'No se cargaron gastos válidos (revisar formato)';
  return;
  }
@@ -4173,6 +4181,7 @@ async function cxpFetchSupabaseData() {
  try { cxpEsperadoAplicar(cxpData); } catch(e) { console.warn('cxpEsperadoAplicar:', e); }
  // Reaplicar ajustes inline del Flujo (sobreviven recargas de Excel)
  try { await flujoAjustesReaplicarDesdeSupabase(); } catch(e) { console.warn('flujoAdj reapply:', e); }
+    { const _s=cxpData.reduce((a,r)=>a+(r.supervivencia||0),0); console.log('[DIAG-5] After flujoAdj: '+cxpData.length+' filas | supervivencia='+_s.toFixed(0)); }
  // Persistir en cache local para que el plan sobreviva si Supabase falla o
  // devuelve vacío en la próxima sesión (JC: "no cambies el plan cuando la
  // sesión se acaba"). Guardamos junto con la semana para NO restaurar el plan
@@ -4245,7 +4254,8 @@ async function cxpLoadSupabase() {
 /* ── RENDER KPIs ─────────────────────────── */
 function cxpRenderKPIs(rows) {
  const sumCol = col => rows.reduce((s, r) => s + (parseFloat(r[col]) || 0), 0);
- const tot = sumCol('total');
+ console.log('[DIAG-6] KPI render: '+rows.length+' filas | supervivencia='+sumCol('supervivencia').toFixed(0));
+  const tot = sumCol('total');
  const rec = sumCol('recomendado');
  const urg = sumCol('urgente');
  const srv = sumCol('supervivencia');
