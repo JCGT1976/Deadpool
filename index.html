@@ -4058,10 +4058,44 @@ async function cxpSyncToSupabase(rows) {
  }
 
  console.log(`cxpSync PURGE-INSERT → insertados:${insertados} preservados(liquidados):${clavesLiquidadas.size} omitidos:${omitidosLiquidados.length}`);
- if (omitidosLiquidados.length) console.log('Omitidos (ya liquidados, se conservaron):', omitidosLiquidados.join(', '));
+ if (omitidosLiquidados.length) console.log('Omitidos (ya liquidados, se conservaron):', omitidosLiquidados.join(', '))
+
+ // PASO 6: Actualizar montos de conceptos liquidados que aparecen en el nuevo Excel
+ let actualizadosLiq = 0;
+ for (const r of rowsSorted) {
+   const claveExcel = r._key;
+   const nExcel = norm(r.concepto);
+   const clavePreservada = clavesLiquidadas.has(claveExcel)
+     ? claveExcel
+     : idxLiquidadoPorNorm[nExcel] || null;
+   if (!clavePreservada) continue;
+   const updatePayload = {
+     total: parseFloat(r.total) || 0,
+     recomendado: parseFloat(r.recomendado) || 0,
+     urgente: parseFloat(r.urgente) || 0,
+     supervivencia: parseFloat(r.supervivencia) || 0,
+     nota: r.nota || '',
+     nivel: nivelToInt(r.nivel),
+   };
+   if (colsValidas) {
+     for (const k of Object.keys(updatePayload)) {
+       if (!colsValidas.has(k)) delete updatePayload[k];
+     }
+   }
+   const { error: updErr } = await sb.from('catalogo_cxp')
+     .update(updatePayload)
+     .eq('clave', clavePreservada);
+   if (updErr) {
+     console.warn('UPDATE liquidado fallo (' + clavePreservada + '):', updErr.message);
+   } else {
+     actualizadosLiq++;
+   }
+ }
+ if (actualizadosLiq > 0) console.log('PASO 6: ' + actualizadosLiq + ' liquidados actualizados con montos del nuevo Excel.');
+;
 
  try { cxpEsperadoLimpiar(); } catch(e){}
- return { ok: true, insertados: insertados, actualizados: 0, ignorados: omitidosLiquidados.length };
+ return { ok: true, insertados: insertados, actualizados: actualizadosLiq, ignorados: omitidosLiquidados.length };
 
  } catch(err) {
  console.error('cxpSyncToSupabase:', err);
