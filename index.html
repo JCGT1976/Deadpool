@@ -109,11 +109,11 @@ async function openReport(role,name,username){
   }
   document.getElementById('login').style.display='none';
   c.style.display='block';
-  document.getElementById('ubName').textContent=name;
+  var ubN=document.getElementById('ubName'); if(ubN)ubN.textContent=name;
   var rl=document.getElementById('ubRole');
-  var rmap={admin:'Administrador',cohost:'Co-host',income:'Co-host Ingresos',view:'Visualizador'};
-  rl.textContent=rmap[role]; rl.className='role'+(role==='cohost'?' cohost':(role==='income'?' cohost':(role==='view'?' view':'')));
-  document.getElementById('ubLogout').onclick=function(){doLogout('');};
+  if(rl){var rmap={admin:'Administrador',cohost:'Co-host',income:'Co-host Ingresos',view:'Visualizador'};
+  rl.textContent=rmap[role]; rl.className='role'+(role==='cohost'?' cohost':(role==='income'?' cohost':(role==='view'?' view':'')));}
+  var ubL=document.getElementById('ubLogout'); if(ubL)ubL.onclick=function(){doLogout('');};
   var scripts=c.querySelectorAll('script');
   scripts.forEach(function(old){var s=document.createElement('script');if(old.src){s.src=old.src;}else{s.textContent=old.textContent;}document.body.appendChild(s);});
   if(window.__initReport__)window.__initReport__(role);
