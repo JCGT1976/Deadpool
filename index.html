@@ -147,7 +147,7 @@ async function doLogin(){
 
   try{
     // Intentar login contra Supabase primero
-    if(false&&supa){
+    if(supa){
       var h=await sha256hex(u+'|'+p);
       var r=await supa.from('usuarios').select('*').eq('username',u).eq('activo',true).single();
       if(r.data){
