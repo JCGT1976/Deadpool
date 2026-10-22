@@ -127,7 +127,8 @@ var _loginUser=null; // usuario actual en proceso de login
 
 async function doLogin(){
   var u=document.getElementById('usr').value.trim().toLowerCase();
-  var p=document.getElementById('pwd').value.trim().toUpperCase();
+  var pRaw=document.getElementById('pwd').value.trim();
+  var p=pRaw.toUpperCase();
   var err=document.getElementById('lerr'); err.textContent='';
   var cambioBox=document.getElementById('cambioBox');
   var loginBtn=document.getElementById('loginBtn');
@@ -156,7 +157,7 @@ async function doLogin(){
           // Verificar CREDS local antes de rechazar (resync automático)
           var hc=await sha256hex(u+'|'+p);
           var ic=CREDS[hc];
-          if(ic){saveSession(ic.role,ic.name,u);await openReport(ic.role,ic.name,u);return;}
+          if(ic){try{await supa.auth.signInWithPassword({email:u+'@mitechlocal.com',password:pRaw});}catch(_){}saveSession(ic.role,ic.name,u);await openReport(ic.role,ic.name,u);return;}
           err.textContent='Usuario o contraseña incorrectos.';
           loginBtn.textContent='Entrar'; loginBtn.disabled=false; return;
         }
@@ -170,6 +171,7 @@ async function doLogin(){
           loginBtn.textContent='Establecer contraseña';
           loginBtn.disabled=false; return;
         }
+        try{await supa.auth.signInWithPassword({email:u+'@mitechlocal.com',password:pRaw});}catch(_){}
         saveSession(usr.rol,usr.nombre,u);
         await openReport(usr.rol,usr.nombre,u);
         return;
@@ -182,6 +184,7 @@ async function doLogin(){
   var info=CREDS[h2];
   if(!info){err.textContent='Usuario o contraseña incorrectos.';loginBtn.textContent='Entrar';loginBtn.disabled=false;return;}
   try{
+    try{await supa.auth.signInWithPassword({email:u+'@mitechlocal.com',password:pRaw});}catch(_){}
     saveSession(info.role,info.name,u);
     await openReport(info.role,info.name,u);
   }catch(e){err.textContent='Error al abrir el reporte.';loginBtn.textContent='Entrar';loginBtn.disabled=false;}
