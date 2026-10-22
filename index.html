@@ -204,15 +204,30 @@ async function cambiarPasswordPrimerAcceso(usr,newPwd){
     await openReport(usr.rol,usr.nombre,usr.username);
   }catch(e){err.textContent='Error de conexión. Intenta de nuevo.';loginBtn.textContent='Establecer contraseña';loginBtn.disabled=false;}
 }
-// Restaurar sesión tras refresh (si no expiró)
-window.addEventListener('DOMContentLoaded',function(){
+// Restaurar sesión tras refresh (si no expiró), o SSO desde el Portal (sesión Supabase Auth compartida)
+window.addEventListener('DOMContentLoaded',async function(){
   try{
     var s=JSON.parse(sessionStorage.getItem('mitech_sess')||'null');
     if(s && s.exp && Date.now()<s.exp){
       saveSession(s.role,s.name,s.username||'');
-      openReport(s.role,s.name,s.username||'');
+      await openReport(s.role,s.name,s.username||'');
+      return;
     } else if(s){ clearSession(); }
   }catch(e){}
+  // SSO: si el Portal ya autenticó (Supabase Auth, mismo origen jcgt1976.github.io), entrar directo
+  try{
+    if(supa){
+      var sess=await supa.auth.getSession();
+      var authUser=sess && sess.data && sess.data.session && sess.data.session.user;
+      if(authUser){
+        var r=await supa.from('usuarios').select('*').eq('auth_id',authUser.id).single();
+        if(r.data && r.data.activo!==false && !r.data.debe_cambiar){
+          saveSession(r.data.rol,r.data.nombre,r.data.username||'');
+          await openReport(r.data.rol,r.data.nombre,r.data.username||'');
+        }
+      }
+    }
+  }catch(e){console.warn('SSO check:',e);}
 });
 document.getElementById('pwd').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 </script>
