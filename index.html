@@ -269,50 +269,73 @@ document.getElementById('pwd').addEventListener('keydown',function(e){if(e.key==
 var SN_TOK='a023b84d4615776c35b9d2cd118566c2cc08c26468722a972e30a7ea34f0865b';
 var SN_CACHE=null,SN_TS=0,SN_TTL=3600000;
 function snDate(d){var m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+dd;}
+async function snFetchFX(){
+ // open.er-api.com: gratis, sin clave, CORS OK
+ var r=await fetch('https://open.er-api.com/v6/latest/USD');
+ var d=await r.json();
+ return {rate:(1/d.rates.MXN).toFixed(4), mxn:d.rates.MXN.toFixed(4), ts:d.time_last_update_utc};
+}
+async function snFetchBanxico(series,from,to){
+ // Intenta CORS proxy hacia Banxico
+ var url='https://www.banxico.org.mx/SieAPIRest/service/v1/series/'+series+'/datos/'+from+'/'+to+'?token='+SN_TOK;
+ var proxy='https://api.allorigins.win/get?url='+encodeURIComponent(url);
+ var r=await fetch(proxy);
+ var wrapper=await r.json();
+ return JSON.parse(wrapper.contents);
+}
 async function snFetch(){
  var now=Date.now();
  if(SN_CACHE&&(now-SN_TS)<SN_TTL)return SN_CACHE;
  var today=snDate(new Date());
  var d10=new Date();d10.setDate(d10.getDate()-10);var from10=snDate(d10);
  var d400=new Date();d400.setDate(d400.getDate()-400);var from400=snDate(d400);
+ var result={fix:'--',fixChg:'--',fixBaja:true,tasa:'--',inflacion:'--',fecha:today,source:'cargando...'};
+ // 1. USD/MXN desde open.er-api (confiable)
  try{
-  var [r1,r2]=await Promise.all([
-   fetch('https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718,SF61745/datos/'+from10+'/'+today+'?token='+SN_TOK).then(function(r){return r.json();}),
-   fetch('https://www.banxico.org.mx/SieAPIRest/service/v1/series/SP1/datos/'+from400+'/'+today+'?token='+SN_TOK).then(function(r){return r.json();})
-  ]);
-  var fixArr=r1.bmx.series[0].datos,tasaArr=r1.bmx.series[1].datos;
-  var fixNow=parseFloat(fixArr[fixArr.length-1].dato);
-  var fixPrev=fixArr.length>1?parseFloat(fixArr[fixArr.length-2].dato):fixNow;
-  var fixChg=((fixNow-fixPrev)/fixPrev*100).toFixed(2);
-  var tasa=parseFloat(tasaArr[tasaArr.length-1].dato).toFixed(2);
-  var inpcArr=r2.bmx.series[0].datos;
+  var fx=await snFetchFX();
+  result.fix=fx.mxn;
+  result.fixChg='';
+  result.source='ExchangeRate-API';
+ }catch(e){console.warn('FX fetch:',e);}
+ // 2. Tasa + INPC desde Banxico via proxy (best effort)
+ try{
+  var bx=await snFetchBanxico('SF61745,SP1',from400,today);
+  var tasaArr=bx.bmx.series[0].datos;
+  result.tasa=parseFloat(tasaArr[tasaArr.length-1].dato).toFixed(2);
+  var inpcArr=bx.bmx.series[1].datos;
   var inpcNow=parseFloat(inpcArr[inpcArr.length-1].dato);
   var inpcPrev=parseFloat(inpcArr[Math.max(0,inpcArr.length-13)].dato);
-  var inflacion=((inpcNow/inpcPrev-1)*100).toFixed(2);
-  SN_CACHE={
-   fix:fixNow.toFixed(4),fixChg:fixChg,fixBaja:parseFloat(fixChg)<0,
-   tasa:tasa,inflacion:inflacion,
-   fecha:new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})
-  };
-  SN_TS=now;
- }catch(e){console.warn('Banxico fetch:',e);}
+  result.inflacion=((inpcNow/inpcPrev-1)*100).toFixed(2);
+  result.source='ExchangeRate-API + Banxico';
+ }catch(e){
+  // Fallback hardcoded para tasa e inflacion
+  result.tasa='6.25'; result.inflacion='3.75';
+  result.source=result.source+' (Banxico no disponible)';
+  console.warn('Banxico proxy:',e);
+ }
+ result.fecha=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+ SN_CACHE=result; SN_TS=now;
  return SN_CACHE;
 }
 function snUpdate(d){
  if(!d)return;
  var g=function(id){return document.getElementById(id);};
  if(g('snFixVal'))g('snFixVal').textContent=d.fix;
- if(g('snFixSub')){g('snFixSub').textContent=(d.fixBaja?'':'')+d.fixChg+'% vs anterior';g('snFixSub').style.color=d.fixBaja?'#3b6d11':'#a32d2d';}
  if(g('snTasaVal'))g('snTasaVal').textContent=d.tasa+'%';
  if(g('snInflVal'))g('snInflVal').textContent=d.inflacion+'%';
- if(g('snSrcDate'))g('snSrcDate').textContent='Banxico · actualizado '+d.fecha;
+ if(g('snFixSub')){g('snFixSub').textContent=d.fixChg?(d.fixChg+'% vs anterior'):'Tiempo real';}
+ if(g('snSrcDate'))g('snSrcDate').textContent=d.source+' · '+d.fecha;
  if(g('snLoading'))g('snLoading').style.display='none';
  if(g('snMacroWrap'))g('snMacroWrap').style.display='grid';
 }
-window.snRefresh=function snRefresh(){SN_TS=0;var l=document.getElementById('snLoading');if(l)l.style.display='block';var w=document.getElementById('snMacroWrap');if(w)w.style.display='none';snFetch().then(snUpdate);};
+window.snRefresh=function snRefresh(){
+ SN_TS=0;
+ var l=document.getElementById('snLoading');if(l)l.style.display='block';
+ var w=document.getElementById('snMacroWrap');if(w)w.style.display='none';
+ snFetch().then(snUpdate);
+};
 window.abrirNoticias=function abrirNoticias(){
- var ov=document.getElementById('sifNewsOverlay');
- if(!ov)return;
+ var ov=document.getElementById('sifNewsOverlay');if(!ov)return;
  ov.style.display='flex';
  var l=document.getElementById('snLoading');if(l)l.style.display='block';
  var w=document.getElementById('snMacroWrap');if(w)w.style.display='none';
