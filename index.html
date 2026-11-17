@@ -266,13 +266,60 @@ window.addEventListener('DOMContentLoaded',async function(){
 document.getElementById('pwd').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 
 // === SIF NOTICIAS ===
+var SN_TOK='a023b84d4615776c35b9d2cd118566c2cc08c26468722a972e30a7ea34f0865b';
+var SN_CACHE=null,SN_TS=0,SN_TTL=3600000;
+function snDate(d){var m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+dd;}
+async function snFetch(){
+ var now=Date.now();
+ if(SN_CACHE&&(now-SN_TS)<SN_TTL)return SN_CACHE;
+ var today=snDate(new Date());
+ var d10=new Date();d10.setDate(d10.getDate()-10);var from10=snDate(d10);
+ var d400=new Date();d400.setDate(d400.getDate()-400);var from400=snDate(d400);
+ try{
+  var [r1,r2]=await Promise.all([
+   fetch('https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718,SF61745/datos/'+from10+'/'+today+'?token='+SN_TOK).then(function(r){return r.json();}),
+   fetch('https://www.banxico.org.mx/SieAPIRest/service/v1/series/SP1/datos/'+from400+'/'+today+'?token='+SN_TOK).then(function(r){return r.json();})
+  ]);
+  var fixArr=r1.bmx.series[0].datos,tasaArr=r1.bmx.series[1].datos;
+  var fixNow=parseFloat(fixArr[fixArr.length-1].dato);
+  var fixPrev=fixArr.length>1?parseFloat(fixArr[fixArr.length-2].dato):fixNow;
+  var fixChg=((fixNow-fixPrev)/fixPrev*100).toFixed(2);
+  var tasa=parseFloat(tasaArr[tasaArr.length-1].dato).toFixed(2);
+  var inpcArr=r2.bmx.series[0].datos;
+  var inpcNow=parseFloat(inpcArr[inpcArr.length-1].dato);
+  var inpcPrev=parseFloat(inpcArr[Math.max(0,inpcArr.length-13)].dato);
+  var inflacion=((inpcNow/inpcPrev-1)*100).toFixed(2);
+  SN_CACHE={
+   fix:fixNow.toFixed(4),fixChg:fixChg,fixBaja:parseFloat(fixChg)<0,
+   tasa:tasa,inflacion:inflacion,
+   fecha:new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})
+  };
+  SN_TS=now;
+ }catch(e){console.warn('Banxico fetch:',e);}
+ return SN_CACHE;
+}
+function snUpdate(d){
+ if(!d)return;
+ var g=function(id){return document.getElementById(id);};
+ if(g('snFixVal'))g('snFixVal').textContent=d.fix;
+ if(g('snFixSub')){g('snFixSub').textContent=(d.fixBaja?'':'')+d.fixChg+'% vs anterior';g('snFixSub').style.color=d.fixBaja?'#3b6d11':'#a32d2d';}
+ if(g('snTasaVal'))g('snTasaVal').textContent=d.tasa+'%';
+ if(g('snInflVal'))g('snInflVal').textContent=d.inflacion+'%';
+ if(g('snSrcDate'))g('snSrcDate').textContent='Banxico · actualizado '+d.fecha;
+ if(g('snLoading'))g('snLoading').style.display='none';
+ if(g('snMacroWrap'))g('snMacroWrap').style.display='grid';
+}
+window.snRefresh=function snRefresh(){SN_TS=0;var l=document.getElementById('snLoading');if(l)l.style.display='block';var w=document.getElementById('snMacroWrap');if(w)w.style.display='none';snFetch().then(snUpdate);};
 window.abrirNoticias=function abrirNoticias(){
  var ov=document.getElementById('sifNewsOverlay');
- if(ov){ov.style.display='flex';}
+ if(!ov)return;
+ ov.style.display='flex';
+ var l=document.getElementById('snLoading');if(l)l.style.display='block';
+ var w=document.getElementById('snMacroWrap');if(w)w.style.display='none';
+ snFetch().then(snUpdate);
 };
 window.cerrarNoticias=function cerrarNoticias(){
- var ov=document.getElementById('sifNewsOverlay');
- if(ov){ov.style.display='none';}
+ var ov=document.getElementById('sifNewsOverlay');if(ov)ov.style.display='none';
 };
 window.cerrarPanelNews=function cerrarPanelNews(pid){
  var panel=document.getElementById(pid);
@@ -282,17 +329,14 @@ window.cerrarPanelNews=function cerrarPanelNews(pid){
 };
 window.cerrarNoticiasPermanente=function cerrarNoticiasPermanente(){
  try{localStorage.setItem('sif_news_seen_'+(window.__USERNAME__||'x'),'1');}catch(e){}
- var badge=document.getElementById('sifNewsBadge');
- if(badge)badge.style.display='none';
+ var badge=document.getElementById('sifNewsBadge');if(badge)badge.style.display='none';
  window.cerrarNoticias();
 };
 function initNoticias(username){
- var btn=document.getElementById('sifNewsBtn');
- if(btn)btn.style.display='flex';
+ var btn=document.getElementById('sifNewsBtn');if(btn)btn.style.display='flex';
  var seen=false;
  try{seen=!!localStorage.getItem('sif_news_seen_'+(username||'x'));}catch(e){}
- var badge=document.getElementById('sifNewsBadge');
- if(seen&&badge)badge.style.display='none';
+ var badge=document.getElementById('sifNewsBadge');if(seen&&badge)badge.style.display='none';
  if(!seen)window.abrirNoticias();
 }
 </script>
@@ -308,15 +352,17 @@ function initNoticias(username){
 </div></div>
 <div class="snPanel"><div class="snHead"><div class="snTitle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Indicadores macro</div><button class="snClose" onclick="window.cerrarPanelNews('snP2')">&#215;</button></div>
 <div class="snBody" id="snP2">
-<div class="snMacroGrid">
-<div class="snMacroCard"><div class="snMacroLabel">USD/MXN FIX</div><div class="snMacroVal">18.5983</div><div class="snMacroSub" style="color:#a32d2d">-0.16% vs anterior</div></div>
-<div class="snMacroCard"><div class="snMacroLabel">Tasa Banxico</div><div class="snMacroVal" style="color:#3b6d11">6.25%</div><div class="snMacroSub" style="color:#3b6d11">-25pb desde nov 6</div></div>
-<div class="snMacroCard"><div class="snMacroLabel">Inflacion anual INEGI oct 26</div><div class="snMacroVal" style="color:#ba7517">3.75%</div><div class="snMacroSub" style="color:#ba7517">3er mes al alza</div></div>
-<div class="snMacroCard"><div class="snMacroLabel">Diesel Mexico oct 26</div><div class="snMacroVal">$26.85/L</div><div class="snMacroSub" style="color:#a32d2d">Baja gradual; costos flete altos</div></div>
+<div style="text-align:center;padding:14px 0 4px;font-size:11px;color:#888" id="snLoading">Cargando indicadores Banxico...</div>
+<div class="snMacroGrid" id="snMacroWrap" style="display:none">
+<div class="snMacroCard"><div class="snMacroLabel">USD/MXN FIX</div><div class="snMacroVal" id="snFixVal">--</div><div class="snMacroSub" id="snFixSub" style="color:#888">--</div></div>
+<div class="snMacroCard"><div class="snMacroLabel">Tasa Banxico</div><div class="snMacroVal" style="color:#3b6d11" id="snTasaVal">--</div><div class="snMacroSub" style="color:#3b6d11">objetivo</div></div>
+<div class="snMacroCard"><div class="snMacroLabel">Inflacion anual INPC</div><div class="snMacroVal" style="color:#ba7517" id="snInflVal">--</div><div class="snMacroSub" style="color:#ba7517">vs mismo mes ano anterior</div></div>
+<div class="snMacroCard"><div class="snMacroLabel">Diesel Mexico</div><div class="snMacroVal">$26.85/L</div><div class="snMacroSub" style="color:#a32d2d">CRE oct 26</div></div>
 <div class="snMacroCard"><div class="snMacroLabel">Cruce Otay Express</div><div class="snMacroVal" style="color:#a32d2d">-20%</div><div class="snMacroSub">pases agiles</div></div>
-<div class="snWarn"><span class="snWarnLabel">Alerta rapida - Flujo efectivo</span>Banxico recorta a 6.25% pero inflacion sube; presion en costos operativos frontera</div>
-<div class="snSrc">Banxico - INEGI - CH Robinson - MBN - TijuanaEDC - 12 nov 2026</div>
-</div></div>
+<div class="snWarn"><span class="snWarnLabel">Alerta rapida - Flujo efectivo</span>Banxico recorta tasa pero inflacion sube; presion en costos operativos frontera</div>
+<div class="snSrc" id="snSrcDate">Banxico (cargando...)</div>
+</div>
+<div style="text-align:right;padding:0 2px 2px"><button onclick="window.snRefresh()" style="background:none;border:none;color:#185fa5;font-size:10px;cursor:pointer;padding:4px 0">Actualizar</button></div></div>
 <div class="snFooter"><button class="snBtn snBtnClose" onclick="window.cerrarNoticias()">Cerrar</button><button class="snBtn snBtnDismiss" onclick="window.cerrarNoticiasPermanente()">Entendido, no mostrar al iniciar</button></div>
 </div>
 </div>
