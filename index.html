@@ -149,7 +149,8 @@ async function openReport(role,name,username){
   var ubL=document.getElementById('ubLogout'); if(ubL)ubL.onclick=function(){doLogout('');};
   var scripts=c.querySelectorAll('script');
   scripts.forEach(function(old){var s=document.createElement('script');if(old.src){s.src=old.src;}else{s.textContent=old.textContent;}document.body.appendChild(s);});
-  if(window.__initReport__)window.__initReport__(role);
+  window.SIF_DP_CIUDAD=(function(){try{return localStorage.getItem('sif_dp_ciudad')||'tijuana';}catch(e){return 'tijuana';}})();
+  if(window.__initReport__)window.__initReport__(role, window.SIF_DP_CIUDAD);
   window.scrollTo(0,0);
   // activar control de inactividad
   ['click','keydown','scroll','touchstart','mousemove'].forEach(function(ev){document.addEventListener(ev,touchSession,{passive:true});});
